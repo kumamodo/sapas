@@ -1,0 +1,21 @@
+# ==========================================
+# Station Configuration
+# ==========================================
+
+# Define connectivity for all physical hardware units
+link:
+  # --- DUT 1: Primary Device Under Test ---
+  dut1:
+    type: ssh                # Connection type: supports ssh, adb, com
+    host: 192.168.1.110      # Device IP address
+    user: kumamodo           # Login username
+    password:                # Login password
+    stop_chars: ':~$'        # [Optional] Shell prompt termination characters
+
+  # --- DUT 2: Secondary Device Under Test ---
+  dut2:
+    type: ssh                # Connection type: supports ssh, adb, com
+    host: 192.168.7.2        # Device IP address
+    user: root               # Login username
+    password: ''             # Login password
+    stop_chars: '#'          # [Optional] Shell prompt termination characters

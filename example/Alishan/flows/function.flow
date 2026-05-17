@@ -1,0 +1,38 @@
+# ==============================================================================
+# STATION MISSION:
+# Verify PCBA integrity and connector functionality post-assembly.
+#
+# COMMAND DEFINITIONS:
+# - verify:  Executes a script and validates the return code. If the script 
+#            returns a non-zero value, the test fails and triggers 'on_fail'.
+# - action:  Executes a script for utility purposes (e.g., setup, logs). 
+#            It does not strictly validate the result for flow control.
+# - delay:   A built-in Sapas timer that pauses execution. Used to ensure 
+#            hardware stability without calling external Python scripts.
+# - cycle:   Repeats the defined block for a specific number of iterations. 
+#            Ideal for stress testing or stability verification.
+# - on_fail: A safety mechanism that triggers immediately if any 'verify' 
+#            step fails, ensuring proper cleanup or hardware reset.
+# ==============================================================================
+
+start function
+    cycle 1                                    # Start of test loop (runs once)
+        verify get_os_name.py                  # Verify OS type and system environment
+        delay 3                                # Pause for 3s to allow system stability
+        verify read_mac_address.py             # Read Bluetooth MAC from DUT
+        verify verify_mac_address.py           # Verify Bluetooth MAC prefix
+        
+        # [Demonstrating Nested Logic]
+        if FACTORY_LOCATION == Chiayi          # Regional logic check for Chiayi site
+            action sleep.py --sec 2            # Execution delay for specific production line
+            
+            if FACTORY_LOCATION == Changhua    # Nested check for Changhua site (Example)
+                action sleep.py --sec 3        # Extended wait time for secondary location
+            end_if
+        end_if
+stop                                           # End of main test sequence
+
+# --- Error Handling ---
+on_fail                                        # Triggered immediately if any step above fails
+    action sleep.py --sec 4                    # Cooldown/Reset period before operator intervention
+end

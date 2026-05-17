@@ -1,0 +1,109 @@
+from datetime import datetime
+
+from sapas.runtime.connection_manager import ConnectionManager
+from sapas.drivers.ssh import SSHDriver
+# from sapas.drivers.adb import ADBDriver
+# from sapas.drivers.serial import SerialDriver
+
+
+class _BaseTypedManager:
+    def __init__(self, conn_mgr, driver_type):
+        self._conn_mgr = conn_mgr
+        self._driver_type = driver_type
+
+    def get(self, name, **kwargs):
+        conn = self._conn_mgr.get(name, **kwargs)
+
+        if not isinstance(conn, self._driver_type):
+            raise TypeError(f"{name} is not a {self._driver_type.__name__}")
+
+        return conn
+
+class ExecutionContext:
+    # Internal components should use self.ctx directly
+    # while end-users are encouraged to use the sapas.var proxy.
+    def __init__(self, station_cfg: dict, project_cfg: dict, env_cfg: dict = None):
+        self.station = station_cfg or {}
+        self.project = project_cfg or {}
+        self.env = env_cfg or {}
+        
+        self.config = {}
+        self.external = {}
+        self.runtime = {}
+
+        # Merge all configurations; the order determines the priority.
+        self._merge_config()
+
+        # Get the link from the merged configuration.
+        link_configs = self.config.get("link", {})
+        self.link = ConnectionManager(link_configs)
+
+        self.ssh = _BaseTypedManager(self.link, SSHDriver)
+
+    def _merge_config(self):
+        # Later entries override earlier ones.
+        self.config = {
+            **self.station, 
+            **self.project, 
+            **self.env
+        }
+
+    def inject_sf(self, sf_data: dict):
+        self.external.update(sf_data)
+
+    def set(self, key, value):
+        self.runtime[key] = value
+
+    def get(self, key: str, default=None):
+        """
+        Retrieves a value from runtime, external, or config storage.
+        Supports dot-notation for nested dictionary access (e.g., 'PROJECT.NAME').
+        """
+        # Look up runtime first (it is usually flattened here).
+        if key in self.runtime:
+            return self.runtime[key]
+
+        # Prepare the lookup scope.
+        search_scopes = [self.external, self.config]
+
+        for scope in search_scopes:
+            # If there is a direct match, return it immediately.
+            if key in scope:
+                return scope[key]
+            
+            # If it contains dots, try resolving it as a nested path.
+            if "." in key:
+                parts = key.split(".")
+                val = scope
+                for part in parts:
+                    if isinstance(val, dict) and part in val:
+                        val = val[part]
+                    else:
+                        val = None
+                        break
+                
+                if val is not None:
+                    return val
+
+        return default
+    
+    def to_dict(self) -> dict:
+        """
+        Serializes the current execution context state into a dictionary.
+        This includes static configurations, external injections, and runtime variables.
+        """
+        def _get_serializable_only(data_map: dict):
+            # Keep only basic data types to avoid errors when serializing objects to YAML.
+            valid_types = (str, int, float, bool, list, dict, type(None))
+            return {k: v for k, v in data_map.items() if isinstance(v, valid_types)}
+
+        return {
+            "metadata": {
+                "exported_at": datetime.now().isoformat(),
+                "project": self.get("CURRENT_PROJECT_NAME"),
+                "station": self.get("CURRENT_STATION_NAME")
+            },
+            "configuration": _get_serializable_only(self.config),
+            "external_data": _get_serializable_only(self.external),
+            "runtime_context": _get_serializable_only(self.runtime)
+        }

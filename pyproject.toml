@@ -1,0 +1,19 @@
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "sapas"
+version = "0.1.0"
+description = "Sapas: A unified automation platform bridging RD verification and Factory Production testing."
+authors = [
+    { name="Your Name" }
+]
+dependencies = [
+    "PyYAML",
+    "rich",
+    "paramiko"
+]
+
+[project.scripts]
+sapas = "sapas.cli:main"
