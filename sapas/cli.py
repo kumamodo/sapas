@@ -145,7 +145,7 @@ def setup_context(args):
     return context
 
 def main():
-    parser = argparse.ArgumentParser(description="Sapas Testing Framework")
+    parser = argparse.ArgumentParser(description="Sapas Testing Framework", allow_abbrev=False)
     parser.add_argument("script", nargs="?", help="Path to user test script (.py)")
     parser.add_argument("--tui", action="store_true", help="Start the TUI interface mode.")
     parser.add_argument("--project", help="Specify the project name.")
