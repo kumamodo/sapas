@@ -7,6 +7,7 @@
 ## The Problem It Solves: The Cross-Team Fragmentation
 
 In the lifecycle of product development, a destructive cycle often occurs:
+
 1. **RD (Research & Development)** writes their own validation scripts in the lab to bring up the hardware.
 2. **TE (Test Engineering)** re-writes completely different automation blocks to fit their test equipment.
 3. **PE (Production/Manufacturing)** struggles to deploy a frankenstein framework on the shop floor, resulting in untraceable bugs and heavy maintenance overhead.
@@ -28,10 +29,10 @@ Sapas provides a clean abstraction layer that allows RD, TE, and Factory operato
 ## Why Sapas?
 
 * **Bridge the Gap**: Stop re-writing scripts. The exact same Python code written during early validation can be directly deployed onto the production line.
-* **Separation of Concerns**: 
-    * **RD** controls the **Logic** (How to interact with the device).
-    * **TE** controls the **Criteria & Sequence** (What defines a PASS/FAIL and in what order).
-    * **Sapas Engine** controls the **Infrastructure** (Logs, UI, data convergence, and hardware connection pools).
+* **Separation of Concerns**:
+  * **RD** controls the **Logic** (How to interact with the device).
+  * **TE** controls the **Criteria & Sequence** (What defines a PASS/FAIL and in what order).
+  * **Sapas Engine** controls the **Infrastructure** (Logs, UI, data convergence, and hardware connection pools).
 * **Defensive by Design**: Implements strict data normalization (e.g., rigid boolean convergence) and contract checking (`opas.var.require`) to prevent laboratory scripts from breaking under harsh factory environments.
 * **Aesthetic & Noise-Free CLI**: A unified terminal output powered by `rich`, using balanced visual markers (`✓` / `❌`) ensuring that field technicians can instantly read station health without parsing through raw text noise.
 
@@ -54,11 +55,16 @@ pip install -e .
 
 sapas --project <YOUR_PROJECT_NAME> --station <STATION_NAME>
 
+```
+
 ## Factory/Station Deployment (Recommended)
+
 Alternatively, to avoid typing long arguments, you can pre-define your target environment inside `site_infra.yaml`:
+
 ```yaml
 # site_infra.yaml(reference /example/Alishan)
 PROJECT_NAME: <YOUR_PROJECT_NAME>
 STATION_NAME: <STATION_NAME>
+```
 
-Run sapas in your project folder.
+Execute `sapas` in your project root. See the `Alishan` example for a complete demonstration.
