@@ -1,0 +1,2 @@
+Test Item,LSL,USL,Measured,Status,Description,ErrCode
+CPU_SN,RECORD,RECORD,NA,NA,Get CPU serial number,00006

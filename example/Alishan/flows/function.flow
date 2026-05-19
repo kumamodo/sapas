@@ -19,9 +19,10 @@ start function
     cycle 1                                                 # Start of test loop (runs once)
         verify get_os_name.py                               # Verify OS type and system environment
         delay 3                                             # Pause for 3s to allow system stability
-        verify read_mac_address.py                          # Read Bluetooth MAC from DUT
-        verify verify_mac_address.py                        # Verify Bluetooth MAC prefix
-        verify example_custom_args.py --test sapas001       # Get args from user-defined settings
+        verify set_context.py                               # Read Bluetooth MAC from DUT
+        verify get_context.py                               # Verify Bluetooth MAC prefix
+        verify custom_args.py --test sapas001               # Get args from user-defined settings
+        # verify test_via_ssh.py                            # Demonstrates how a TestItem performs testing via an SSH connection
         
         # [Demonstrating Nested Logic]
         if FACTORY_LOCATION == Chiayi                       # Regional logic check for Chiayi site

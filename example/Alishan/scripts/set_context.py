@@ -1,13 +1,13 @@
-# scripts/read_mac_address.py
+# scripts/set_context.py
 import sapas
 from sapas import TestItem
 
 class ReadMacAddress(TestItem):
-    measure_file="read_mac_adress.txt"
-    result_file="read_mac_adress_result.csv"
-    criteria_file="read_mac_adress_criteria.csv"
-    logs_folder="READ_MAC_ADDRESS"
-    logs_name="read_mac_adress.log"
+    measure_file="set_context.txt"
+    result_file="set_context_result.csv"
+    criteria_file="set_context_criteria.csv"
+    logs_folder="SET_CONTEXT"
+    logs_name="set_context.log"
 
     def run_test(self):
         self.log("Reading MAC address from DUT...")

@@ -10,11 +10,11 @@ class ExArgs(TestItem):
     
     # 1. Base Configurations: Define file outputs, log folders, and filenames.
     #    The framework automatically initializes these files under the output directory.
-    measure_file = "example_custom_args.txt"
-    result_file = "example_custom_args_result.csv"
-    criteria_file = "example_custom_args_criteria.csv"
+    measure_file = "custom_args.txt"
+    result_file = "custom_args_result.csv"
+    criteria_file = "custom_args_criteria.csv"
     logs_folder = "CUSTOM_ARGS"
-    logs_name = "example_custom_args.log"
+    logs_name = "custom_args.log"
 
     @classmethod
     def build_parser(cls, parser):
@@ -24,7 +24,7 @@ class ExArgs(TestItem):
         You can leverage standard Python 'argparse' syntax to register custom arguments.
         
         Example: Registering a '--test' argument of string type.
-        Usage: sapas example_custom_args.py --test sapas001
+        Usage: sapas custom_args.py --test sapas001
         """
         parser.add_argument(
             "--test", 

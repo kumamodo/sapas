@@ -1,13 +1,13 @@
-# scripts/verify_mac_address.py
+# scripts/get_context.py
 import sapas
 from sapas import TestItem
 
 class VerifyMacAddress(TestItem):
-    measure_file="verify_mac_adress.txt"
-    result_file="verify_mac_adress_result.csv"
-    criteria_file="verify_mac_adress_criteria.csv"
-    logs_folder="VERIFY_MAC_ADDRESS"
-    logs_name="verify_mac_adress.log"
+    measure_file="get_context.txt"
+    result_file="get_context_result.csv"
+    criteria_file="get_context_criteria.csv"
+    logs_folder="GET_CONTEXT"
+    logs_name="get_context.log"
 
     def run_test(self):
         # Core functionality: explicitly check prerequisite dependency variables.
