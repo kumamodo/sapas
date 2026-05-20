@@ -76,7 +76,7 @@ class Message:
                 # Set a wider width to prevent table wrapping.
                 console=Console(width=150),
                 rich_tracebacks=True,
-                markup=True,
+                markup=False,
                 # Set it to False if you don’t want to see
                 # log.py:line_number on the right side.
                 show_path=False

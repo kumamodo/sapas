@@ -278,8 +278,9 @@ class Runner():
 
                     # If it is a critical item (or of verify type),
                     # determine whether to abort the test.
-                    if prefix == 'verify' or return_code == 4800:
+                    if prefix == 'verify':
                         log('RUNNER', f"Critical failure detected. Aborting...")
+                        self.ctx.set('ERROR_CODE', 'CRITICAL')
                         has_item_fail = True
 
                 if prefix == 'action' and return_code == 0:
