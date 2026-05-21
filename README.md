@@ -68,3 +68,13 @@ STATION_NAME: <STATION_NAME>
 ```
 
 Execute `sapas` in your project root. See the `Alishan` example for a complete demonstration.
+
+## Advanced Development & Debugging
+
+Single-Step Script Execution (Isolated Testing)
+
+During development or factory-line debugging, you do not need to run the entire station testing loop just to verify a single modification. \*\*Sapas\*\* allows you to execute any individual \`TestItem\` or \`ActionItem\` script independently right from your project root directory.  Simply open your terminal at the project root and pass the filename directly to the \`sapas\` CLI:
+
+```bash
+sapas get_os_name.py
+```

@@ -32,6 +32,9 @@ start function
                 action sleep.py --sec 3                     # Extended wait time for secondary location
             end_if
         end_if
+
+        # --- Shopfloor Integration ---
+        action shopfloor_report.py                          # Aggregate context metrics and report to shopfloor/MES system
 stop                                                        # End of main test sequence
 
 # --- Error Handling ---
