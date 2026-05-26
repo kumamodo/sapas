@@ -1,0 +1,242 @@
+/* ==========================================================================
+   Global Screen & Application Root Settings
+   ========================================================================== */
+
+Screen {
+    background: #071016;
+    color: #d9e1e7;
+}
+
+#app-root {
+    height: 100%;
+    width: 100%;
+    layout: vertical;
+}
+
+/* ==========================================================================
+   Standard TUI Component Overrides (Header & Footer)
+   ========================================================================== */
+
+Header {
+    text-style: bold;
+    background: #123244;
+    color: #e8f3f8;
+}
+
+Footer {
+    background: #0b1820;
+}
+
+Footer > .footer--key {
+    color: #f2c94c;
+    background: #123244;
+    text-style: bold;
+}
+
+Footer > .footer--description {
+    color: #a6c7d8;
+}
+
+/* ==========================================================================
+   Top Dashboard Section (Information, Status, and Controls)
+   ========================================================================== */
+
+#top-row {
+    height: 6;
+    layout: grid;
+    grid-size: 4;
+    /* Grid columns split for: Information (34 chars), Error Code, Elapsed Time, and Serial Input */
+    grid-columns: 34 1fr 1fr 3fr; 
+    grid-gutter: 1;
+    /* Reduce bottom padding to 0 to minimize visual gap with the main body */
+    padding: 1 1 0 1; 
+}
+
+.top-box {
+    height: 100%;
+    background: #0b1820;
+    border: solid #2c4655;
+    padding: 0 1;
+    border-title-align: left;
+    border-title-style: bold;
+}
+
+.box-value {
+    height: 100%;
+    content-align: center middle;
+    color: #e8f3f8;
+    text-style: bold;
+}
+
+#info-value {
+    content-align: center middle;
+}
+
+/* --- Status Indicator Styles (Error Code Box) --- */
+#error-code {
+    content-align: center middle;
+    color: #657781;
+    text-style: bold;
+}
+
+#error-code.fail {
+    color: #ff5d5d;
+}
+
+#error-code.running {
+    color: #f2c94c;
+}
+
+#error-code.pass {
+    color: #40c878;
+}
+
+/* --- Diagnostic Timer Styles --- */
+#elapsed-time {
+    color: #f2c94c;
+}
+
+/* --- Serial Number Input & Action Trigger Controls --- */
+#serial-box {
+    layout: horizontal;
+    align: center middle;
+}
+
+#serial-input {
+    width: 70%;
+    height: 3;
+    margin: 0;
+    padding: 0 1;
+    background: #071016;
+    color: #f2f7fa;
+    border: solid #3e6476;
+    text-style: bold;
+}
+
+#serial-input:focus {
+    border: solid #8fb6c9;
+}
+
+#serial-input:disabled {
+    color: #657781;
+    border: solid #1d3039;
+}
+
+#start-button {
+    width: 25%;
+    height: 3;
+    margin: 0;
+    margin-left: 1;
+    border: solid #8fb6c9;
+    text-style: bold;
+}
+
+#start-button:focus {
+    border: solid #8fb6c9;
+}
+
+#start-button:disabled {
+    border: solid #1d3039;
+    color: #657781;
+}
+
+/* ==========================================================================
+   Main Body Section (Test Items List and Execution Live Log)
+   ========================================================================== */
+
+#main-body {
+    height: 1fr;
+    layout: grid;
+    grid-size: 2;
+    /* Column 34 matches perfectly with the Information dashboard widget above */
+    grid-columns: 34 1fr; 
+    grid-gutter: 1;
+    padding: 1;
+}
+
+#items-panel,
+#log-panel {
+    height: 100%;
+    background: #0a151c;
+    border: solid #2c4655;
+}
+
+/* --- Left Column: Test Steps Management --- */
+#items-panel {
+    layout: vertical;
+    padding: 0;
+}
+
+/* Synchronized menu header mimicking the log panel title bar height and style */
+#items-menu-bar {
+    height: 1;
+    background: #132833; 
+    color: #e8f3f8;
+    text-style: bold;
+    /* Horizontal padding allows alignment with lowercase text identifiers below */
+    padding: 0 1; 
+}
+
+#items-list {
+    height: 1fr;
+    padding: 1 1; /* 1-line top margin to give breathing room for the first item */
+    background: #081218;
+    color: #d9e1e7;
+}
+
+/* --- Right Column: Live Diagnostic Logs & Banners --- */
+#log-panel {
+    layout: vertical;
+    padding: 0;
+}
+
+#log-title {
+    height: 1;
+    background: #132833;
+    color: #e8f3f8;
+    text-style: bold;
+    content-align: center middle;
+}
+
+/* --- Execution Result Overlay Banner --- */
+#result-banner {
+    height: 0;
+    background: #081218;
+    content-align: center middle;
+    text-style: bold;
+}
+
+#result-banner.active {
+    height: 5;
+}
+
+#result-banner.pass {
+    color: #40c878;
+}
+
+#result-banner.fail {
+    color: #ff5d5d;
+}
+
+#live-log {
+    height: 1fr;
+    background: #081218;
+    color: #d9e1e7;
+    border: none;
+}
+
+/* ==========================================================================
+   Responsive Layout Rules (Fallback for Narrow Displays)
+   ========================================================================== */
+
+Screen.narrow #top-row {
+    grid-size: 1 4;
+    grid-columns: 1fr;
+    height: 24;
+}
+
+Screen.narrow #main-body {
+    grid-size: 1 2;
+    grid-columns: 1fr;
+    grid-rows: 1fr 2fr;
+}

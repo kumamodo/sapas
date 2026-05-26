@@ -160,7 +160,6 @@ def main():
     project_name = context.get("PROJECT_NAME", "Unknown")
     station_name = context.get("STATION_NAME", "Unknown")
     final_flow = args.test_flow if args.test_flow else f"{station_name}.flow"
-    draw_welcome_screen(project_name, station_name, final_flow)
 
     if args.script and args.script.endswith(".py"):
         # Mode A: execute a standalone script.
@@ -168,15 +167,16 @@ def main():
         from sapas.core.user_runner import run_user_script
         run_user_script(script_path.name, cli_args=args, user_args=remaining_args)
     elif args.tui:
-        # # Mode B: wrap it with a TUI shell.
-        # from sapas.tui.app import sapasTUIApp
-        # # Pass context and runner into the TUI here.
-        # app = sapasTUIApp(context=context, args=args)
-        # app.run()
-        console.print(Align.center("[bold yellow]Coming soon.....[/]"))
-        time.sleep(1)
+        # Mode B: wrap it with a TUI shell.
+        from sapas.tui.sapas_tui_dashboard import SapasDashboard
+        
+        # Pass the existing context and args into the TUI,
+        # so it doesn't have to initialize them blindly on its own.
+        app = SapasDashboard(context=context, cli_args=args)
+        app.run()
         sys.exit(0)
     else:
+        draw_welcome_screen(project_name, station_name, final_flow)
         try:
             while True:
                 sn_input = console.input("[bold green]Scan/Enter Serial Number[/] (or type 'exit'): ").strip()

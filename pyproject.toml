@@ -12,7 +12,8 @@ authors = [
 dependencies = [
     "PyYAML",
     "rich",
-    "paramiko"
+    "paramiko",
+    "textual>=0.80"
 ]
 
 [project.scripts]

@@ -267,7 +267,12 @@ class Runner():
 
                 # Any value other than 0 (PASS) indicates an issue
                 # (e.g., a 8080 failure condition or a script crash).
-                if return_code != 0:
+                if return_code == 8080:
+                    if prefix == 'verify':
+                        log('RUNNER', f"Item failure detected. Aborting...")
+                        has_item_fail = True
+
+                elif return_code != 0:
                     # Retrieve directly from ctx, since TestItem has already
                     # populated the most accurate ErrCode before completion.
                     err_code = self.ctx.get('ERROR_CODE') or 'UNKNOWN_ERROR_CODE'
@@ -282,6 +287,7 @@ class Runner():
                         log('RUNNER', f"Critical failure detected. Aborting...")
                         self.ctx.set('ERROR_CODE', 'CRITICAL')
                         has_item_fail = True
+                        self.critical_error = True
 
                 if prefix == 'action' and return_code == 0:
                     self.ctx.set('ERROR_CODE', 'PASS')

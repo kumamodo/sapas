@@ -28,7 +28,7 @@ Sapas provides a clean abstraction layer that allows RD, TE, and Factory operato
 
 ## Why Sapas?
 
-* **Bridge the Gap**: Stop re-writing scripts. The exact same Python code written during early validation can be directly deployed onto the production line.
+* \*\*Bridge the Gap\*\*: Stop re-writing scripts. The exact same Python code written during early validation can be directly deployed onto the production line.**Bridge the Gap**: Stop re-writing scripts. The exact same Python code written during early validation can be directly deployed onto the production line.
 * **Separation of Concerns**:
   * **RD** controls the **Logic** (How to interact with the device).
   * **TE** controls the **Criteria & Sequence** (What defines a PASS/FAIL and in what order).
@@ -48,13 +48,23 @@ Sapas provides a clean abstraction layer that allows RD, TE, and Factory operato
 
 ## Installation & Getting Started
 
-To install Sapas in editable mode for cross-team development:
+To install or update Sapas in editable mode for cross-team development (this automatically updates dependencies such as \`textual\`):To install Sapas in editable mode for cross-team development:
 
 ```bash
+git pull
 pip install -e .
+```
 
+## Running the Standard CLI Mode
+
+```bash
 sapas --project <YOUR_PROJECT_NAME> --station <STATION_NAME>
+```
 
+## Running the Interactive TUI Dashboard (Recommended for Stations)
+
+```bash
+sapas --project <YOUR_PROJECT_NAME> --station <STATION_NAME> --tui
 ```
 
 ## Factory/Station Deployment (Recommended)
