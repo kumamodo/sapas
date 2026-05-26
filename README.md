@@ -4,6 +4,8 @@
 
 > **Sapas** /sa'baʃ/ — Inspired by the phrase for *"Bravo! Well done!"* Our goal is simple: when a test flow transits from design to factory, it just **PASS**.
 
+![Sapas Interactive TUI Dashboard](./docs/images/tui_screenshot.png)
+
 ## The Problem It Solves: The Cross-Team Fragmentation
 
 In the lifecycle of product development, a destructive cycle often occurs:
