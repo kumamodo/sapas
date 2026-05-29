@@ -19,6 +19,7 @@ from textual.containers import Container
 from textual.events import Resize
 from textual.widgets import Button, Input, RichLog, Static, Footer, Header
 
+
 # Ensure the repository root is in the system path for seamless module imports
 REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
@@ -110,10 +111,8 @@ class SapasDashboard(App[None]):
     AUTO_FOCUS = "#serial-input"
     CSS_PATH = "dashboard.tcss"
     BINDINGS = [
-        ("q", "quit", "Quit"),
         ("ctrl+q", "quit", "Quit"),
-        ("ctrl+c", "quit", "Quit"),
-        ("F2", "focus_serial", "Serial Number"),
+        ("f2", "focus_serial", "Serial Number"),
     ]
 
     def __init__(self, context=None, cli_args=None) -> None:
