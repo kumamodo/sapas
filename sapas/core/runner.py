@@ -25,6 +25,9 @@ class Runner():
         self.station_name = self.ctx.get("STATION_NAME")
 
     def _is_stop_requested(self) -> bool:
+        if self.ctx.get('STOP_REQUESTED', False):
+            log('RUNNER', "STOP_REQUESTED detected, stopping test.")
+            return True
         if self.stop_test_file_path.is_file():
             log('RUNNER', "stop.test detected, stopping test.")
             return True

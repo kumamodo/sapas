@@ -15,8 +15,9 @@ from pathlib import Path
 from rich.text import Text
 from textual import on
 from textual.app import App, ComposeResult
-from textual.containers import Container
+from textual.containers import Container, Grid
 from textual.events import Resize
+from textual.screen import ModalScreen
 from textual.widgets import Button, Input, RichLog, Static, Footer, Header
 
 
@@ -105,13 +106,45 @@ class LineCapture:
             self._buffer = ""
 
 
+class QuitConfirmScreen(ModalScreen[bool]):
+    """Confirmation dialog used to prevent accidental production stop/exit."""
+
+    BINDINGS = [
+        ("escape", "cancel", "Cancel"),
+        ("n", "cancel", "No"),
+        ("y", "confirm", "Yes"),
+    ]
+
+    def compose(self) -> ComposeResult:
+        yield Grid(
+            Static("Exit Sapas TUI Tester?", id="quit-title"),
+            Static("Current test will stop after the active item completes.", id="quit-message"),
+            Static("", classes="quit-spacer"),
+            Button("Yes", variant="error", id="quit-yes"),
+            Static("", classes="quit-spacer"),
+            Button("No", variant="primary", id="quit-no"),
+            Static("", classes="quit-spacer"),
+            id="quit-dialog",
+        )
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        self.dismiss(event.button.id == "quit-yes")
+
+    def action_confirm(self) -> None:
+        self.dismiss(True)
+
+    def action_cancel(self) -> None:
+        self.dismiss(False)
+
+
 class SapasDashboard(App[None]):
     """Factory-grade Sapas production test dashboard built with Textual."""
 
     AUTO_FOCUS = "#serial-input"
-    CSS_PATH = "dashboard.tcss"
+    CSS_PATH = Path(__file__).with_name("dashboard.tcss")
     BINDINGS = [
-        ("ctrl+q", "quit", "Quit"),
+        ("ctrl+q", "request_quit", "Quit"),
+        ("ctrl+c", "request_quit", "Quit"),
         ("f2", "focus_serial", "Serial Number"),
     ]
 
@@ -125,6 +158,9 @@ class SapasDashboard(App[None]):
         self.running_step_key: str | None = None
         self.started_at: datetime | None = None
         self.is_testing = False
+        self.stop_requested = False
+        self._abort_ui = False
+        self._cycle_task: asyncio.Task | None = None
 
     def compose(self) -> ComposeResult:
         """Constructs the TUI visual tree hierarchy layout."""
@@ -274,6 +310,30 @@ class SapasDashboard(App[None]):
         """Action handler to focus on the serial number input field."""
         self.focus_serial_input()
 
+    def action_request_quit(self) -> None:
+        """Ask the operator to confirm before stopping execution and closing the TUI."""
+        if any(isinstance(screen, QuitConfirmScreen) for screen in self.screen_stack):
+            return
+        self.push_screen(QuitConfirmScreen(), self.handle_quit_confirmation)
+
+    def handle_quit_confirmation(self, confirmed: bool) -> None:
+        """Handle operator confirmation result from the quit dialog."""
+        if confirmed:
+            self.stop_and_exit()
+        else:
+            self.call_after_refresh(self.focus_serial_input)
+
+    def stop_and_exit(self) -> None:
+        """Exit after raising a cooperative stop request for any active runner."""
+        self._abort_ui = True
+        self._request_runner_stop()
+        self.exit()
+
+    def _request_runner_stop(self) -> None:
+        """Signal the in-process runner to stop without creating external stop files."""
+        if self.context is not None:
+            self.context.set("STOP_REQUESTED", True)
+
     def focus_serial_input(self) -> None:
         """Sets cursor focus directly onto the primary interactive text entry component."""
         serial_input = self.query_one("#serial-input", Input)
@@ -284,6 +344,7 @@ class SapasDashboard(App[None]):
         """Wipes terminal panels to bring the view back to a clean standby state."""
         self.started_at = None
         self.running_step_key = None
+        self.stop_requested = False
         self.step_status = {step.item_id: "PENDING" for step in self.test_steps}
         self.render_items_list()
 
@@ -358,11 +419,15 @@ class SapasDashboard(App[None]):
 
     def write_terminal_log(self, message: str, style: str = "white") -> None:
         """Writes message logs and updates item metrics simultaneously."""
+        if self._abort_ui:
+            return
         self.update_step_state_from_log(message)
         self.write_log(message, style)
 
     def emit_from_worker(self, message: str, style: str = "white") -> None:
         """Safely passes incoming background worker thread messages into the TUI main loop thread."""
+        if self._abort_ui:
+            return
         self.call_from_thread(self.write_terminal_log, message, style)
 
     def update_step_state_from_log(self, message: str) -> None:
@@ -413,10 +478,16 @@ class SapasDashboard(App[None]):
 
     def execute_real_flow(self, serial_number: str, timestamp: str):
         """Spins up synchronous flow execution engines with structured console logging redirection wrappers."""
+        if self._abort_ui:
+            return "STOP", self.context
+
         self.args.serialNumber = serial_number
         self.args.timeStamp = timestamp
 
         context = setup_context(self.args)
+        self.context = context
+        if self.stop_requested:
+            context.set("STOP_REQUESTED", True)
         runner = Runner(context)
 
         tui_handler = TUILogHandler(lambda line: self.emit_from_worker(line, "white"))
@@ -433,6 +504,35 @@ class SapasDashboard(App[None]):
             root_logger.removeHandler(tui_handler)
 
         return context.get("ERROR_CODE", "UNKNOWN"), context
+
+    async def run_flow_in_daemon_thread(self, serial_number: str, timestamp: str):
+        """Run the blocking runner without tying UI shutdown to asyncio's default executor."""
+        loop = asyncio.get_running_loop()
+        future = loop.create_future()
+
+        def finish(result=None, error: BaseException | None = None) -> None:
+            if future.done():
+                return
+            if error is not None:
+                future.set_exception(error)
+            else:
+                future.set_result(result)
+
+        def worker() -> None:
+            try:
+                result = self.execute_real_flow(serial_number, timestamp)
+            except BaseException as exc:
+                if not self._abort_ui:
+                    with contextlib.suppress(Exception):
+                        self.call_from_thread(finish, None, exc)
+            else:
+                if not self._abort_ui:
+                    with contextlib.suppress(Exception):
+                        self.call_from_thread(finish, result, None)
+
+        thread = threading.Thread(target=worker, name="SapasRunnerThread", daemon=True)
+        thread.start()
+        return await future
 
     def set_result_banner(self, result: str) -> None:
         """Toggles layout classes and maps visibility flags for overlay pass/fail result banners."""
@@ -454,29 +554,46 @@ class SapasDashboard(App[None]):
         return "FAIL    " + f"{FAIL_SYMBOL} UNIT REJECTED"
 
     @on(Input.Submitted, "#serial-input")
-    async def on_serial_submitted(self, event: Input.Submitted) -> None:
+    def on_serial_submitted(self, event: Input.Submitted) -> None:
         """Listens for enter key submissions inside input boxes."""
-        await self.start_cycle(event.value.strip())
+        self.start_cycle(event.value.strip())
 
     @on(Button.Pressed, "#start-button")
-    async def on_start_pressed(self) -> None:
+    def on_start_pressed(self) -> None:
         """Listens for active clicks targeting the primary cycle action button."""
-        await self.start_cycle(self.query_one("#serial-input", Input).value.strip())
+        if self.is_testing:
+            self.request_test_stop()
+            return
+        self.start_cycle(self.query_one("#serial-input", Input).value.strip())
 
-    async def start_cycle(self, serial_number: str) -> None:
+    def request_test_stop(self) -> None:
+        """Raise a cooperative stop request while keeping the dashboard open."""
+        if self.stop_requested:
+            return
+        self.stop_requested = True
+        if self.context is not None:
+            self.context.set("STOP_REQUESTED", True)
+        self.set_error_code("STOPPING", "running")
+        self.query_one("#start-button", Button).label = "Stopping"
+        self.write_terminal_log("Stop requested by operator. Waiting for current item to complete.", "bold yellow")
+
+    def start_cycle(self, serial_number: str) -> None:
         """Validates current state constraints before spawning execution cycles."""
         if self.is_testing or not serial_number:
             self.focus_serial_input()
             return
-        await self.run_station_cycle(serial_number)
+        self._abort_ui = False
+        self._cycle_task = asyncio.create_task(self.run_station_cycle(serial_number))
 
     async def run_station_cycle(self, serial_number: str) -> None:
         """Core Orchestrator Loop: Executes a full automated production-line cycle flow safely."""
         self.is_testing = True
+        self.stop_requested = False
         serial_input = self.query_one("#serial-input", Input)
         start_button = self.query_one("#start-button", Button)
         serial_input.disabled = True
-        start_button.disabled = True
+        start_button.disabled = False
+        start_button.label = "Stop"
 
         self.reset_station_view(clear_log=True)
         serial_input.value = serial_number
@@ -485,9 +602,9 @@ class SapasDashboard(App[None]):
         self.write_terminal_log(f"Serial Number accepted: {serial_number}", "bold white")
         self.write_terminal_log("Station interlock engaged. Real Sapas flow started.", "yellow")
 
-        # Offload synchronous execution logic seamlessly to threadpools
+        # Offload synchronous execution without blocking Textual's message pump or app shutdown.
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        final_status, context = await asyncio.to_thread(self.execute_real_flow, serial_number, timestamp)
+        final_status, context = await self.run_flow_in_daemon_thread(serial_number, timestamp)
 
         end_time = datetime.now()
         exact_elapsed = (end_time - self.started_at).total_seconds()
@@ -506,6 +623,10 @@ class SapasDashboard(App[None]):
             self.set_error_code(str(error_code or "PASS"), "pass")
             self.write_terminal_log("Final Result=PASS. Unit accepted.", "green")
             self.set_result_banner("PASS")
+        elif final_status == "STOP":
+            self.set_error_code(str(error_code or "STOP"), "running")
+            self.write_terminal_log("Final Result=STOP. Test stopped by operator.", "bold yellow")
+            self.set_result_banner("FAIL")
         else:
             error_code = str(error_code or "UNKNOWN")
             self.set_error_code(error_code, "fail")
@@ -518,6 +639,7 @@ class SapasDashboard(App[None]):
         serial_input.value = ""
         serial_input.disabled = False
         start_button.disabled = False
+        start_button.label = "Start"
         self.call_after_refresh(self.focus_serial_input)
 
 

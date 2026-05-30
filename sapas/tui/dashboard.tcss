@@ -94,6 +94,7 @@ Footer > .footer--description {
 /* --- Diagnostic Timer Styles --- */
 #elapsed-time {
     color: #f2c94c;
+    text-style: bold;
 }
 
 /* --- Serial Number Input & Action Trigger Controls --- */
@@ -239,4 +240,48 @@ Screen.narrow #main-body {
     grid-size: 1 2;
     grid-columns: 1fr;
     grid-rows: 1fr 2fr;
+}
+
+/* ==========================================================================
+   Operator Confirmation Dialogs
+   ========================================================================== */
+
+QuitConfirmScreen {
+    align: center middle;
+    background: #000000 65%;
+}
+
+#quit-dialog {
+    width: 64;
+    height: 11;
+    grid-size: 5;
+    grid-columns: 1fr 16 8 16 1fr;
+    grid-rows: 2 1fr 3;
+    grid-gutter: 1;
+    padding: 1 2;
+    background: #0b1820;
+    border: heavy #f2c94c;
+}
+
+#quit-title {
+    column-span: 5;
+    content-align: center middle;
+    text-style: bold;
+    color: #f2f7fa;
+}
+
+#quit-message {
+    column-span: 5;
+    content-align: center middle;
+    color: #a6c7d8;
+}
+
+#quit-yes,
+#quit-no {
+    height: 3;
+    width: 100%;
+}
+
+.quit-spacer {
+    height: 3;
 }
