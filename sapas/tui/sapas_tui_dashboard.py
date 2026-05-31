@@ -239,7 +239,7 @@ class SapasDashboard(App[None]):
         project_name = self.context.get("PROJECT_NAME", "Unknown")
         workspace_root = Path(self.context.get("WORKSPACE_ROOT", Path.cwd()))
         
-        # 2. Parse version.ver configuration file dynamically
+        # 2. Parse version.yaml configuration file dynamically
         ver_path = workspace_root / project_name / "configs" / "version.yaml"
         script_version = "v0.0.0"
         try:

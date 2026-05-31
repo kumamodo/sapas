@@ -2,6 +2,7 @@ import time
 import uuid
 import importlib.util
 import inspect
+import argparse
 import traceback
 from dataclasses import dataclass
 from typing import Optional
@@ -17,6 +18,11 @@ class ExecutionResult:
     success: bool
     stderr: str | None = None
     duration: float | None = None
+
+
+class ThrowingArgumentParser(argparse.ArgumentParser):
+    def error(self, message):
+        raise RuntimeError(f"Argument Error: {message}")
 
 
 class ScriptExecutor:
@@ -53,14 +59,20 @@ class ScriptExecutor:
 
             item_cls = cls_list[0]
             # Only ActionItem and TestItem parse script arguments.
-            import argparse
             if issubclass(item_cls, (ActionItem, TestItem)):
-                parser = argparse.ArgumentParser()
+                parser = ThrowingArgumentParser(add_help=False)
 
                 # Users can override this.
                 item_cls.build_parser(parser)
                 script_args = script_args or []
-                parsed_args = parser.parse_args(script_args)
+                try:
+                    parsed_args = parser.parse_args(script_args)
+                except RuntimeError as e:
+                    # Capture the error and raise as Exception for the outer handler
+                    raise e
+                except SystemExit:
+                    # In case something still tries to exit
+                    raise RuntimeError("Argument parsing failed and attempted to exit.")
 
                 # merge framework args
                 if framework_args:

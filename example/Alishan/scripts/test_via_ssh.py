@@ -13,7 +13,7 @@ class GetCpuSerialNumber(TestItem):
 
     def run_test(self):
         # 1. Retrieve the SSH connection instance from the environment.
-        #    Note: 'main_dut' must match the link name defined in /Alishan/tables/project.yaml.
+        #    Note: 'main_dut' must match the link name defined in /Alishan/configs/project.yaml.
         #    You can change this string to anything, as long as it matches the name in your YAML.
         #
         #    CONNECTION MANAGEMENT:
