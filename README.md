@@ -53,20 +53,20 @@ Sapas provides a clean abstraction layer that allows RD, TE, and Factory operato
 To install or update Sapas in editable mode for cross-team development (this automatically updates dependencies such as \`textual\`):To install Sapas in editable mode for cross-team development:
 
 ```bash
-git pull
+# 1. Clone the repository and install Sapas
+git clone [https://github.com/kumamodo/sapas.git](https://github.com/kumamodo/sapas.git)
+cd sapas
 pip install -e .
-```
 
-## Running the Standard CLI Mode
+# 2. Go to the example project folder (CRITICAL!)
+cd example/
 
-```bash
-sapas --project <YOUR_PROJECT_NAME> --station <STATION_NAME>
-```
+# 3. Run the automation platform (Choose one mode below)
+# Mode A: Standard CLI Mode
+sapas --project Alishan --station Function
 
-## Running the Interactive TUI Dashboard (Recommended for Stations)
-
-```bash
-sapas --project <YOUR_PROJECT_NAME> --station <STATION_NAME> --tui
+# Mode B: Interactive TUI Dashboard (Recommended for Stations)
+sapas --project Alishan --station Function --tui
 ```
 
 ## Factory/Station Deployment (Recommended)
@@ -74,12 +74,18 @@ sapas --project <YOUR_PROJECT_NAME> --station <STATION_NAME> --tui
 Alternatively, to avoid typing long arguments, you can pre-define your target environment inside `site_infra.yaml`:
 
 ```yaml
-# site_infra.yaml(reference /example/Alishan)
-PROJECT_NAME: <YOUR_PROJECT_NAME>
-STATION_NAME: <STATION_NAME>
+# site_infra.yaml (Example for Alishan)
+PROJECT_NAME: Alishan
+STATION_NAME: Function
 ```
 
-Execute `sapas` in your project root. See the `Alishan` example for a complete demonstration.
+Once this file is set up, simply navigate to that project directory (`example/`) and execute the bare command:Execute `sapas` in your project root. See the `Alishan` example for a complete demonstration.
+
+```bash
+sapas
+# or for TUI dashboard
+sapas --tui
+```
 
 ## Advanced Development & Debugging
 
