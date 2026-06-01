@@ -193,6 +193,13 @@ class Runner():
         while current_cycle <= self.cycle and not self.critical_error and not is_cycle_fail and not stop_test_flag:
             # At the start of each new iteration, reset the state for the current cycle.
             log('RUNNER', f"Starting Test Cycle {current_cycle} / {self.cycle}")
+
+            # Reset the context to clear all per-cycle runtime variables.
+            self.ctx.reset()
+            
+            # Re-initialize cycle status to Fail-Safe state.
+            self.ctx.set('ERROR_CODE', 'FAIL')
+            self.ctx.set('ERROR_DESCRIPTION', 'Test initialized but not completed')
             
             stop_test_flag = False
             if current_cycle >= 2:

@@ -430,8 +430,26 @@ class SapasDashboard(App[None]):
             return
         self.call_from_thread(self.write_terminal_log, message, style)
 
+    def reset_cycle_view(self) -> None:
+        """Resets the UI state for a new cycle within the same test session."""
+        self.running_step_key = None
+        self.step_status = {step.item_id: "PENDING" for step in self.test_steps}
+        self.render_items_list()
+
+        # Reset error code and banner for the new cycle
+        error_widget = self.query_one("#error-code", Static)
+        error_widget.remove_class("fail", "running", "pass")
+        error_widget.update("RUNNING")
+        error_widget.add_class("running")
+        self.set_result_banner("")
+
     def update_step_state_from_log(self, message: str) -> None:
         """State Machine Parser: Updates current step execution records using real-time log signatures."""
+        # Detect starting test cycle to reset item status
+        if "Starting Test Cycle" in message:
+            self.reset_cycle_view()
+            return
+
         # Match standard test item start signatures
         start_match = re.search(r"sapas\s+(.+)$", message)
         if start_match:

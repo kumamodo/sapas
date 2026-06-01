@@ -87,6 +87,30 @@ class ExecutionContext:
 
         return default
     
+    def reset(self):
+        """
+        Resets the dynamic state of the context for a new test cycle.
+        Clears per-DUT data while protecting station-level configurations.
+        """
+        # Protected keys that must survive the reset to maintain framework operation.
+        PROTECTED_SYSTEM_KEYS = {
+            'WORKSPACE_ROOT',
+            'PROJECT_NAME',
+            'STATION_NAME',
+            'RUNNER_LOGGER',
+            'IS_FAIL_STOP'
+        }
+
+        # Reset runtime context, preserving only the protected system variables.
+        self.runtime = {
+            key: value 
+            for key, value in self.runtime.items() 
+            if key in PROTECTED_SYSTEM_KEYS
+        }
+
+        # Wipe externally injected data (e.g. SN, shopfloor info) for the next DUT.
+        self.external = {}
+        
     def to_dict(self) -> dict:
         """
         Serializes the current execution context state into a dictionary.
