@@ -159,6 +159,8 @@ class SapasDashboard(App[None]):
         self.started_at: datetime | None = None
         self.is_testing = False
         self.stop_requested = False
+        self.current_cycle = 1
+        self.total_cycles = 1
         self._abort_ui = False
         self._cycle_task: asyncio.Task | None = None
 
@@ -221,7 +223,6 @@ class SapasDashboard(App[None]):
 
     async def on_mount(self) -> None:
         """Triggers asynchronous setup routines once screen mounting finishes initialization."""
-        self.title = "Sapas TUI Tester"
         self.setup_dashboard_flow()       
         self.reset_station_view(clear_log=True)
         self.set_interval(0.2, self.update_elapsed)
@@ -231,6 +232,24 @@ class SapasDashboard(App[None]):
 
     def setup_dashboard_flow(self) -> None:
         """Parses operational context and resolves exact execution metadata for display fields."""
+        if self.context is None:
+            return
+
+        # Extract and map executable step identifiers
+        self.test_steps, self.total_cycles = self.load_station_steps()
+        self.current_cycle = 1
+        
+        self.update_info_display()
+
+        self.step_index_by_item = {}
+        for step in self.test_steps:
+            self.step_index_by_item[step.flow_item] = step.item_id
+            if step.command == "delay":
+                with contextlib.suppress(ValueError):
+                    self.step_index_by_item[str(float(step.flow_item))] = step.item_id
+
+    def update_info_display(self) -> None:
+        """Updates the information box with current session metadata."""
         if self.context is None:
             return
 
@@ -246,7 +265,7 @@ class SapasDashboard(App[None]):
             with open(ver_path, "r", encoding="utf-8") as f:
                 data = yaml.safe_load(f)
                 script_version = data.get("version", "v0.0.0")
-        except Exception as e:
+        except Exception:
             pass
 
         # 3. Calculate target test flow layout descriptor
@@ -256,23 +275,23 @@ class SapasDashboard(App[None]):
         info_text = (
             f"Station: {station_name}\n"
             f"Script:  {script_version}\n"
-            f"Flow:    {requested_flow}"
+            f"Flow:    {requested_flow}\n"
+            f"Cycle:   {self.current_cycle}/{self.total_cycles}"
         )
         self.query_one("#info-value", Static).update(info_text)
+        
+        # 5. Update header title and sub_title with colors and symbols
+        self.title = Text.assemble(("Sapas TUI ", "bold cyan"), ("Tester", "bold white"))
+        self.sub_title = Text.assemble(
+            ("❱❱ ", "bold yellow"),
+            (f"Cycle {self.current_cycle}/{self.total_cycles}", "bold yellow"),
+            (" ❰❰", "bold yellow")
+        )
 
-        # 5. Extract and map executable step identifiers
-        self.test_steps = self.load_station_steps()
-        self.step_index_by_item = {}
-        for step in self.test_steps:
-            self.step_index_by_item[step.flow_item] = step.item_id
-            if step.command == "delay":
-                with contextlib.suppress(ValueError):
-                    self.step_index_by_item[str(float(step.flow_item))] = step.item_id
-
-    def load_station_steps(self) -> list[TestStep]:
+    def load_station_steps(self) -> tuple[list[TestStep], int]:
         """Loads and filters valid steps from target flow configurations via FlowLoader."""
         if self.context is None:
-            return []
+            return [], 1
 
         workspace_root = Path(self.context.get("WORKSPACE_ROOT", Path.cwd()))
         project_name = self.context.get("PROJECT_NAME")
@@ -286,7 +305,7 @@ class SapasDashboard(App[None]):
             if matches:
                 flow_path = matches[0]
 
-        _, flow_items, _ = FlowLoader().load_flow(str(flow_path))
+        cycle_count, flow_items, _ = FlowLoader().load_flow(str(flow_path))
         steps: list[TestStep] = []
         for command, item in flow_items:
             command = command.strip().lower()
@@ -296,7 +315,7 @@ class SapasDashboard(App[None]):
             item_id = f"{len(steps) + 1:02d}"
             label = f"{command} {item}".strip() if command == "delay" else item
             steps.append(TestStep(item_id=item_id, item_label=label, flow_item=item, command=command))
-        return steps
+        return steps, cycle_count
 
     def on_resize(self, event: Resize) -> None:
         """Handles screen resizing callbacks dynamically."""
@@ -446,7 +465,11 @@ class SapasDashboard(App[None]):
     def update_step_state_from_log(self, message: str) -> None:
         """State Machine Parser: Updates current step execution records using real-time log signatures."""
         # Detect starting test cycle to reset item status
-        if "Starting Test Cycle" in message:
+        cycle_match = re.search(r"Starting Test Cycle (\d+) / (\d+)", message)
+        if cycle_match:
+            self.current_cycle = int(cycle_match.group(1))
+            self.total_cycles = int(cycle_match.group(2))
+            self.update_info_display()
             self.reset_cycle_view()
             return
 

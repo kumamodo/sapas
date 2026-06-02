@@ -327,6 +327,9 @@ class Runner():
             # End of one cycle
             current_cycle += 1
             self._export_execution_snapshot()
+            if current_cycle <= self.cycle and not self.critical_error and not is_cycle_fail and not stop_test_flag:
+                # Small delay between cycles for visual feedback and system stabilization
+                time.sleep(1.0)
 
         if self._is_stop_requested():
             log('RUNNER', 'User stop test!')
