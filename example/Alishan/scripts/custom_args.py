@@ -1,11 +1,16 @@
+import sapas
 from sapas import TestItem
+
+@sapas.arg("--test", type=str, help="Custom user-defined parameter to be measured and validated against criteria.")
 
 class ExArgs(TestItem):
     """
     [Example] How to define and use custom CLI arguments in a Sapas TestItem.
     
-    Use this pattern when your test script logic needs dynamic input from the 
-    command line (e.g., specifying a target IP, custom timeout, or test tokens).
+    [Argument Registration]
+    Use @sapas.arg decorator to register custom arguments. 
+    Framework will automatically parse these arguments and inject them into `self.args`.
+    Usage: sapas custom_args.py --test sapas001
     """
     
     # 1. Base Configurations: Define file outputs, log folders, and filenames.
@@ -15,22 +20,6 @@ class ExArgs(TestItem):
     criteria_file = "custom_args_criteria.csv"
     logs_folder = "CUSTOM_ARGS"
     logs_name = "custom_args.log"
-
-    @classmethod
-    def build_parser(cls, parser):
-        """
-        [Step 1: Argument Registration]
-        This class method is automatically invoked by the framework during startup.
-        You can leverage standard Python 'argparse' syntax to register custom arguments.
-        
-        Example: Registering a '--test' argument of string type.
-        Usage: sapas custom_args.py --test sapas001
-        """
-        parser.add_argument(
-            "--test", 
-            type=str, 
-            help="Custom user-defined parameter to be measured and validated against criteria."
-        )
 
     def run_test(self):
         """

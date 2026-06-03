@@ -14,6 +14,22 @@ if TYPE_CHECKING:
     link: ConnectionManager
     var: VarProxy
 
+def arg(*args, **kwargs):
+    """
+    Decorator to register custom arguments for a TestItem or ActionItem.
+    Usage:
+        @sapas.arg("--my-param", type=str, help="Description")
+        class MyTest(TestItem):
+            ...
+    """
+    def decorator(cls):
+        if not hasattr(cls, '_custom_args'):
+            cls._custom_args = []
+        # Store arguments at the beginning to maintain relative order if stacked
+        cls._custom_args.insert(0, (args, kwargs))
+        return cls
+    return decorator
+
 def __getattr__(name):
     if name == "link":
         return ctx.link
@@ -22,6 +38,6 @@ def __getattr__(name):
     raise AttributeError(f"module '{__name__}' has no attribute '{name}'")
 
 __all__ = [
-    "ctx", "link", "var",
+    "ctx", "link", "var", "arg",
     "TestItem", "ActionItem", "BaseItem", "Message"
 ]

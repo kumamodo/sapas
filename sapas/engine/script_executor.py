@@ -4,6 +4,7 @@ import importlib.util
 import inspect
 import argparse
 import traceback
+import warnings
 from dataclasses import dataclass
 from typing import Optional
 
@@ -62,8 +63,29 @@ class ScriptExecutor:
             if issubclass(item_cls, (ActionItem, TestItem)):
                 parser = ThrowingArgumentParser(add_help=False)
 
-                # Users can override this.
+                # Process Decorator-based arguments (@sapas.arg)
+                if hasattr(item_cls, '_custom_args'):
+                    for a, kw in item_cls._custom_args:
+                        parser.add_argument(*a, **kw)
+
+                # Process legacy build_parser method (Backward Compatibility)
+                # Check if the user has overridden the default build_parser
+                base_cls = TestItem if issubclass(item_cls, TestItem) else ActionItem
+                if item_cls.build_parser.__func__ is not base_cls.build_parser.__func__:
+                    msg = (
+                        f"\n[DEPRECATION WARNING] In {script_path}:\n"
+                        "build_parser() is deprecated and will be removed in a future version.\n"
+                        "Please use the @sapas.arg decorator instead for a cleaner syntax.\n"
+                    )
+                    # Use print or logger to ensure visibility since DeprecationWarning 
+                    # is often silenced by default Python filters.
+                    if logger:
+                        logger.warning(msg)
+                    else:
+                        print(msg)
+
                 item_cls.build_parser(parser)
+                
                 script_args = script_args or []
                 try:
                     parsed_args = parser.parse_args(script_args)
