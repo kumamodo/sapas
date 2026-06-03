@@ -7,7 +7,7 @@ name = "sapas"
 version = "0.1.0"
 description = "Sapas: A unified automation platform bridging RD verification and Factory Production testing."
 authors = [
-    { name="Your Name" }
+    { name="Kumamodo", email="sapas0824@gmail.com" }
 ]
 dependencies = [
     "PyYAML",
