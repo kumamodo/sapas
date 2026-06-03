@@ -23,33 +23,34 @@ class SSHDriver:
         self._sftp_connected = False
 
     def connect(self):
-        if self._connected and self.is_alive():
+        if self.is_alive():
             return  # already connected
 
         log('SSH', f"Connecting to [{self.host}]")
-        self._ssh.connect()
-        self._connected = True
+        try:
+            self._ssh.connect()
+            self._connected = True
+        except Exception as e:
+            self._connected = False
+            log('SSH', f"Failed to connect to {self.host}: {e}")
+            raise
 
-    def exec(self, command, timeout=3, realtime=False, stop_chars=None):
+    def exec(self, command, timeout=3, wait_for_prompt=True, stop_chars=None):
         if stop_chars is None:
             stop_chars = self.stop_chars
-
-        # Automatically ensure the connection is alive before use.
-        self.ensure_connected()
 
         return self._ssh.send_command(
             command,
             timeout=timeout,
-            RealTimeOutput=realtime,
+            wait_for_prompt=wait_for_prompt,
             stop_chars=stop_chars,
         )
 
     def is_alive(self):
-        try:
-            # If _ssh exists, it is considered alive.
-            return self._ssh is not None
-        except Exception:
-            return False
+        """Check if the SSH connection is active."""
+        if self._ssh:
+            return self._ssh.is_active()
+        return False
 
     def reconnect(self):
         log('SSH', f"Reconnecting to {self.host}")

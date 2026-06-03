@@ -6,90 +6,80 @@ import sys
 import time
 import socket
 import paramiko
+import codecs
 
 from sapas.modules.log import log
 
+# ANSI / VT100 control codes removal regex.
+ANSI_ESCAPE = re.compile(r'\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])')
+
 
 class SSHExecutor:
-    def __init__(self, host, user, password, stop_chars=None):
+    def __init__(self, host, user, password, port=22, stop_chars=None):
         '''
         Args:
             host (str): Host ip
             user (str): username
             password (str): password for login
+            port (int): SSH port (default 22)
+            stop_chars (list): Default stop characters/prompts
 
         Returns:
             None
-
-        Example:
-            >>> SSHExecutor('172.168.13.1', 'root, '0000')
         '''
         self.host = host
         self.user = user
         self.password = password
-        self.bufsize = 2048
+        self.port = port
+        self.bufsize = 65536  # Increased buffer size for better performance
         self.client = None
         self.channel = None
         self._is_closed = False
-        # store default stop_chars
+        
+        # Centralized default stop_chars
+        self.default_stop_chars = ["#", ":~#", "$ ", "> "]
         if stop_chars is None:
-            self.stop_chars = ["#", ":~#"]
+            self.stop_chars = self.default_stop_chars
         elif isinstance(stop_chars, str):
             self.stop_chars = [stop_chars]
         else:
             self.stop_chars = stop_chars
 
-        log('SSH', f'Created new instance at {id(self)}')
+        log('SSH', f'Created new instance for {self.host} at {id(self)}')
 
-    def __get_response(self, session, timeout=3, RealTimeOutput=False, stop_chars=None):
+    def __get_response(self, session, timeout=3, stop_chars=None):
         """
         Poll SSH session until command completes or timeout expires.
-
-        Args:
-            session: Paramiko channel
-            timeout (int|float): max seconds to wait
-            RealTimeOutput (bool): if True, logs output as it arrives
-            stop_chars (str or list): prompt(s) to stop on
-
-        Returns:
-            str: collected output
         """
-        # Handle stop_chars.
         if stop_chars is None:
-            stop_chars = ["#", ":~#"]
+            stop_chars = self.stop_chars
         elif isinstance(stop_chars, str):
-            # Automatically wrap it into a list.
             stop_chars = [stop_chars]
-
-        # Remove ANSI / VT100 control codes.
-        ansi_escape = re.compile(r'\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])')
 
         output = ""
         start_time = time.time()
-        # non-blocking
-        session.setblocking(0)
+        
+        # Use IncrementalDecoder to handle UTF-8 chars split across chunks.
+        decoder = codecs.getincrementaldecoder("utf8")(errors="ignore")
 
         while True:
-            # Prevent 100% CPU usage.
-            time.sleep(0.05)
             try:
                 if session.recv_ready():
                     data = session.recv(self.bufsize)
                     if not data:
-                        continue
+                        break
 
-                    decoded = data.decode("utf8", "ignore")
+                    decoded = decoder.decode(data)
                     output += decoded
 
-                    if RealTimeOutput:
-                        log('SSH', decoded, end='')
-
-                    # Compare stop_chars after stripping control codes.
-                    cleaned_output = ansi_escape.sub("", output)
+                    # Performance optimization: Only check the "tail" of the output 
+                    tail_check_size = 512
+                    check_slice = output[-tail_check_size:]
+                    cleaned_tail = ANSI_ESCAPE.sub("", check_slice)
+                    
                     for stop in stop_chars:
-                        if stop in cleaned_output:
-                            # Return immediately when a stop_char is found.
-                            log('SSH', f'Polling finished - {len(output)} bytes')
+                        if stop in cleaned_tail:
+                            log('SSH', f'Polling finished - {len(output)} bytes (Prompt found)')
                             return output
 
             except socket.timeout:
@@ -104,27 +94,56 @@ class SSHExecutor:
 
             # Overall timeout.
             if (time.time() - start_time) > timeout:
-                log('SSH', f'Overall timeout {timeout} sec')
+                log('SSH', f'Overall timeout {timeout} sec reached')
                 break
 
             # Connection has been closed.
-            if session.exit_status_ready():
+            if session.exit_status_ready() and not session.recv_ready():
                 break
+            
+            # Prevent 100% CPU usage if no data is ready.
+            if not session.recv_ready():
+                time.sleep(0.01)
 
         log('SSH', f'Polling finished - {len(output)} bytes')
         return output
 
-    def connect(self):
+    def connect(self, timeout=3):
         try:
             self.client = paramiko.SSHClient()
             self.client.set_missing_host_key_policy(paramiko.AutoAddPolicy)
-            self.client.connect(self.host, 22, username=self.user, password=self.password, timeout=3)
-            log('SSH', 'Successfully connected to [{}]'.format(self.host))
+            
+            # Revert to positional arguments and original timeout
+            self.client.connect(self.host, 22, username=self.user, password=self.password, timeout=timeout)
+            
+            log('SSH', f'Successfully connected to [{self.host}]')
+            
+            # Create interactive shell
             self.channel = self.client.invoke_shell()
+            self.channel.setblocking(0)
+            
+            # Initial wait for prompt
+            self.__get_response(self.channel, timeout=2)
+            
         except Exception as e:
-            log('SSH', 'Can not establish a connection: {}'.format(e))
-            self.client.close()
-            sys.exit(0)
+            error_msg = f'Failed to establish SSH connection to {self.host}: {e}'
+            log('SSH', error_msg)
+            self.close()
+            raise RuntimeError(error_msg)
+
+    def is_active(self):
+        """Check if the connection and channel are still active."""
+        if not self.client or not self.channel:
+            return False
+        
+        transport = self.client.get_transport()
+        if transport is None or not transport.is_active():
+            return False
+            
+        if self.channel.closed:
+            return False
+            
+        return True
 
     def close(self):
         if self._is_closed:
@@ -136,22 +155,61 @@ class SSHExecutor:
             if self.client:
                 self.client.close()
                 log('SSH', f'Connection closed [{self.host}]')
-            self._is_closed = True
         except Exception:
             pass
+        finally:
+            self._is_closed = True
 
-    def send_command(self, command, timeout=3, ignoreResponse=False, RealTimeOutput=False, stop_chars=None):
-        # RTO mean: Real-Time-Output
+    def send_command(self, command, timeout=3, wait_for_prompt=True, stop_chars=None):
+        """
+        Send a command to the SSH session.
+
+        Args:
+            command (str): The command to execute.
+            timeout (int): Max seconds to wait for prompt.
+            wait_for_prompt (bool): If False, return immediately after sending (async mode).
+            stop_chars (list): Custom prompt characters to stop on.
+        """
+        max_retries = 3
+        retry_delay = 1
+
+        if not self.is_active():
+            log('SSH', 'Connection lost, attempting to reconnect...')
+            for i in range(max_retries):
+                try:
+                    self.connect()
+                    log('SSH', f'Reconnected successfully on attempt {i+1}.')
+                    break
+                except Exception as e:
+                    if i == max_retries - 1:
+                        error_msg = f"Failed to reconnect after {max_retries} attempts."
+                        log('SSH', error_msg)
+                        raise RuntimeError(error_msg)
+                    log('SSH', f'Reconnect attempt {i+1} failed. Retrying in {retry_delay}s...')
+                    time.sleep(retry_delay)
+
         log('SSH', f'[CMD]: {command}')
-        self.channel.send(command + '\n')
-        if ignoreResponse:
-            return f'[CMD]: {command} Done.'
-        results = self.__get_response(self.channel, timeout, RealTimeOutput, stop_chars)
+        cmd_to_send = command if command.endswith('\n') else command + '\n'
+        
+        # Double check channel after potential reconnection
+        try:
+            self.channel.send(cmd_to_send)
+        except Exception as e:
+            # Last ditch effort: if send fails even after is_active check, 
+            # it might have just died. 
+            log('SSH', f'Send failed ({e}), one final retry of the command...')
+            self.connect()
+            self.channel.send(cmd_to_send)
+        
+        if not wait_for_prompt:
+            return f'[CMD]: {command} sent (async).'
+            
+        results = self.__get_response(self.channel, timeout, stop_chars)
         return results
     
     def __del__(self):
-        # Destructor acts only as a last line of defense.
-        # Note: During Python shutdown, global variables may already be None.
-        # Check if sys still exists; if not, Python is shutting down.
-        if sys is not None and not self._is_closed:
-            self.close()
+        if not self._is_closed:
+            try:
+                self.close()
+            except:
+                pass
