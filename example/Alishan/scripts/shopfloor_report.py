@@ -12,7 +12,7 @@ class ShopfloorReport(ActionItem):
         sf_payload = sapas.var.get('TEST_DATA_STRING')
 
         if not sf_payload:
-            self.log('[Shopfloor] TEST_DATA_STRING is empty. Skipping report.')
+            sapas.warn('[Shopfloor] TEST_DATA_STRING is empty. Skipping report.')
             return
 
         # 2. Format the payload to ensure compatibility with standard Shopfloor 
@@ -20,9 +20,9 @@ class ShopfloorReport(ActionItem):
         clean_payload = sf_payload.strip().replace('\n', '\r\n')
 
         # 3. Print the formatted payload to terminal/log for full traceability
-        self.log(f'[Shopfloor] Preparing to report data...\n{clean_payload}')
+        sapas.info(f'[Shopfloor] Preparing to report data...\n{clean_payload}')
 
         # TODO: Implement your shopfloor API client or socket connection here
         # e.g., shopfloor_client.post(clean_payload)
         
-        self.log('[Shopfloor] Data reported successfully.')
+        sapas.info('[Shopfloor] Data reported successfully.')

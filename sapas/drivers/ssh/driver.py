@@ -2,7 +2,7 @@ import logging
 
 from sapas.drivers.ssh.executor import SSHExecutor
 from sapas.drivers.ssh.sftp import SFTPClient
-from sapas.modules.log import log
+from sapas.modules.log import _log, info, error
 
 # Disable printing of Paramiko “unimplemented message” logs.
 logging.getLogger("paramiko").setLevel(logging.ERROR)
@@ -26,13 +26,13 @@ class SSHDriver:
         if self.is_alive():
             return  # already connected
 
-        log('SSH', f"Connecting to [{self.host}]")
+        info(f"Connecting to [{self.host}]", tag='SSH')
         try:
             self._ssh.connect()
             self._connected = True
         except Exception as e:
             self._connected = False
-            log('SSH', f"Failed to connect to {self.host}: {e}")
+            error(f"Failed to connect to {self.host}: {e}", tag='SSH')
             raise
 
     def exec(self, command, timeout=3, wait_for_prompt=True, stop_chars=None):
@@ -53,7 +53,7 @@ class SSHDriver:
         return False
 
     def reconnect(self):
-        log('SSH', f"Reconnecting to {self.host}")
+        info(f"Reconnecting to {self.host}", tag='SSH')
         self.close()
         self.connect()
 
@@ -74,22 +74,22 @@ class SSHDriver:
 
     def upload(self, local_path, remote_path):
         self.connect_sftp()
-        log('SSH', f"[UPLOAD]: {local_path} -> {remote_path}")
+        info(f"[UPLOAD]: {local_path} -> {remote_path}", tag='SSH')
         return self._sftp.putFile(local_path, remote_path)
 
     def download(self, remote_path, local_path):
         self.connect_sftp()
-        log('SSH', f"[DOWNLOAD]: {remote_path} -> {local_path}")
+        info(f"[DOWNLOAD]: {remote_path} -> {local_path}", tag='SSH')
         return self._sftp.getFile(remote_path, local_path)
 
     def upload_dir(self, local_dir, remote_dir):
         self.connect_sftp()
-        log('SSH', f"[UPLOAD_DIR]: {local_dir} -> {remote_dir}")
+        info(f"[UPLOAD_DIR]: {local_dir} -> {remote_dir}", tag='SSH')
         return self._sftp.putFolder(local_dir, remote_dir)
 
     def download_dir(self, remote_dir, local_dir):
         self.connect_sftp()
-        log('SSH', f"[DOWNLOAD_DIR]: {remote_dir} -> {local_dir}")
+        info(f"[DOWNLOAD_DIR]: {remote_dir} -> {local_dir}", tag='SSH')
         return self._sftp.getFolder(remote_dir, local_dir)
 
     def close(self):

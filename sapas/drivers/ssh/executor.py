@@ -8,7 +8,7 @@ import socket
 import paramiko
 import codecs
 
-from sapas.modules.log import log
+from sapas.modules.log import _log, info, error
 
 # ANSI / VT100 control codes removal regex.
 ANSI_ESCAPE = re.compile(r'\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])')
@@ -45,7 +45,7 @@ class SSHExecutor:
         else:
             self.stop_chars = stop_chars
 
-        log('SSH', f'Created new instance for {self.host} at {id(self)}')
+        info(f'Created new instance for {self.host} at {id(self)}', tag='SSH')
 
     def __get_response(self, session, timeout=3, stop_chars=None):
         """
@@ -79,22 +79,22 @@ class SSHExecutor:
                     
                     for stop in stop_chars:
                         if stop in cleaned_tail:
-                            log('SSH', f'Polling finished - {len(output)} bytes (Prompt found)')
+                            info(f'Polling finished - {len(output)} bytes (Prompt found)', tag='SSH')
                             return output
 
             except socket.timeout:
-                log('SSH', f'Socket timeout after {timeout} sec')
+                warn(f'Socket timeout after {timeout} sec', tag='SSH')
                 break
             except Exception as e:
                 if 'unimplemented' in str(e):
                     continue
                 else:
-                    log('SSH', f'Exception {e}')
+                    error(f'Exception {e}', tag='SSH')
                     break
 
             # Overall timeout.
             if (time.time() - start_time) > timeout:
-                log('SSH', f'Overall timeout {timeout} sec reached')
+                warn(f'Overall timeout {timeout} sec reached', tag='SSH')
                 break
 
             # Connection has been closed.
@@ -105,7 +105,7 @@ class SSHExecutor:
             if not session.recv_ready():
                 time.sleep(0.01)
 
-        log('SSH', f'Polling finished - {len(output)} bytes')
+        info(f'Polling finished - {len(output)} bytes', tag='SSH')
         return output
 
     def connect(self, timeout=3):
@@ -116,7 +116,7 @@ class SSHExecutor:
             # Revert to positional arguments and original timeout
             self.client.connect(self.host, 22, username=self.user, password=self.password, timeout=timeout)
             
-            log('SSH', f'Successfully connected to [{self.host}]')
+            info(f'Successfully connected to [{self.host}]', tag='SSH')
             
             # Create interactive shell
             self.channel = self.client.invoke_shell()
@@ -127,7 +127,7 @@ class SSHExecutor:
             
         except Exception as e:
             error_msg = f'Failed to establish SSH connection to {self.host}: {e}'
-            log('SSH', error_msg)
+            error(error_msg, tag='SSH')
             self.close()
             raise RuntimeError(error_msg)
 
@@ -154,7 +154,7 @@ class SSHExecutor:
                 self.channel.close()
             if self.client:
                 self.client.close()
-                log('SSH', f'Connection closed [{self.host}]')
+                info(f'Connection closed [{self.host}]', tag='SSH')
         except Exception:
             pass
         finally:
@@ -174,21 +174,21 @@ class SSHExecutor:
         retry_delay = 1
 
         if not self.is_active():
-            log('SSH', 'Connection lost, attempting to reconnect...')
+            warn('Connection lost, attempting to reconnect...', tag='SSH')
             for i in range(max_retries):
                 try:
                     self.connect()
-                    log('SSH', f'Reconnected successfully on attempt {i+1}.')
+                    info(f'Reconnected successfully on attempt {i+1}.', tag='SSH')
                     break
                 except Exception as e:
                     if i == max_retries - 1:
                         error_msg = f"Failed to reconnect after {max_retries} attempts."
-                        log('SSH', error_msg)
+                        error(error_msg, tag='SSH')
                         raise RuntimeError(error_msg)
-                    log('SSH', f'Reconnect attempt {i+1} failed. Retrying in {retry_delay}s...')
+                    warn(f'Reconnect attempt {i+1} failed. Retrying in {retry_delay}s...', tag='SSH')
                     time.sleep(retry_delay)
 
-        log('SSH', f'[CMD]: {command}')
+        info(f'[CMD]: {command}', tag='SSH')
         cmd_to_send = command if command.endswith('\n') else command + '\n'
         
         # Double check channel after potential reconnection
@@ -197,7 +197,7 @@ class SSHExecutor:
         except Exception as e:
             # Last ditch effort: if send fails even after is_active check, 
             # it might have just died. 
-            log('SSH', f'Send failed ({e}), one final retry of the command...')
+            warn(f'Send failed ({e}), one final retry of the command...', tag='SSH')
             self.connect()
             self.channel.send(cmd_to_send)
         

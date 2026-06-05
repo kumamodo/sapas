@@ -10,14 +10,14 @@ class ReadMacAddress(TestItem):
     logs_name="set_context.log"
 
     def run_test(self):
-        self.log("Reading MAC address from DUT...")
+        sapas.info("Reading MAC address from DUT...")
         
         # Simulated raw data obtained from hardware (e.g., via SSH/UART command).
         mock_output = "Physical Address. . . . . . . . . : 00-1A-2B-3C-4D-5E"
         
         # Parse out the MAC address.
         mac_address = mock_output.split()[-1]
-        self.log(f"Successfully parsed MAC address: {mac_address}")
+        sapas.info(f"Successfully parsed MAC address: {mac_address}")
         
         # Core functionality: write variables into the global Context.
         sapas.var.set("DUT_MAC_ADDR", mac_address)

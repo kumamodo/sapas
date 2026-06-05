@@ -148,9 +148,29 @@ class TestItem(BaseItem, ABC):
         Example:
             self.log("Current voltage: %sV", voltage)
         """
+        if not getattr(self, '_log_deprecated_shown', False):
+            self._log_impl("[DEPRECATION] self.log() is deprecated and will be removed in future versions.", tag="WARN")
+            self._log_impl("             Please use self.info(), self.warn(), or self.error() instead.", tag="WARN")
+            setattr(self, '_log_deprecated_shown', True)
+        self._log_impl(message, *args, tag=tag)
+
+    def _log_impl(self, message: str, *args: any, tag: str = "USER") -> None:
+        """Internal logging implementation."""
         formatted_tag = f"[{tag:^8}]"
         full_message = f"{formatted_tag} {message}"
         self.logger.info(full_message, *args)
+
+    def info(self, message: str, *args: any) -> None:
+        """Logs an informational message."""
+        self._log_impl(message, *args, tag="INFO")
+
+    def warn(self, message: str, *args: any) -> None:
+        """Logs a warning message."""
+        self._log_impl(message, *args, tag="WARN")
+
+    def error(self, message: str, *args: any) -> None:
+        """Logs an error message."""
+        self._log_impl(message, *args, tag="ERROR")
 
     @abstractmethod
     def run_test(self) -> None:
@@ -191,6 +211,7 @@ class TestItem(BaseItem, ABC):
         return ret
 
     def _main_process(self):
+        ctx.set("ACTIVE_LOGGER", self.logger)
         try:
             self.run_test()
         except Exception as err:
@@ -200,6 +221,7 @@ class TestItem(BaseItem, ABC):
             traceback.print_exc()
             sys.stderr.write("\033[0m")
         finally:
+            ctx.set("ACTIVE_LOGGER", None)
             self.savelog.close()
             result_code = self._make_result()
 

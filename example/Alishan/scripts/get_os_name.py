@@ -1,4 +1,5 @@
 import subprocess
+import sapas
 from sapas import TestItem
 
 
@@ -12,7 +13,7 @@ class OsName(TestItem):
     def run_test(self):
         # Execute the command and strip leading and trailing newline characters.
         raw_output = subprocess.check_output('ver', shell=True).decode(errors='ignore').strip()
-        self.log(f"Raw System Output: {raw_output}")
+        sapas.info(f"Raw System Output: {raw_output}")
 
         # Split the string into a list of tokens, and filter out empty strings
         output_segments = [segment for segment in raw_output.split(' ') if segment]
@@ -27,4 +28,4 @@ class OsName(TestItem):
         # Write the measured value.
         # The name "OS_NAME" comes from the item name defined in your criteria file.
         self.measure.OS_NAME = extracted_name
-        self.log(f"Extracted OS Name for Measurement: {extracted_name}")
+        sapas.info(f"Extracted OS Name for Measurement: {extracted_name}")

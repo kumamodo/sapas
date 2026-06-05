@@ -32,8 +32,8 @@ class ExArgs(TestItem):
         #    You can access the values directly via `self.args.<your_argument_name>`.
         user_value = self.args.test
         
-        # self.log outputs to the terminal and automatically flushes to the log file.
-        self.log(f"Fetched custom argument from user: {user_value}")
+        # sapas.info outputs to the terminal and automatically flushes to the log file.
+        sapas.info(f"Fetched custom argument from user: {user_value}")
 
         # 3. Setting Measurement (Mapping to Criteria):
         #    Assign the fetched value to `self.measure.<field_name>`.

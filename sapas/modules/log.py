@@ -5,8 +5,11 @@ from rich.console import Console
 # Rich objects into plain text with proper alignment.
 _plain_console = Console(width=200, color_system=None, force_terminal=False)
 
-def log(tag, *args):
-    logger = ctx.get("RUNNER_LOGGER")
+_log_deprecated_shown = False
+
+def _log(tag, *args):
+    # Smart Detection: Priority 1: Current active item logger, Priority 2: Global runner logger
+    logger = ctx.get("ACTIVE_LOGGER") or ctx.get("RUNNER_LOGGER")
 
     formatted_tag = f"[{tag:^8}]"
     
@@ -40,12 +43,29 @@ def log(tag, *args):
             else:
                 print(full_msg)
 
+def log(tag, *args):
+    global _log_deprecated_shown
+    if not _log_deprecated_shown:
+        _log('WARN', "[DEPRECATION] sapas.log() is deprecated and will be removed in future versions.")
+        _log('WARN', "             Please use sapas.info(), sapas.warn(), or sapas.error() instead.")
+        _log_deprecated_shown = True
+    _log(tag, *args)
+
+def info(msg, *args, tag='INFO'):
+    _log(tag, msg, *args)
+
+def warn(msg, *args, tag='WARN'):
+    _log(tag, msg, *args)
+
+def error(msg, *args, tag='ERROR'):
+    _log(tag, msg, *args)
+
 def log_banner(title):
     line_width = 60
     separator = "=" * line_width
 
     inner_content = f"={title.center(line_width - 2)}="
     
-    log('ITEM', separator)
-    log('ITEM', inner_content)
-    log('ITEM', separator)
+    _log('ITEM', separator)
+    _log('ITEM', inner_content)
+    _log('ITEM', separator)
