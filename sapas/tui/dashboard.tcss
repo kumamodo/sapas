@@ -168,21 +168,17 @@ Footer > .footer--description {
     padding: 0;
 }
 
-/* Synchronized menu header mimicking the log panel title bar height and style */
-#items-menu-bar {
-    height: 1;
-    background: #132833; 
-    color: #e8f3f8;
-    text-style: bold;
-    /* Horizontal padding allows alignment with lowercase text identifiers below */
-    padding: 0 1; 
-}
-
-#items-list {
+#items-table {
     height: 1fr;
-    padding: 1 1; /* 1-line top margin to give breathing room for the first item */
     background: #081218;
     color: #d9e1e7;
+    border: none;
+}
+
+#items-table > .datatable--header {
+    background: #132833;
+    color: #e8f3f8;
+    text-style: bold;
 }
 
 /* --- Right Column: Live Diagnostic Logs & Banners --- */

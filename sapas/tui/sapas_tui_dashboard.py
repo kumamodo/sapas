@@ -19,7 +19,7 @@ from textual.app import App, ComposeResult
 from textual.containers import Container, Grid
 from textual.events import Resize
 from textual.screen import ModalScreen
-from textual.widgets import Button, Input, RichLog, Static, Footer, Header
+from textual.widgets import Button, Input, RichLog, Static, Footer, Header, DataTable
 
 
 # Ensure the repository root is in the system path for seamless module imports
@@ -52,26 +52,14 @@ class TestStep:
 def format_status(status: str) -> Text:
     """Generates padded Rich Text tokens for side-panel menu item statuses."""
     cells = {
-        "PENDING": ("  PENDING ", "dim"),
-        "RUNNING": ("  RUNNING ", "bold yellow"),
-        "PASS": (f"{PASS_SYMBOL} PASS   ", "bold green"),
-        "FAIL": (f"{FAIL_SYMBOL} FAIL  ", "bold red"),
-        "SKIP": ("  - SKIP  ", "cyan"),
-    }
-    value, style = cells[status]
-    return Text(value, style=style, no_wrap=True)
-
-
-def plain_status(status: str) -> tuple[str, str]:
-    """Retrieves the raw text and rich style pair for inline list rendering."""
-    cells = {
         "PENDING": ("PENDING", "dim"),
         "RUNNING": ("RUNNING", "bold yellow"),
         "PASS": (f"{PASS_SYMBOL} PASS", "bold green"),
         "FAIL": (f"{FAIL_SYMBOL} FAIL", "bold red"),
         "SKIP": ("- SKIP", "cyan"),
     }
-    return cells[status]
+    value, style = cells[status]
+    return Text(value, style=style, no_wrap=True)
 
 
 class TUILogHandler(logging.Handler):
@@ -210,8 +198,7 @@ class SapasDashboard(App[None]):
             ),
             Container(
                 Container(
-                    Static("Items                 Status", id="items-menu-bar"),
-                    Static("", id="items-list"),
+                    DataTable(id="items-table"),
                     id="items-panel"
                 ),
                 Container(
@@ -229,6 +216,13 @@ class SapasDashboard(App[None]):
     async def on_mount(self) -> None:
         """Triggers asynchronous setup routines once screen mounting finishes initialization."""
         self.install_signal_handlers()
+        
+        # Initialize DataTable columns
+        table = self.query_one("#items-table", DataTable)
+        table.add_column("Items", width=22, key="item")
+        table.add_column("Status", key="status")
+        table.cursor_type = "none" # Disable cell selection highlight
+
         self.setup_dashboard_flow()       
         self.reset_station_view(clear_log=True)
         self.set_interval(0.2, self.update_elapsed)
@@ -419,21 +413,29 @@ class SapasDashboard(App[None]):
 
     def render_items_list(self) -> None:
         """Renders out clean alphanumeric step identifiers within the diagnostic item view panel."""
-        item_width = 22
-        text = Text()
+        table = self.query_one("#items-table", DataTable)
+        table.clear()
         for step in self.test_steps:
             label = f"[{step.item_id}] {step.item_label}"
-            if len(label) > item_width:
-                label = label[: item_width - 1] + "."
-            status, style = plain_status(self.step_status.get(step.item_id, "PENDING"))
-            text.append(label.ljust(item_width), style="white")
-            text.append(f" {status}\n", style=style)
-        self.query_one("#items-list", Static).update(text)
+            status = self.step_status.get(step.item_id, "PENDING")
+            table.add_row(label, format_status(status), key=step.item_id)
 
     def set_step_status(self, row_key: str, status: str) -> None:
         """Updates internal dictionary keys and triggers state re-renders for test list cells."""
         self.step_status[row_key] = status
-        self.render_items_list()
+        try:
+            table = self.query_one("#items-table", DataTable)
+            # Check if row exists before updating to prevent CellDoesNotExist errors
+            if row_key in table.rows:
+                table.update_cell(row_key, "status", format_status(status))
+                if status == "RUNNING":
+                    table.scroll_to_row(row_key)
+            else:
+                # Row not found, trigger full refresh
+                self.render_items_list()
+        except Exception:
+            # Catch-all fallback to ensure the UI continues to function
+            self.render_items_list()
 
     def item_lookup_keys(self, item: str) -> list[str]:
         """Returns stable lookup aliases for flow items whose log text may be normalized."""
