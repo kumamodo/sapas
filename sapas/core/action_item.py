@@ -48,7 +48,7 @@ class ActionItem(BaseItem, ABC):
 
     def info(self, message: str, *args: any) -> None:
         """Logs an informational message."""
-        self._log_impl(message, *args, tag="INFO")
+        self._log_impl(message, *args, tag="ACTION")
 
     def warn(self, message: str, *args: any) -> None:
         """Logs a warning message."""
@@ -61,6 +61,7 @@ class ActionItem(BaseItem, ABC):
     def _main_process(self) -> int:
         """Encapsulates the standard error-handling workflow."""
         ctx.set("ACTIVE_LOGGER", self.logger)
+        ctx.set("ACTIVE_ITEM", self)
         try:
             self.run_action()
             return 0
@@ -69,3 +70,4 @@ class ActionItem(BaseItem, ABC):
             return 1
         finally:
             ctx.set("ACTIVE_LOGGER", None)
+            ctx.set("ACTIVE_ITEM", None)

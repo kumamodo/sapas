@@ -162,7 +162,7 @@ class TestItem(BaseItem, ABC):
 
     def info(self, message: str, *args: any) -> None:
         """Logs an informational message."""
-        self._log_impl(message, *args, tag="INFO")
+        self._log_impl(message, *args, tag="USER")
 
     def warn(self, message: str, *args: any) -> None:
         """Logs a warning message."""
@@ -212,6 +212,7 @@ class TestItem(BaseItem, ABC):
 
     def _main_process(self):
         ctx.set("ACTIVE_LOGGER", self.logger)
+        ctx.set("ACTIVE_ITEM", self)
         try:
             self.run_test()
         except Exception as err:
@@ -222,6 +223,7 @@ class TestItem(BaseItem, ABC):
             sys.stderr.write("\033[0m")
         finally:
             ctx.set("ACTIVE_LOGGER", None)
+            ctx.set("ACTIVE_ITEM", None)
             self.savelog.close()
             result_code = self._make_result()
 

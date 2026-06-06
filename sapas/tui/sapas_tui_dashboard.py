@@ -417,10 +417,16 @@ class SapasDashboard(App[None]):
         log_text = Text(message, style=style)
         
         # Color core subsystem markers distinctly
-        log_text.highlight_regex(r"\[\s*RUNNER\s*\]", "bold cyan")       
-        log_text.highlight_regex(r"\[\s*ACTION\s*\]", "bold dark_orange") 
-        log_text.highlight_regex(r"\[\s*USER\s*\]", "bold green")        
-        log_text.highlight_regex(r"\[\s*OUT\s*\]|\[\s*ITEM\s*\]", "dim") 
+        log_text.highlight_regex(r"\[\s*RUNNER\s*\]", "bold #5f87af")    
+        log_text.highlight_regex(r"\[\s*ACTION\s*\]", "bold #8787af")    
+        log_text.highlight_regex(r"\[\s*USER\s*\]", "bold #00afaf")      
+        log_text.highlight_regex(r"\[\s*INFO\s*\]", "bold #5f87af")      
+        log_text.highlight_regex(r"\[\s*WARN\s*\]", "bold yellow")      
+        log_text.highlight_regex(r"\[\s*ERROR\s*\]", "bold red")        
+        log_text.highlight_regex(r"\[\s*SSH\s*\]|\[\s*SFTP\s*\]", "bold #af87af") 
+        log_text.highlight_regex(r"\[\s*STDERR\s*\]", "bold red")      
+        log_text.highlight_regex(r"\[\s*ITEM\s*\]", "bold #87afd7")    
+        log_text.highlight_regex(r"\[\s*OUT\s*\]", "bold #d787d7")     
         
         # Identify specific low-level data telemetry dumps
         if message.startswith("##"):
