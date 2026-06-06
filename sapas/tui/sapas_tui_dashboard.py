@@ -43,6 +43,7 @@ SKIP_FLOW_COMMANDS = {"cycle", "if", "end_if"}
 class TestStep:
     """Data representation of an executable test sequence item parsed from flow files."""
     item_id: str
+    runner_index: str
     item_label: str
     flow_item: str
     command: str
@@ -154,7 +155,8 @@ class SapasDashboard(App[None]):
         self.args = cli_args or Namespace(project=None, station=None, test_flow=None, serialNumber="", timeStamp="")
         self.context = context
         self.test_steps: list[TestStep] = []
-        self.step_index_by_item: dict[str, str] = {}
+        self.step_index_by_runner_index: dict[str, str] = {}
+        self.pending_step_ids_by_item: dict[str, list[str]] = {}
         self.step_status: dict[str, str] = {}
         self.running_step_key: str | None = None
         self.started_at: datetime | None = None
@@ -268,12 +270,7 @@ class SapasDashboard(App[None]):
         
         self.update_info_display()
 
-        self.step_index_by_item = {}
-        for step in self.test_steps:
-            self.step_index_by_item[step.flow_item] = step.item_id
-            if step.command == "delay":
-                with contextlib.suppress(ValueError):
-                    self.step_index_by_item[str(float(step.flow_item))] = step.item_id
+        self.rebuild_step_indexes()
 
     def update_info_display(self) -> None:
         """Updates the information box with current session metadata."""
@@ -334,14 +331,22 @@ class SapasDashboard(App[None]):
 
         cycle_count, flow_items, _ = FlowLoader().load_flow(str(flow_path))
         steps: list[TestStep] = []
-        for command, item in flow_items:
+        for runner_index, (command, item) in enumerate(flow_items):
             command = command.strip().lower()
             item = item.strip()
             if command in SKIP_FLOW_COMMANDS:
                 continue
             item_id = f"{len(steps) + 1:02d}"
             label = f"{command} {item}".strip() if command == "delay" else item
-            steps.append(TestStep(item_id=item_id, item_label=label, flow_item=item, command=command))
+            steps.append(
+                TestStep(
+                    item_id=item_id,
+                    runner_index=f"{runner_index:02d}",
+                    item_label=label,
+                    flow_item=item,
+                    command=command,
+                )
+            )
         return steps, cycle_count
 
     def on_resize(self, event: Resize) -> None:
@@ -391,6 +396,7 @@ class SapasDashboard(App[None]):
         self.started_at = None
         self.running_step_key = None
         self.stop_requested = False
+        self.rebuild_step_indexes()
         self.step_status = {step.item_id: "PENDING" for step in self.test_steps}
         self.render_items_list()
 
@@ -428,6 +434,35 @@ class SapasDashboard(App[None]):
         """Updates internal dictionary keys and triggers state re-renders for test list cells."""
         self.step_status[row_key] = status
         self.render_items_list()
+
+    def item_lookup_keys(self, item: str) -> list[str]:
+        """Returns stable lookup aliases for flow items whose log text may be normalized."""
+        keys = [item]
+        with contextlib.suppress(ValueError):
+            value = float(item)
+            for key in (str(value), str(int(value)) if value.is_integer() else None):
+                if key is not None and key not in keys:
+                    keys.append(key)
+        return keys
+
+    def rebuild_step_indexes(self) -> None:
+        """Build repeat-safe lookup maps for the current flow display rows."""
+        self.step_index_by_runner_index = {}
+        self.pending_step_ids_by_item = {}
+        for step in self.test_steps:
+            self.step_index_by_runner_index[step.runner_index] = step.item_id
+            for key in self.item_lookup_keys(step.flow_item):
+                self.pending_step_ids_by_item.setdefault(key, []).append(step.item_id)
+
+    def pop_next_pending_step(self, item: str) -> str | None:
+        """Returns the next pending row for repeated flow items while preserving execution order."""
+        for key in self.item_lookup_keys(item):
+            candidates = self.pending_step_ids_by_item.get(key, [])
+            while candidates:
+                row_key = candidates.pop(0)
+                if self.step_status.get(row_key) == "PENDING":
+                    return row_key
+        return None
 
     def update_elapsed(self) -> None:
         """Periodic clock callback displaying accurate test execution time deltas."""
@@ -485,6 +520,7 @@ class SapasDashboard(App[None]):
     def reset_cycle_view(self) -> None:
         """Resets the UI state for a new cycle within the same test session."""
         self.running_step_key = None
+        self.rebuild_step_indexes()
         self.step_status = {step.item_id: "PENDING" for step in self.test_steps}
         self.render_items_list()
 
@@ -506,11 +542,13 @@ class SapasDashboard(App[None]):
             self.reset_cycle_view()
             return
 
-        # Match standard test item start signatures
-        start_match = re.search(r"sapas\s+(.+)$", message)
+        # Match standard test item start signatures emitted by Runner.log_banner:
+        # "12 sapas demo_logs.py". The numeric prefix is the original flow index,
+        # so it disambiguates duplicate script names.
+        start_match = re.search(r"\b(\d+)\s+sapas\s+(.+)$", message)
         if start_match:
-            item = start_match.group(1).strip()
-            row_key = self.step_index_by_item.get(item)
+            runner_index = f"{int(start_match.group(1)):02d}"
+            row_key = self.step_index_by_runner_index.get(runner_index)
             if row_key:
                 self.running_step_key = row_key
                 self.set_step_status(row_key, "RUNNING")
@@ -520,7 +558,7 @@ class SapasDashboard(App[None]):
         delay_match = re.search(r"Start delay:\s+(.+?)\s+seconds", message)
         if delay_match:
             delay_item = delay_match.group(1).strip()
-            row_key = self.step_index_by_item.get(delay_item)
+            row_key = self.pop_next_pending_step(delay_item)
             if row_key:
                 self.running_step_key = row_key
                 self.set_step_status(row_key, "RUNNING")
@@ -531,9 +569,10 @@ class SapasDashboard(App[None]):
         if result_match:
             item = result_match.group(1).strip()
             return_code = int(result_match.group(2))
-            row_key = self.step_index_by_item.get(item)
+            row_key = self.running_step_key or self.pop_next_pending_step(item)
             if row_key:
                 self.set_step_status(row_key, "PASS" if return_code == 0 else "FAIL")
+                self.running_step_key = None
             return
 
         # Catch delay end confirmations
