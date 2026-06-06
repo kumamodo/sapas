@@ -4,6 +4,7 @@ import asyncio
 import contextlib
 import logging
 import re
+import signal
 import sys
 import threading
 import yaml
@@ -163,6 +164,8 @@ class SapasDashboard(App[None]):
         self.total_cycles = 1
         self._abort_ui = False
         self._cycle_task: asyncio.Task | None = None
+        self._previous_sigint_handler = None
+        self._sigint_pending = False
 
     def compose(self) -> ComposeResult:
         """Constructs the TUI visual tree hierarchy layout."""
@@ -223,12 +226,36 @@ class SapasDashboard(App[None]):
 
     async def on_mount(self) -> None:
         """Triggers asynchronous setup routines once screen mounting finishes initialization."""
+        self.install_signal_handlers()
         self.setup_dashboard_flow()       
         self.reset_station_view(clear_log=True)
         self.set_interval(0.2, self.update_elapsed)
+        self.set_interval(0.1, self.check_signal_quit_request)
         self.apply_responsive_layout(self.screen.size.width)
         self.query_one("#live-log", RichLog).can_focus = False
         self.call_after_refresh(self.focus_serial_input)
+
+    def install_signal_handlers(self) -> None:
+        """Route terminal Ctrl+C/SIGINT through the same guarded quit dialog."""
+        self._previous_sigint_handler = signal.getsignal(signal.SIGINT)
+
+        def handle_sigint(_signum, _frame) -> None:
+            self._sigint_pending = True
+
+        signal.signal(signal.SIGINT, handle_sigint)
+
+    def check_signal_quit_request(self) -> None:
+        """Open the quit dialog from Textual's normal UI context after SIGINT."""
+        if not self._sigint_pending:
+            return
+        self._sigint_pending = False
+        self.action_request_quit()
+
+    def on_unmount(self) -> None:
+        """Restore the previous SIGINT handler when the app is torn down."""
+        if self._previous_sigint_handler is not None:
+            with contextlib.suppress(Exception):
+                signal.signal(signal.SIGINT, self._previous_sigint_handler)
 
     def setup_dashboard_flow(self) -> None:
         """Parses operational context and resolves exact execution metadata for display fields."""
