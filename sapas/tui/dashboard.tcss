@@ -45,8 +45,7 @@ Footer > .footer--description {
     height: 6;
     layout: grid;
     grid-size: 4;
-    /* Grid columns split for: Information (34 chars), Error Code, Elapsed Time, and Serial Input */
-    grid-columns: 28 15 18 1fr; 
+    grid-columns: 44 1fr 1fr 2fr; 
     grid-gutter: 1;
     /* Reduce bottom padding to 0 to minimize visual gap with the main body */
     padding: 1 1 0 1; 
@@ -59,6 +58,7 @@ Footer > .footer--description {
     padding: 0 1;
     border-title-align: left;
     border-title-style: bold;
+    align: center middle; 
 }
 
 .box-value {
@@ -69,7 +69,8 @@ Footer > .footer--description {
 }
 
 #info-value {
-    content-align: center middle;
+    content-align: left middle;
+    padding-left: 2;
 }
 
 /* --- Status Indicator Styles (Error Code Box) --- */
@@ -95,6 +96,7 @@ Footer > .footer--description {
 #elapsed-time {
     color: #f2c94c;
     text-style: bold;
+    content-align: center middle;
 }
 
 /* --- Serial Number Input & Action Trigger Controls --- */
@@ -104,7 +106,7 @@ Footer > .footer--description {
 }
 
 #serial-input {
-    width: 70%;
+    width: 65%;
     height: 3;
     margin: 0;
     padding: 0 1;
@@ -124,10 +126,11 @@ Footer > .footer--description {
 }
 
 #start-button {
-    width: 25%;
+    width: 16;
     height: 3;
     margin: 0;
-    margin-left: 1;
+    margin-left: 4;
+    content-align: center middle;
     border: solid #8fb6c9;
     text-style: bold;
 }
@@ -149,8 +152,7 @@ Footer > .footer--description {
     height: 1fr;
     layout: grid;
     grid-size: 2;
-    /* Column 34 matches perfectly with the Information dashboard widget above */
-    grid-columns: 44 1fr; 
+    grid-columns: 44 1fr;
     grid-gutter: 1;
     padding: 1;
 }
