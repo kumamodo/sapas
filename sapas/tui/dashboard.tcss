@@ -13,6 +13,20 @@ Screen {
     layout: vertical;
 }
 
+#app-root.sf-disabled {
+    border: heavy #ff5d5d;
+    border-subtitle-align: center;
+}
+
+#app-root.sf-disabled.blink {
+    border: heavy #800000;
+}
+
+#app-root.sf-enabled {
+    border: heavy #40c878;
+    border-subtitle-align: center;
+}
+
 /* ==========================================================================
    Standard TUI Component Overrides (Header & Footer)
    ========================================================================== */
@@ -203,17 +217,22 @@ Footer > .footer--description {
     background: #081218;
     content-align: center middle;
     text-style: bold;
+    border: none;
+    margin: 0 1;
 }
 
 #result-banner.active {
     height: 5;
+    margin: 1;
 }
 
 #result-banner.pass {
+    border: heavy #2e7d32;
     color: #40c878;
 }
 
 #result-banner.fail {
+    border: heavy #c62828;
     color: #ff5d5d;
 }
 

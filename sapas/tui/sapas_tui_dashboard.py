@@ -227,9 +227,18 @@ class SapasDashboard(App[None]):
         self.reset_station_view(clear_log=True)
         self.set_interval(0.2, self.update_elapsed)
         self.set_interval(0.1, self.check_signal_quit_request)
+        self.set_interval(1, self.toggle_sf_blink)
         self.apply_responsive_layout(self.screen.size.width)
         self.query_one("#live-log", RichLog).can_focus = False
         self.call_after_refresh(self.focus_serial_input)
+
+    def toggle_sf_blink(self) -> None:
+        """Toggles the blink class on the app root if Shopfloor is disabled."""
+        app_root = self.query_one("#app-root")
+        if app_root.has_class("sf-disabled"):
+            app_root.toggle_class("blink")
+        else:
+            app_root.remove_class("blink")
 
     def install_signal_handlers(self) -> None:
         """Route terminal Ctrl+C/SIGINT through the same guarded quit dialog."""
@@ -289,12 +298,30 @@ class SapasDashboard(App[None]):
         # 3. Calculate target test flow layout descriptor
         requested_flow = self.args.test_flow or f"{station_name}.flow"
 
-        # 4. Construct metadata text string using left-aligned factory guidelines
+        # 4. Check Shopfloor status
+        sf_enabled = self.context.get("ENABLE_SHOPFLOOR", False)
+        sf_status = "Enabled" if sf_enabled else "Disabled"
+        
+        # Apply visual indicator to app root
+        app_root = self.query_one("#app-root")
+        app_root.remove_class("sf-enabled", "sf-disabled")
+        if sf_enabled:
+            app_root.add_class("sf-enabled")
+            app_root.border_subtitle = " SHOPFLOOR ONLINE "
+            app_root.border_title = ""
+        else:
+            app_root.add_class("sf-disabled")
+            app_root.border_subtitle = " SHOPFLOOR OFFLINE "
+            app_root.border_title = ""
+
+        # 5. Construct metadata text string using left-aligned factory guidelines
+        sn = getattr(self.args, "serialNumber", "N/A") or "N/A"
         info_text = (
+            f"Serial:  {sn}\n"
             f"Station: {station_name}\n"
             f"Script:  {script_version}\n"
             f"Flow:    {requested_flow}\n"
-            f"Cycle:   {self.current_cycle}/{self.total_cycles}"
+            f"Shopfloor: {sf_status}"
         )
         self.query_one("#info-value", Static).update(info_text)
         
@@ -661,12 +688,19 @@ class SapasDashboard(App[None]):
         banner.add_class("pass" if result == "PASS" else "fail")
         banner.update(self.make_result_banner(result))
 
-    @staticmethod
-    def make_result_banner(result: str) -> str:
-        """Formats the textual payload string displayed inside overlay banners."""
-        if result == "PASS":
-            return "PASS    " + f"{PASS_SYMBOL} UNIT ACCEPTED"
-        return "FAIL    " + f"{FAIL_SYMBOL} UNIT REJECTED"
+    def make_result_banner(self, result: str) -> Text:
+        """Formats the textual payload string displayed inside overlay banners using Rich Text."""
+        sn = getattr(self.args, "serialNumber", "N/A") or "N/A"
+        
+        color = "bold green" if result == "PASS" else "bold red"
+        symbol = PASS_SYMBOL if result == "PASS" else FAIL_SYMBOL
+        status_text = "UNIT ACCEPTED" if result == "PASS" else "UNIT REJECTED"
+        
+        res = Text()
+        res.append(f"{result}  ", style=color)
+        res.append(f"[{sn}]  ", style="bold white")
+        res.append(f"{symbol} {status_text}", style=color)
+        return res
 
     @on(Input.Submitted, "#serial-input")
     def on_serial_submitted(self, event: Input.Submitted) -> None:
@@ -711,6 +745,9 @@ class SapasDashboard(App[None]):
         start_button.label = "Stop"
 
         self.reset_station_view(clear_log=True)
+        self.args.serialNumber = serial_number
+        self.update_info_display()
+
         serial_input.value = serial_number
         self.started_at = datetime.now()
         self.set_error_code("RUNNING", "running")
@@ -736,16 +773,13 @@ class SapasDashboard(App[None]):
         error_code = context.get("ERROR_CODE", final_status) if context else final_status
         if final_status == "PASS":
             self.set_error_code(str(error_code or "PASS"), "pass")
-            self.write_terminal_log("Final Result=PASS. Unit accepted.", "green")
             self.set_result_banner("PASS")
         elif final_status == "STOP":
             self.set_error_code(str(error_code or "STOP"), "running")
-            self.write_terminal_log("Final Result=STOP. Test stopped by operator.", "bold yellow")
             self.set_result_banner("FAIL")
         else:
             error_code = str(error_code or "UNKNOWN")
             self.set_error_code(error_code, "fail")
-            self.write_terminal_log(f"Final Result=FAIL. Error Code={error_code}. Unit rejected.", "bold red")
             self.set_result_banner("FAIL")
 
         # Keep the final status banner visible before unlocking input for the next scan
