@@ -219,7 +219,7 @@ class SapasDashboard(App[None]):
         
         # Initialize DataTable columns
         table = self.query_one("#items-table", DataTable)
-        table.add_column("Items", width=22, key="item")
+        table.add_column("Items", width=29, key="item")
         table.add_column("Status", key="status")
         table.cursor_type = "none" # Disable cell selection highlight
 

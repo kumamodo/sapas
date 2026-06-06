@@ -46,7 +46,7 @@ Footer > .footer--description {
     layout: grid;
     grid-size: 4;
     /* Grid columns split for: Information (34 chars), Error Code, Elapsed Time, and Serial Input */
-    grid-columns: 34 1fr 1fr 3fr; 
+    grid-columns: 28 15 18 1fr; 
     grid-gutter: 1;
     /* Reduce bottom padding to 0 to minimize visual gap with the main body */
     padding: 1 1 0 1; 
@@ -150,7 +150,7 @@ Footer > .footer--description {
     layout: grid;
     grid-size: 2;
     /* Column 34 matches perfectly with the Information dashboard widget above */
-    grid-columns: 34 1fr; 
+    grid-columns: 44 1fr; 
     grid-gutter: 1;
     padding: 1;
 }
