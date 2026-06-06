@@ -9,7 +9,7 @@ from pathlib import Path
 from sapas.core.flow_loader import FlowLoader
 from sapas.modules.message import Message
 from sapas.engine.script_executor import ScriptExecutor
-from sapas.modules.log import log, log_banner
+from sapas.modules.log import _log, log_banner, info, warn, error
 from sapas.core.utils import resolve_user_script
 
 
@@ -26,10 +26,10 @@ class Runner():
 
     def _is_stop_requested(self) -> bool:
         if self.ctx.get('STOP_REQUESTED', False):
-            log('RUNNER', "STOP_REQUESTED detected, stopping test.")
+            info("STOP_REQUESTED detected, stopping test.", tag='RUNNER')
             return True
         if self.stop_test_file_path.is_file():
-            log('RUNNER', "stop.test detected, stopping test.")
+            info("stop.test detected, stopping test.", tag='RUNNER')
             return True
         return False
 
@@ -40,7 +40,7 @@ class Runner():
 
         script_path = resolve_user_script(script_name, self.project_name)
         if script_path is None:
-            log('RUNNER', f"Script not found: {item_str}")
+            error(f"Script not found: {item_str}", tag='RUNNER')
             self.critical_error = True
             return None
 
@@ -57,7 +57,7 @@ class Runner():
             logger=self.logger
         )
 
-        log('RUNNER', 
+        _log('RUNNER', 
             f"[Item]: {item_str} | "
             f"code={result.return_code} | "
             f"time={result.duration:.2f} sec"
@@ -76,7 +76,7 @@ class Runner():
             error_msg = f"{item_str} got exception!"
             if result.stderr:
                 error_msg += f"\nError message: {result.stderr}"
-            log('RUNNER', error_msg)
+            error(error_msg, tag='RUNNER')
 
         return return_code
 
@@ -87,7 +87,7 @@ class Runner():
         """
         snapshot_name = "runtime_snapshot.yaml"
         snapshot_path = self.time_stamp_folder / snapshot_name
-        log('RUNNER', f"Exporting execution snapshot to: {self.time_stamp_folder}")
+        info(f"Exporting execution snapshot to: {self.time_stamp_folder}", tag='RUNNER')
 
         try:
             self.time_stamp_folder.mkdir(parents=True, exist_ok=True)
@@ -100,9 +100,9 @@ class Runner():
                     default_flow_style=False,
                     sort_keys=True
                 )
-            log('RUNNER', f"Execution snapshot successfully saved: {snapshot_name}")
+            info(f"Execution snapshot successfully saved: {snapshot_name}", tag='RUNNER')
         except (IOError, yaml.YAMLError) as err:
-            log('RUNNER', f"[Error] Failed to save runtime context snapshot: {err}")
+            error(f"Failed to save runtime context snapshot: {err}", tag='RUNNER')
 
     def _cmd_delay(self, seconds_str: str):
         """
@@ -111,19 +111,19 @@ class Runner():
         try:
             sec = float(seconds_str)
         except ValueError:
-            log('RUNNER', f"Invalid delay time: {seconds_str}")
+            error(f"Invalid delay time: {seconds_str}", tag='RUNNER')
             return
 
-        log('RUNNER',f"Start delay: {sec} seconds")
+        info(f"Start delay: {sec} seconds", tag='RUNNER')
         remaining = sec
         while remaining >= 1.0:
             if self._is_stop_requested():
-                log('RUNNER', "Delay interrupted by stop request.")
+                warn("Delay interrupted by stop request.", tag='RUNNER')
                 return
 
             # Use round to handle floating-point display errors
             current_display = int(round(remaining))
-            log('RUNNER',f"Countdown {current_display} sec...")
+            info(f"Countdown {current_display} sec...", tag='RUNNER')
             time.sleep(1)
             remaining -= 1.0
             
@@ -131,10 +131,10 @@ class Runner():
         if remaining > 0:
             if self._is_stop_requested():
                 return
-            log('RUNNER',f"Countdown {remaining:.1f} sec...")
+            info(f"Countdown {remaining:.1f} sec...", tag='RUNNER')
             time.sleep(remaining)
 
-        log('RUNNER',"Delay finished.")
+        info("Delay finished.", tag='RUNNER')
 
     def execute_flows(self, args):
         self.critical_error = False
@@ -156,24 +156,24 @@ class Runner():
 
             if args.test_flow:
                 station_flow_file = args.test_flow
-                log('RUNNER', f"Using user specified flow: {station_flow_file}")
+                info(f"Using user specified flow: {station_flow_file}", tag='RUNNER')
             else:
                 station_flow_file = f"{self.station_name}.flow"
-                log('RUNNER', f"Using default station flow: {station_flow_file}")
+                info(f"Using default station flow: {station_flow_file}", tag='RUNNER')
 
             self.station_flow = station_flow_file
 
             self.is_fail_stop = self.ctx.get('IS_FAIL_STOP', True)
             if self.is_fail_stop is False:
                 # Remind the operator: fail-stop is disabled, so proceed with caution.
-                log('RUNNER', "Warning: [IS_FAIL_STOP] is set to False. Sequence will continue on failure.")
+                warn("Warning: [IS_FAIL_STOP] is set to False. Sequence will continue on failure.", tag='RUNNER')
 
             station_flow_file_path = self.workspace_root / self.project_name / "flows" / station_flow_file
             self.stop_test_file_path = self.workspace_root / "output" / self.serialNumber / "stop.test"
 
-            log('RUNNER', f'[PROJECT_NAME]: {self.project_name}')
-            log('RUNNER', f'[STATION_NAME]: {self.station_name}')
-            log('RUNNER', f'[STATION_FLOW]: {station_flow_file}')
+            info(f'[PROJECT_NAME]: {self.project_name}', tag='RUNNER')
+            info(f'[STATION_NAME]: {self.station_name}', tag='RUNNER')
+            info(f'[STATION_FLOW]: {station_flow_file}', tag='RUNNER')
 
             current_cycle = 1
             is_cycle_fail = False
@@ -184,23 +184,23 @@ class Runner():
             self.cycle, self.test_item_list, self.on_fail_list = flow.load_flow(flow_file_path=station_flow_file_path)
             
             if not self.test_item_list:
-                log('RUNNER', 'NO test items assigned, stopping...')
+                error('NO test items assigned, stopping...', tag='RUNNER')
                 return
 
             self.current_item = self.test_item_list[self.item_index]
 
             log_banner(f'[Session Start] {self.timeStamp}')
-            log('RUNNER', '[Main Flow:]:')
+            info('[Main Flow:]:', tag='RUNNER')
             for idx, item in enumerate(self.test_item_list, 1):
-                log('RUNNER', f'  {idx:02d}. {item}')
+                info(f'  {idx:02d}. {item}', tag='RUNNER')
 
-            log('RUNNER', '[Fail Flow:]:')
+            info('[Fail Flow:]:', tag='RUNNER')
             for idx, item in enumerate(self.on_fail_list, 1):
-                log('RUNNER', f'  {idx:02d}. {item}')
+                info(f'  {idx:02d}. {item}', tag='RUNNER')
 
             while current_cycle <= self.cycle and not self.critical_error and not is_cycle_fail and not stop_test_flag:
                 # At the start of each new iteration, reset the state for the current cycle.
-                log('RUNNER', f"Starting Test Cycle {current_cycle} / {self.cycle}")
+                info(f"Starting Test Cycle {current_cycle} / {self.cycle}", tag='RUNNER')
 
                 # Reset the context to clear all per-cycle runtime variables.
                 self.ctx.reset()
@@ -235,7 +235,7 @@ class Runner():
                             var_key, expected_val = [p.strip() for p in self.current_item.split('==')]
                             actual_val = str(self.ctx.get(var_key))
                             
-                            log('RUNNER', f"[Condition]: Checking {var_key} IF ('{actual_val}' == '{expected_val}')")
+                            info(f"[Condition]: Checking {var_key} IF ('{actual_val}' == '{expected_val}')", tag='RUNNER')
                             
                             if actual_val == expected_val:
                                 # Condition met: do nothing and continue to the next line.
@@ -243,12 +243,12 @@ class Runner():
                                 continue
                             else:
                                 # Condition not met: enter "find END_IF" mode.
-                                log('RUNNER', f"[Condition]: Not match. Skipping block...")
+                                info(f"[Condition]: Not match. Skipping block...", tag='RUNNER')
                                 skip_depth = 1
                                 while skip_depth > 0:
                                     self.item_index += 1
                                     if self.item_index >= len(self.test_item_list):
-                                        log('RUNNER', "[Error]: Missing END_IF for IF condition!")
+                                        error("[Error]: Missing END_IF for IF condition!", tag='RUNNER')
                                         break
                                     
                                     next_item_prefix = self.test_item_list[self.item_index][0].strip().upper()
@@ -262,7 +262,7 @@ class Runner():
                                 self.item_index += 1
                                 continue
                         except Exception as e:
-                            log('RUNNER', f"[Error]: IF syntax error: {self.current_item} | {e}")
+                            error(f"[Error]: IF syntax error: {self.current_item} | {e}", tag='RUNNER')
                             self.critical_error = True
                             break
 
@@ -287,7 +287,7 @@ class Runner():
                     # (e.g., a 8080 failure condition or a script crash).
                     if return_code == 8080:
                         if prefix == 'verify':
-                            log('RUNNER', f"Item failure detected. Aborting...")
+                            warn(f"Item failure detected. Aborting...", tag='RUNNER')
                             has_item_fail = True
 
                     elif return_code != 0:
@@ -296,13 +296,13 @@ class Runner():
                         err_code = self.ctx.get('ERROR_CODE') or 'UNKNOWN_ERROR_CODE'
                         err_desc = self.ctx.get('ERROR_DESCRIPTION') or 'No description provided'
                         
-                        log('RUNNER', f"[FAILED] {self.current_item} Failed!")
-                        log('RUNNER', f"Error Code: {err_code} | Description: {err_desc}")
+                        error(f"[FAILED] {self.current_item} Failed!", tag='RUNNER')
+                        error(f"Error Code: {err_code} | Description: {err_desc}", tag='RUNNER')
 
                         # If it is a critical item (or of verify type),
                         # determine whether to abort the test.
                         if prefix == 'verify':
-                            log('RUNNER', f"Critical failure detected. Aborting...")
+                            error(f"Critical failure detected. Aborting...", tag='RUNNER')
                             self.ctx.set('ERROR_CODE', 'CRITICAL')
                             has_item_fail = True
                             self.critical_error = True
@@ -311,7 +311,7 @@ class Runner():
                         self.ctx.set('ERROR_CODE', 'PASS')
 
                     if has_item_fail or self.critical_error:
-                        log('RUNNER', f'Got test item fail, Going to FAIL block!')
+                        warn(f'Got test item fail, Going to FAIL block!', tag='RUNNER')
                         if self.is_fail_stop:
                             is_cycle_fail = True
                             stop_test_flag = True
@@ -320,16 +320,16 @@ class Runner():
                             return_code = self._run_test_script(on_fail_item[1].strip())
 
                         if self.critical_error:
-                            log('RUNNER', 'Got a critical error!')
+                            error('Got a critical error!', tag='RUNNER')
                             if prefix == 'action':
                                 self.ctx.set('ERROR_CODE', 'CRITICAL')
                             break
 
                         if stop_test_flag:
-                            log('RUNNER', 'stop testing')
+                            warn('stop testing', tag='RUNNER')
                             break
                         else:
-                            log('RUNNER', 'continue testing')
+                            warn('continue testing', tag='RUNNER')
                     # Done cruuent test item, go to next
                     self.item_index += 1
                 # End of one cycle
@@ -340,7 +340,7 @@ class Runner():
                     time.sleep(1.0)
 
             if self._is_stop_requested():
-                log('RUNNER', 'User stop test!')
+                warn('User stop test!', tag='RUNNER')
                 self.ctx.set('ERROR_CODE', 'STOP')
             elif not self.is_fail_stop:
                 self.ctx.set('ERROR_CODE', 'CHECK')
@@ -349,13 +349,13 @@ class Runner():
 
         finally:
             # Final Cleanup
-            log('RUNNER', "Cleaning up resources...")
+            info("Cleaning up resources...", tag='RUNNER')
             try:
                 # Assume that ConnectionManager implements a method to close all connections.
                 if hasattr(self.ctx, 'link'):
                     self.ctx.link.close_all()
-                log('RUNNER', "All connections closed.")
+                info("All connections closed.", tag='RUNNER')
             except Exception as cleanup_err:
-                log('RUNNER', f"Cleanup encountered an issue: {cleanup_err}")
+                error(f"Cleanup encountered an issue: {cleanup_err}", tag='RUNNER')
 
             savelog.close()

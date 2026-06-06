@@ -3,7 +3,7 @@
 import csv
 from pathlib import Path
 from sapas.runtime.runtime import ctx
-from sapas.modules.log import log
+from sapas.modules.log import _log, info, error
 
 from rich.table import Table
 from rich.box import ASCII2
@@ -45,7 +45,7 @@ class ResultManager:
             rows = list(reader)
             self.test_item_list = [row[0] for row in rows[1:]]
         
-        log('OUT', f"Loaded {len(self.test_item_list)} test items.")
+        info(f"Loaded {len(self.test_item_list)} test items.", tag='OUT')
         self._load_criteria_from_file(self.criteria_file)
 
         # Create the default measurement file
@@ -59,7 +59,7 @@ class ResultManager:
         self.first_fail_desc = ""
 
     def __del__(self):
-        log('OUT', 'Release aggregator class resource.')
+        info('Release aggregator class resource.', tag='OUT')
 
     def get_item_names(self):
         """
@@ -204,7 +204,7 @@ class ResultManager:
                 str(row[self.COL_DESC]),
                 err_display
             )
-        log('OUT', table)
+        _log('OUT', table)
 
     def _export_final_csv(self, filepath, criteria_list):
         """Outputs the final calculated test evaluation rows to a result CSV file."""
@@ -217,7 +217,7 @@ class ResultManager:
                     out_str = raw_str.format(self.fill_test_item_name)
                     # Log only the first occurrence of the message.
                     if index == 1:
-                        log('OUT', f'[Result]: Re-filling [{self.fill_test_item_name}] for items...')
+                        info(f'[Result]: Re-filling [{self.fill_test_item_name}] for items...', tag='OUT')
                 else:
                     out_str = ','.join(row).strip()
 
@@ -228,7 +228,7 @@ class ResultManager:
                     if row[self.COL_STATUS] not in ['PASS', 'NA']:
                         error_count += 1
 
-        log('OUT', f"{error_count} error(s) found")
+        info(f"{error_count} error(s) found", tag='OUT')
         return 8080 if error_count > 0 else 0
 
     def process_test_results(self, txt_file, result_file, measure_value=None, dynamic_name=None):
@@ -244,7 +244,7 @@ class ResultManager:
         while len(measure_value) < target_len:
             measure_value.append('Exception')
 
-        log('OUT', f'Criteria items quantity: {target_len}')
+        info(f'Criteria items quantity: {target_len}', tag='OUT')
         
         # Safety check: ensure the counts are fully consistent.
         if len(measure_value) != target_len:
@@ -255,7 +255,7 @@ class ResultManager:
 
         # --- Write the measurement values. ---
         if measure_value:
-            log('OUT', f"Writing measurements to {txt_file}...")
+            info(f"Writing measurements to {txt_file}...", tag='OUT')
             with open(self.measure_file, 'w', encoding='utf-8') as f:
                 # Iterate over names and values simultaneously using zip.
                 for item_name, val in zip(self.test_item_list, measure_value):

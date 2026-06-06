@@ -34,15 +34,40 @@ class ActionItem(BaseItem, ABC):
         Example:
             self.log("Current voltage: %sV", voltage)
         """
+        if not getattr(self, '_log_deprecated_shown', False):
+            self._log_impl("[DEPRECATION] self.log() is deprecated and will be removed in future versions.", tag="WARN")
+            self._log_impl("             Please use self.info(), self.warn(), or self.error() instead.", tag="WARN")
+            setattr(self, '_log_deprecated_shown', True)
+        self._log_impl(message, *args, tag=tag)
+
+    def _log_impl(self, message: str, *args: any, tag: str = "ACTION") -> None:
+        """Internal logging implementation."""
         formatted_tag = f"[{tag:^8}]"
         full_message = f"{formatted_tag} {message}"
         self.logger.info(full_message, *args)
 
+    def info(self, message: str, *args: any) -> None:
+        """Logs an informational message."""
+        self._log_impl(message, *args, tag="ACTION")
+
+    def warn(self, message: str, *args: any) -> None:
+        """Logs a warning message."""
+        self._log_impl(message, *args, tag="WARN")
+
+    def error(self, message: str, *args: any) -> None:
+        """Logs an error message."""
+        self._log_impl(message, *args, tag="ERROR")
+
     def _main_process(self) -> int:
         """Encapsulates the standard error-handling workflow."""
+        ctx.set("ACTIVE_LOGGER", self.logger)
+        ctx.set("ACTIVE_ITEM", self)
         try:
             self.run_action()
             return 0
         except Exception as e:
-            log(e)
+            self.error(str(e))
             return 1
+        finally:
+            ctx.set("ACTIVE_LOGGER", None)
+            ctx.set("ACTIVE_ITEM", None)

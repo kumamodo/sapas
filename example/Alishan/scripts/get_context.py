@@ -17,12 +17,12 @@ class VerifyMacAddress(TestItem):
         
         # Core functionality: retrieve the global variable left by the previous test item.
         mac_addr = sapas.var.get("DUT_MAC_ADDR")
-        self.log(f"The MAC address retrieved from the global Context is: {mac_addr}")
+        sapas.info(f"The MAC address retrieved from the global Context is: {mac_addr}")
         
         # Execute the subsequent test logic (e.g., format validation).
         if mac_addr.startswith("00-1A"):
-            self.log("MAC prefix validation passed!")
+            sapas.info("MAC prefix validation passed!")
             self.measure['PREFIX CHECK'] = 'VALID'
         else:
-            self.log("Invalid MAC prefix!")
+            sapas.error("Invalid MAC prefix!")
             self.measure['PREFIX CHECK'] = 'INVALID'

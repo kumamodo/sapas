@@ -14,8 +14,8 @@ class Sleep(ActionItem):
     """
     def run_action(self):
         sec = int(self.args.sec)
-        self.log('Set {} sec to sleep'.format(sec))
+        sapas.info('Set {} sec to sleep'.format(sec))
         while sec:
-            self.log('Countdown {} sec'.format(sec))
+            sapas.info('Countdown {} sec'.format(sec))
             time.sleep(1)
             sec -= 1

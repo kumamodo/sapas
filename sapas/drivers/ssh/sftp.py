@@ -4,8 +4,7 @@ from pathlib import Path
 import paramiko
 from stat import S_ISDIR
 
-from sapas.modules.log import log
-
+from sapas.modules.log import _log, info, error
 
 class SFTPClient:
     def __init__(self, host, user, password, port=22):
@@ -13,17 +12,19 @@ class SFTPClient:
         self.user = user
         self.password = password
         self.port = port
-        self.putFolderCount = list()
+        self.transport = None
+        self.sftp = None
 
     def connect(self):
         try:
-            transport = paramiko.Transport((self.host, self.port))
-            transport.connect(username=self.user, password=self.password)
-            self.sftp = paramiko.SFTPClient.from_transport(transport)
-            self.transport = transport
-            log("SFTP", "Successfully connected to [{}:{}]".format(self.host, self.port))
+            self.transport = paramiko.Transport((self.host, self.port))
+            self.transport.connect(username=self.user, password=self.password)
+            self.sftp = paramiko.SFTPClient.from_transport(self.transport)
+            info(f"Successfully connected to [{self.host}:{self.port}]", tag='SFTP')
         except Exception as e:
-            log('SFTP', 'Can not establish a connection: {}'.format(e))
+            error(f'Can not establish a connection: {e}', tag='SFTP')
+            raise
+
             if hasattr(self, 'transport'):
                 self.transport.close()
     
@@ -38,7 +39,7 @@ class SFTPClient:
                 except IOError:
                     self.sftp.mkdir(path)
         except Exception as e:
-            log('SFTP', f"Failed for creating the remote directiry.{str(e)}")
+            error(f"Failed for creating the remote directiry.{str(e)}", tag='SFTP')
             raise
 
     def putFile(self, srcFile, dstFile):
@@ -46,7 +47,7 @@ class SFTPClient:
         @srcFile: source file path(include file name)
         @dstFile: destination file path(include file name)
         '''
-        log('SFTP', f'[UPLOAD]: {srcFile} --> {dstFile}')
+        info(f'[UPLOAD]: {srcFile} --> {dstFile}', tag='SFTP')
         self.sftp.put(srcFile, dstFile)
 
     def getFile(self, remotefile, localfile):
@@ -54,7 +55,7 @@ class SFTPClient:
         @remotefile: source file path(include file name)
         @localfile: destination file path(include file name)
         '''
-        log('SFTP', f'[DOWNLOAD]: {remotefile} --> {localfile}')
+        info(f'[DOWNLOAD]: {remotefile} --> {localfile}', tag='SFTP')
         self.sftp.get(remotefile, localfile)
 
     def __putFolder_execute(self, local_dir, remote_dir):
@@ -63,12 +64,12 @@ class SFTPClient:
 
         for file in os.listdir(local_dir):
             if os.path.isfile(os.path.join(local_dir, file)):
-                log('SFTP', f'[UPLOAD]: {os.path.join(local_dir, file)} -> {"%s/%s" % (remote_dir, file)}')
+                info(f'[UPLOAD]: {os.path.join(local_dir, file)} -> {"%s/%s" % (remote_dir, file)}', tag='SFTP')
                 self.sftp.put(os.path.join(local_dir, file), '%s/%s' % (remote_dir, file))
                 self.putFolderCount.append(file)
             else:
                 self.mkdir('%s/%s' % (remote_dir, file), ignore_existing=True)
-                log('SFTP', f'[MKDIR]: {"%s/%s" % (remote_dir, file)}')
+                info(f'[MKDIR]: {"%s/%s" % (remote_dir, file)}', tag='SFTP')
                 self.__putFolder_execute(os.path.join(local_dir, file), '%s/%s' % (remote_dir, file))
         return len(self.putFolderCount)
     
@@ -97,7 +98,7 @@ class SFTPClient:
             local_path = os.path.join(local_dir, os.path.relpath(remoteFilePath, remote_dir))
             Path(local_path).mkdir(parents=True, exist_ok=True)
             local_filename = os.path.join(local_path, filename)
-            log('SFTP', f'[DOWNLOAD]: {fullfilename} -> {local_filename}')
+            info(f'[DOWNLOAD]: {fullfilename} -> {local_filename}', tag='SFTP')
             self.sftp.get(fullfilename, local_filename)
         
         return len(all_files)
@@ -130,7 +131,7 @@ class SFTPClient:
     def checkFileExists(self, filePath):
         try:
             attrs = self.sftp.stat(filePath)
-            log('SFTP', f"File exists: {os.path.basename(filePath)} ({attrs.st_size} bytes)")
+            info(f"File exists: {os.path.basename(filePath)} ({attrs.st_size} bytes)", tag='SFTP')
             return True
         except IOError:
             return False
@@ -140,7 +141,7 @@ class SFTPClient:
             self.sftp.close()
         if hasattr(self, 'transport'):
             self.transport.close()
-        log('SFTP', 'Connection closed')
+        info('Connection closed', tag='SFTP')
 
     def __del__(self):
         try:
