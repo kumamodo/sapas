@@ -50,10 +50,6 @@ Sapas provides a clean abstraction layer that allows RD, TE, and Factory operato
 
 ---
 
-* **Aesthetic & Noise-Free CLI**: A unified terminal output powered by `rich`, using balanced visual markers (`✓` / `❌`) ensuring that field technicians can instantly read station health without parsing through raw text noise.
-
----
-
 ## 🌐 Documentation / 說明文件
 
 Explore the full guides in your preferred language:
