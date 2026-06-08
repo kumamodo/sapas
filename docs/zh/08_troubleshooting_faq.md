@@ -44,7 +44,7 @@
 - **原因**：網路不通、IP 錯誤、帳號密碼不對，或目標機台未開啟 SSH 服務。
 - **解決**：
   1. 使用手動工具（如 PuTTY 或 `ssh` 指令）確認是否能連線。
-  2. 檢查 `station.yaml` 中的 `link` 配置。
+  2. 檢查 `project.yaml` 中的 `link` 配置。
 
 ### Q: SFTP 上傳/下載出錯
 - **原因**：權限不足（Permission Denied）或遠端目錄不存在。

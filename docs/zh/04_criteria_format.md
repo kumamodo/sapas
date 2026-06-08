@@ -17,20 +17,18 @@
 - **RECORD**: 不論測量值為何，結果皆為 PASS，僅作數據紀錄。
 - **ErrCode**: 失敗時產生的錯誤碼。支援 `CodeLow:CodeHigh` 格式。
 
-## 程式碼開發守則
+## 測量與判定流程 (Measurement & Validation Flow)
 
-在 `example/Alishan/scripts/` 中的腳本（如 `demo_logs.py`）遵循以下原則：
+Sapas 將腳本開發與自動判定緊密結合。以下是從開發到產出結果的完整流程：
 
-1.  **測量值回傳**: 透過 `sapas` 提供的 API 將數據傳遞給 `ResultManager`。
-2.  **結果收斂**: 
-    - 成功或通過：回傳 `1` 或 `Y`。
-    - 失敗或不通過：回傳 `0` 或 `N`。
-3.  **大寫命名**: 測項名稱一律使用大寫蛇形命名法。
+1.  **腳本開發原則**：
+    *   **大寫命名**：測項名稱 (Test Item) 在程式碼與 CSV 中一律使用大寫蛇形命名法 (如 `OS_NAME`)。
+    *   **數據回傳**：腳本執行期間，透過 `sapas` API 將數據傳遞給 `ResultManager`。
 
-## 數據處理流程
+2.  **自動化處理步驟**：
+    *   **啟動**：`Runner` 啟動 `.flow` 檔案中的指令。
+    *   **執行**：腳本 (如 `get_os_name.py`) 執行並產出測量值 (如 `Windows`)。
+    *   **加載**：`ResultManager` 自動讀取對應的 Criteria CSV (如 `get_os_name_criteria.csv`)。
+    *   **比對**：系統將測量值與 CSV 中的 `LSL/USL` 進行比對。
+    *   **報告**：判定結果 (PASS/FAIL)，紀錄狀態並生成最終測試報告。
 
-1. `Runner` 啟動 `function.flow`。
-2. 腳本 `get_os_name.py` 執行並產出測量值 `Windows`。
-3. `ResultManager` 讀取 `get_os_name_criteria.csv`。
-4. 比對 `Measured (Windows)` 是否等於 `LSL (Windows)`。
-5. 生成最終報告並標記為 `PASS`。

@@ -1,4 +1,4 @@
-# 06 快速建站指南 (Station Setup)
+# 07 快速建站指南 (Station Setup)
 
 本指南將帶領您從零開始，在現有的專案（以 `Alishan` 為例）中建立一個全新的測試站別。
 
@@ -12,13 +12,19 @@
 - **內容**：定義該機台特有的連線資訊。
   ```yaml
   # station.yaml 範例
-  STATION_ID: "FC_01"
-  link:
-    DUT:
-      driver: ssh
-      host: "192.168.1.50"
-      user: "admin"
-      password: "password"
+  STATION_LOCATION: FA
+  FIXTURE_ID: 002
+
+  PSU_COM_PORT: COM9
+  PSU_BAUDRATE: 9600
+
+  FIXTURE_PLC_TYPE: SOCKET
+  FIXTURE_PLC_SOCKET_PORT: 5001
+  FIXTURE_CTL_SOCKET_PORT: 5002
+  TUI_SOCKET_PORT: 2003
+
+  NOISE_SENSOR_COM_PORT: COM25
+  NOISE_SENSOR_BAUDRATE: 9600
   ```
 
 ### 第二步：定義測試流程 (Flow)
@@ -44,7 +50,6 @@
 - **重點**：
   - 使用 `sapas.var.get()` 讀取設定。
   - 使用 `measure.add()` 紀錄測試結果。
-  - 確保腳本在成功時 `sys.exit(0)`，失敗時 `sys.exit(1)`。
 
 ### 第四步：設定判定規範 (Criteria)
 在 `criteria/` 目錄下建立與腳本對應的 CSV 規範檔案。
@@ -71,13 +76,11 @@ sapas --project Alishan --station Final_Check
 ## 常見問題 Q&A
 
 **Q: 我的測試腳本可以放在專案資料夾外面嗎？**
-A: 建議放在專案內的 `scripts/` 目錄以便管理，但 Sapas 也支援在 `.flow` 中使用絕對路徑。
-
-**Q: 如果我想讓多個站別共用同一個 Flow 怎麼辦？**
-A: 您可以在啟動時使用 `--test_flow my_common.flow` 參數來強制指定。
+---
+A: 建議放在專案內的 `scripts/` 目錄以便管理。
 
 **Q: 為什麼我的新腳本執行了，但沒看到判定結果？**
+---
 A: 請檢查：
-1. 腳本是否有呼叫測量值上傳 API。
-2. `criteria/` 下是否有對應的 CSV 檔案。
-3. CSV 中的測項名稱是否與腳本中上傳的一致（注意大小寫）。
+1. `criteria/` 下是否有對應的 CSV 檔案。
+2. CSV 中的測項名稱是否與腳本中上傳的一致（注意大小寫）。

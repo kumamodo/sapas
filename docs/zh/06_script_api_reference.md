@@ -1,4 +1,4 @@
-# 07 腳本開發參考 (API Reference)
+# 06 腳本開發參考 (API Reference)
 
 本文件詳細說明在撰寫 Sapas 測試腳本（Python）時可用的 API、類別屬性與裝飾器。
 
@@ -16,8 +16,54 @@
 ---
 
 ## 2. TestItem 開發規範
-... (保留原有的 TestItem 內容) ...
 
+`TestItem` 是 Sapas 最核心的開發類別，當你在 Flow 中使用 `verify` 指令時，系統預期執行的就是一個 `TestItem`。
+
+### 與 Flow 的互動
+當 Flow 執行 `verify my_test.py` 時：
+1. **實例化**：系統加載 `TestItem` 並初始化環境。
+2. **執行**：呼叫 `run_test()` 方法。
+3. **判定**：腳本執行完畢後，`ResultManager` 會根據 `self.measure` 的數據與 `criteria_file` 進行比對。
+4. **流控**：若判定結果為 **FAIL**，Flow 會立即中斷並跳轉至 `on_fail` 區塊。
+
+### 必須定義的屬性
+為了讓系統自動化處理數據，`TestItem` 必須定義以下五個檔案路徑屬性：
+- **`measure_file`**: 暫存量測值的純文字檔名。
+- **`result_file`**: 最終判定結果的 CSV 檔名。
+- **`criteria_file`**: 比對規範的 CSV 檔名（需位於專案的 `criteria/` 目錄下）。
+- **`logs_folder`**: 該測項專屬的日誌資料夾名稱。
+- **`logs_name`**: 該測項的日誌檔名。
+
+### 必須實作的方法
+- **`run_test(self)`**: 測試邏輯的主入口。在此方法中，你必須透過 `self.measure` 回傳關鍵數據。
+
+### TestItem 標準模板
+```python
+import sapas
+
+class MyOsTest(sapas.TestItem):
+    # 必須定義的 5 個路徑屬性
+    measure_file  = "os_check.txt"
+    result_file   = "os_check_result.csv"
+    criteria_file = "os_check_criteria.csv"
+    logs_folder   = "OS_CHECK_LOGS"
+    logs_name     = "os_check.log"
+
+    def run_test(self):
+        self.info("開始檢查作業系統版本...")
+        
+        # 1. 執行動作 (例如透過 SSH 或本地指令獲取數據)
+        # 這裡以獲取系統資訊為例
+        raw_output = "Microsoft Windows [Version 10.0.19045.4291]" 
+        
+        # 2. 處理數據
+        extracted_name = "Windows" if "Windows" in raw_output else "Other"
+        
+        # 3. 紀錄量測值 (名稱 "OS_NAME" 必須存在於 criteria_file 中)
+        self.measure.OS_NAME = extracted_name
+        
+        self.info(f"提取的系統名稱為: {extracted_name}")
+```
 ---
 
 ## 3. ActionItem 開發規範
@@ -37,10 +83,6 @@ class SetupSystem(sapas.ActionItem):
         ssh = sapas.link.get("DUT")
         ssh.exec("rm -rf /tmp/old_logs")
         self.info("清理完成")
-
-if __name__ == "__main__":
-    from sapas.core.user_runner import run_user_script
-    run_user_script(__file__)
 ```
 
 ### 開發注意事項
@@ -174,9 +216,17 @@ class StandardTest(sapas.TestItem):
         self.measure.STATUS = "1" if uptime > limit else "0"
         
         self.info(f"測試完成，Uptime: {uptime}")
-
-if __name__ == "__main__":
-    # 支援直接執行腳本進行除錯
-    from sapas.core.user_runner import run_user_script
-    run_user_script(__file__)
 ```
+---
+
+## 8. 腳本偵錯方式
+
+為了確保腳本在 Sapas 環境下正確運行，**不建議**直接使用 `python script.py` 執行。請統一使用 Sapas 提供的 CLI 指令進行偵錯：
+
+```bash
+# 偵錯單一腳本
+sapas <腳本名稱>
+```
+
+這樣系統會自動加載對應的 YAML 設定與連線資訊，模擬最真實的執行環境。
+

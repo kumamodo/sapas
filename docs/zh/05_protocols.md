@@ -7,17 +7,20 @@ Sapas 透過 `ConnectionManager` 統一管理與待測物 (DUT) 的連線。
 在 `station.yaml` 或 `project.yaml` 中，您可以定義連線資訊：
 
 ```yaml
+# Define connectivity for all physical hardware units
 link:
-  DUT1:
-    driver: ssh
-    host: 192.168.1.100
-    user: root
-    password: password
+  # --- MAIN DUT: Primary Device Under Test ---
+  main_dut:
+    type: ssh                # Connection type: supports ssh, adb, com
+    host: 192.168.1.110      # Device IP address
+    user: kumamodo           # Login username
+    password: ''             # Login password
+    stop_chars: ':~$'        # [Optional] Shell prompt termination characters
 ```
 
 ## SSH 驅動 (SSHDriver)
 
-目前 Sapas 主要支援 SSH 連線，整合了命令執行與 SFTP 檔案傳輸。
+目前 Sapas 主要支援 SSH 連線，整合了命令執行。
 
 ### 程式碼範例：
 ```python
@@ -30,8 +33,6 @@ ssh = ctx.ssh.get('DUT1')
 result = ssh.exec('uname -a')
 print(result.stdout)
 
-# 上傳檔案
-ssh.upload('local_file.txt', '/tmp/remote_file.txt')
 ```
 
 ## 其他協定 (規劃中)
