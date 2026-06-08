@@ -1,8 +1,18 @@
 ⚠️ **Active Development Notice** This project is under active development. APIs and internal structures may evolve as we continuous align cross-team requirements.
 
 # Sapas
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+![Open Source](https://img.shields.io/badge/Open%20Source-%E2%9D%A4-brightgreen)
+![Price](https://img.shields.io/badge/Price-100%25%20Free-blue)
 
-> **Sapas** /sa'baʃ/ — Inspired by the phrase for *"Bravo! Well done!"* Our goal is simple: when a test flow transits from design to factory, it just **PASS**.
+> **Sapas** /sa'paʃ/ — Inspired by the phrase for *"Bravo! Well done!"* Our goal is simple: when a test flow transits from design to factory, it just **PASS**.
+
+A unified test automation platform bridging the gap between RD hardware verification and factory production testing.
+
+---
+
+### 🎉 100% Free & Open Source 
+**sapas** is completely free and open-source under the MIT license! You can freely clone it, modify it, and use it in your personal projects or commercial factory production lines without any cost.
 
 ![Sapas Interactive TUI Dashboard](./docs/images/tui_screenshot.png)
 
@@ -37,6 +47,21 @@ Sapas provides a clean abstraction layer that allows RD, TE, and Factory operato
   * **Sapas Engine** controls the **Infrastructure** (Logs, UI, data convergence, and hardware connection pools).
 * **Defensive by Design**: Implements strict data normalization (e.g., rigid boolean convergence) and contract checking (`opas.var.require`) to prevent laboratory scripts from breaking under harsh factory environments.
 * **Aesthetic & Noise-Free CLI**: A unified terminal output powered by `rich`, using balanced visual markers (`✓` / `❌`) ensuring that field technicians can instantly read station health without parsing through raw text noise.
+
+---
+
+* **Aesthetic & Noise-Free CLI**: A unified terminal output powered by `rich`, using balanced visual markers (`✓` / `❌`) ensuring that field technicians can instantly read station health without parsing through raw text noise.
+
+---
+
+## 🌐 Documentation / 說明文件
+
+Explore the full guides in your preferred language:
+
+* 🇺🇸 **[English Documentation](./docs/en/README.md)**
+  * [Quick Start](./docs/en/01_quick_start.md) | [Architecture](./docs/en/02_architecture.md) | [Station Loop Mode](./docs/en/07_how_to_build_a_station.md)
+* 🇹🇼 **[繁體中文說明文件](./docs/zh/README.md)**
+  * [快速開始](./docs/zh/01_quick_start.md) | [架構設計](./docs/zh/02_architecture.md) | [生產線站點部署](./docs/zh/07_how_to_build_a_station.md)
 
 ---
 
