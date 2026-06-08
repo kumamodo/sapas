@@ -2,7 +2,7 @@
 
 Sapas 的架構設計旨在分離「測試邏輯」、「環境設定」與「連線驅動」。我們以 `example/Alishan` 的 `Function` 站為例來說明。
 
-![1780902010846](images/02_architecture/1780902010846.png)
+![Sapas Architecture Flow](../images/architecture_flow.png)
 
 ## 1. ExecutionContext (執行上下文)
 

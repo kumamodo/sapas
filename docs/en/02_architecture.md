@@ -2,7 +2,7 @@
 
 The architectural design of Sapas aims to decouple "test logic", "environment configuration", and "connection drivers". We use the `Function` station in `example/Alishan` as an example for explanation.
 
-![1780906937588](images/02_architecture/1780906937588.png)
+![Sapas Architecture Flow](../images/architecture_flow_en.png)
 
 ## 1. ExecutionContext
 
