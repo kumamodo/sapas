@@ -179,7 +179,22 @@ def main():
         draw_welcome_screen(project_name, station_name, final_flow)
         try:
             while True:
-                sn_input = console.input("[bold green]Scan/Enter Serial Number[/] (or type 'exit'): ").strip()
+                # Determine Shopfloor status tag using Text object to prevent leakage
+                is_sf_enabled = context.get("ENABLE_SHOPFLOOR", False)
+                prompt_text = Text()
+                
+                if is_sf_enabled:
+                    prompt_text.append(" SHOPFLOOR:ON ", style="bold white on green")
+                else:
+                    prompt_text.append(" SHOPFLOOR:OFF ", style="blink bold red on white reverse")
+                
+                # Add a normal space and the rest of the prompt in standard white
+                prompt_text.append(" ")
+                prompt_text.append("Scan/Enter Serial Number", style="bold white")
+                # Lightskyblue color from the logo: (135, 206, 250)
+                prompt_text.append(" (or type 'exit'): ", style="rgb(135,206,250)")
+                
+                sn_input = console.input(prompt_text).strip()
                 if sn_input.lower() in ['exit', 'quit', 'q']:
                     console.print("[dim]Goodbye![/]")
                     break
