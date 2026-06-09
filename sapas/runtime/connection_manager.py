@@ -33,6 +33,15 @@ class ConnectionManager:
         if type_ == "ssh":
             ssh_params = {key: value for key, value in cfg.items() if key in ("host", "user", "password", "stop_chars")}
             return SSHDriver(**ssh_params)       
+        elif type_ == "udp":
+            from sapas.drivers.udp.driver import UDPDriver
+            udp_params = {
+                "host": cfg.get("host"),
+                "server_port": cfg.get("server_port"),
+                "client_port": cfg.get("client_port", 5088),
+                "timeout": cfg.get("timeout", 0.1)
+            }
+            return UDPDriver(**udp_params)
         elif type_ == "adb":
             adb_params = {key: value for key, value in cfg.items() if key in ("host", "user", "password")}
             return ADBDriver(**adb_params)

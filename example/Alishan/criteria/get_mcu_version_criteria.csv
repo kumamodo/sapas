@@ -1,0 +1,2 @@
+Test Item,LSL,USL,Measured,Status,Description,ErrCode
+MCU_SW_VERSION,3.2.0,3.2.0,NA,NA,get sw version,00007

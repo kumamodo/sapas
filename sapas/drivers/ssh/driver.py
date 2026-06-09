@@ -35,7 +35,7 @@ class SSHDriver:
             error(f"Failed to connect to {self.host}: {e}", tag='SSH')
             raise
 
-    def exec(self, command, timeout=3, wait_for_prompt=True, stop_chars=None):
+    def exec(self, command, timeout=3, wait_for_prompt=True, stop_chars=None, **kwargs):
         if stop_chars is None:
             stop_chars = self.stop_chars
 
