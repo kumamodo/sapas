@@ -19,7 +19,7 @@ link:
     client_port: 5088
 
   # --- Dual-mode ADB Target ---
-  dut1:
+  adb_device:
     type: adb                          # Connection type: supports adb
-    usb_serial: "1234567890ABCDEF"     # [Optional] Physical USB serial number (Priority 1)
+    usb_serial: ""                     # [Optional] USB serial. If empty, auto-discovers the only connected USB device.
     network_host: "192.168.1.110:5555" # [Optional] Network host address for fallback (Priority 2)

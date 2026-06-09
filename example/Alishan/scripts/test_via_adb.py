@@ -5,16 +5,16 @@ from sapas import ActionItem
 class TestADBConnection(ActionItem):
     """
     Example script: Test ADB dual-mode driver.
-    This script attempts to connect to 'dut1' (defined in project.yaml) and executes basic commands.
+    This script attempts to connect to 'adb_device' (defined in project.yaml) and executes basic commands.
     """
 
     def run_action(self):
-        self.info("Getting ADB connection instance [dut1]...")
+        self.info("Getting ADB connection instance [adb_device]...")
 
-        # Retrieve 'dut1' connection from link.
+        # Retrieve 'adb_device' connection from link.
         # It automatically executes connection logic based on priorities defined in project.yaml.
         try:
-            device = sapas.link.get('dut1')
+            device = sapas.link.get('adb_device')
         except Exception as e:
             self.error(f"Connection failed: {e}")
             return
