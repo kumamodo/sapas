@@ -2,7 +2,8 @@ from datetime import datetime
 
 from sapas.runtime.connection_manager import ConnectionManager
 from sapas.drivers.ssh import SSHDriver
-# from sapas.drivers.adb import ADBDriver
+from sapas.drivers.adb import ADBDriver
+from sapas.drivers.udp.driver import UDPDriver
 # from sapas.drivers.serial import SerialDriver
 
 
@@ -39,6 +40,8 @@ class ExecutionContext:
         self.link = ConnectionManager(link_configs)
 
         self.ssh = _BaseTypedManager(self.link, SSHDriver)
+        self.adb = _BaseTypedManager(self.link, ADBDriver)
+        self.udp = _BaseTypedManager(self.link, UDPDriver)
 
     def _merge_config(self):
         # Later entries override earlier ones.

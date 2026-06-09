@@ -1,4 +1,5 @@
 from sapas.drivers.ssh import SSHDriver
+from sapas.drivers.adb import ADBDriver
 
 class ConnectionManager:
     def __init__(self, config):
@@ -43,7 +44,7 @@ class ConnectionManager:
             }
             return UDPDriver(**udp_params)
         elif type_ == "adb":
-            adb_params = {key: value for key, value in cfg.items() if key in ("host", "user", "password")}
+            adb_params = {key: value for key, value in cfg.items() if key in ("usb_serial", "network_host")}
             return ADBDriver(**adb_params)
         elif type_ == "com":
             return SerialDriver(**cfg)

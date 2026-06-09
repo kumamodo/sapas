@@ -25,6 +25,9 @@ start function
         # verify test_via_ssh.py                            # Demonstrates how a TestItem performs testing via an SSH connection
         # verify test_via_udp.py                            # Demonstrates how a TestItem reads MCU SW revision via a UDP connection
         
+        # Uncomment the line below to test connectivity if you have an Android device or Linux board connected via ADB
+        # action test_via_adb.py                            # Demonstrates ADB dual-mode driver functionality (USB/Network)
+        
         # [Demonstrating Nested Logic]
         if FACTORY_LOCATION == Chiayi                       # Regional logic check for Chiayi site
             action sleep.py --sec 2                         # Execution delay for specific production line

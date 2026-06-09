@@ -8,7 +8,7 @@ import socket
 import paramiko
 import codecs
 
-from sapas.modules.log import _log, info, error
+from sapas.modules.log import _log, info, warn, error
 
 # ANSI / VT100 control codes removal regex.
 ANSI_ESCAPE = re.compile(r'\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])')
