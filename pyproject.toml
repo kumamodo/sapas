@@ -13,7 +13,8 @@ dependencies = [
     "PyYAML",
     "rich",
     "paramiko",
-    "textual>=0.80"
+    "textual>=0.80",
+    "pyserial"
 ]
 
 [project.scripts]

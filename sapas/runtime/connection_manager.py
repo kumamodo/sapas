@@ -1,5 +1,6 @@
 from sapas.drivers.ssh import SSHDriver
 from sapas.drivers.adb import ADBDriver
+from sapas.drivers.serial import SerialDriver
 
 class ConnectionManager:
     def __init__(self, config):
@@ -46,8 +47,9 @@ class ConnectionManager:
         elif type_ == "adb":
             adb_params = {key: value for key, value in cfg.items() if key in ("usb_serial", "network_host")}
             return ADBDriver(**adb_params)
-        elif type_ == "com":
-            return SerialDriver(**cfg)
+        elif type_ == "uart":
+            serial_params = {key: value for key, value in cfg.items() if key in ("port", "baudrate", "timeout", "stop_chars")}
+            return SerialDriver(**serial_params)
         else:
             raise ValueError(f"Unsupported connection type: {type_}")
 

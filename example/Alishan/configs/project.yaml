@@ -23,3 +23,11 @@ link:
     type: adb                          # Connection type: supports adb
     usb_serial: ""                     # [Optional] USB serial. If empty, auto-discovers the only connected USB device.
     network_host: "192.168.1.110:5555" # [Optional] Network host address for fallback (Priority 2)
+
+  # --- Serial UART Port Target ---
+  uart_device:
+    type: uart
+    port: "COM4"                       # [Required] Serial port name (e.g., COM3 on Windows, /dev/ttyUSB0 on Linux)
+    baudrate: 115200                   # [Optional] Default: 115200
+    timeout: 1                         # [Optional] Default: 1
+    stop_chars: ":~$"                  # [Optional] Shell prompt characters to wait for
