@@ -11,7 +11,7 @@ You can define connection information in `station.yaml` or `project.yaml`:
 link:
   # --- MAIN DUT: Primary Device Under Test ---
   main_dut:
-    type: ssh                # Connection type: supports ssh, adb, com
+    type: ssh                # Connection type: supports ssh, adb, uart
     host: 192.168.1.110      # Device IP address
     user: kumamodo           # Login username
     password: ''             # Login password
@@ -23,7 +23,7 @@ link:
 Sapas provides two ways to retrieve connection instances in your scripts:
 
 1.  **Universal Link Manager**: Use `sapas.link.get(name)` for any protocol.
-2.  **Dedicated Context Managers**: Use `ctx.ssh.get(name)`, `ctx.adb.get(name)`, or `ctx.udp.get(name)` for better type hinting and protocol-specific validation.
+2.  **Dedicated Context Managers**: Use `ctx.ssh.get(name)`, `ctx.adb.get(name)`, `ctx.udp.get(name)`, or `ctx.uart.get(name)` for better type hinting and protocol-specific validation.
 
 ---
 
@@ -93,8 +93,35 @@ response = udp.exec('READ_VER')
 print(response)
 ```
 
-## Other Protocols (Planned)
+## UART Driver (SerialDriver)
 
-- **UART (Serial)**: Used for serial port control.
+Used for communication with hardware via serial ports (RS232/TTL).
+
+### Configuration Example:
+```yaml
+link:
+  uart_device:
+    type: uart
+    port: "COM4"             # Serial port (e.g., COM3 on Win, /dev/ttyUSB0 on Linux)
+    baudrate: 115200         # [Optional] Default: 115200
+    timeout: 1               # [Optional] Default: 1 (s)
+    stop_chars: ":~$"        # [Optional] Shell prompt characters to wait for
+```
+
+### Code Example:
+```python
+import sapas
+from sapas.runtime.runtime import ctx
+
+# Method A: Universal Access
+uart = sapas.link.get('uart_device')
+
+# Method B: Dedicated Access
+uart = ctx.uart.get('uart_device')
+
+# Execute command and get clean output (echo-stripped)
+response = uart.exec('uname -a')
+print(response)
+```
 
 All drivers are encapsulated under `sapas.drivers`, allowing developers to easily extend custom communication protocols.
