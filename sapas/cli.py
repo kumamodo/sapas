@@ -168,7 +168,10 @@ def main():
         run_user_script(script_path.name, cli_args=args, user_args=remaining_args)
     elif args.tui:
         # Mode B: wrap it with a TUI shell.
-        from sapas.tui.sapas_tui_dashboard import SapasDashboard
+        tui_dir = Path(__file__).resolve().parent.parent / "sapas-tui"
+        if str(tui_dir) not in sys.path:
+            sys.path.insert(0, str(tui_dir))
+        from app import SapasDashboard
         
         # Pass the existing context and args into the TUI,
         # so it doesn't have to initialize them blindly on its own.
