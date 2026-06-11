@@ -3,8 +3,8 @@
    ========================================================================== */
 
 Screen {
-    background: #071016;
-    color: #d9e1e7;
+    background: $background;
+    color: $foreground;
 }
 
 #app-root {
@@ -14,16 +14,16 @@ Screen {
 }
 
 #app-root.sf-disabled {
-    border: heavy #ff5d5d;
+    border: heavy $error;
     border-subtitle-align: center;
 }
 
 #app-root.sf-disabled.blink {
-    border: heavy #800000;
+    border: heavy $panel;
 }
 
 #app-root.sf-enabled {
-    border: heavy #40c878;
+    border: heavy $success;
     border-subtitle-align: center;
 }
 
@@ -33,22 +33,22 @@ Screen {
 
 Header {
     text-style: bold;
-    background: #123244;
-    color: #e8f3f8;
+    background: $primary;
+    color: $foreground;
 }
 
 Footer {
-    background: #0b1820;
+    background: $panel;
 }
 
 Footer > .footer--key {
-    color: #f2c94c;
-    background: #123244;
+    color: $accent;
+    background: $primary;
     text-style: bold;
 }
 
 Footer > .footer--description {
-    color: #a6c7d8;
+    color: $foreground;
 }
 
 /* ==========================================================================
@@ -67,8 +67,8 @@ Footer > .footer--description {
 
 .top-box {
     height: 100%;
-    background: #0b1820;
-    border: solid #2c4655;
+    background: $panel;
+    border: solid $secondary;
     padding: 0 1;
     border-title-align: left;
     border-title-style: bold;
@@ -78,7 +78,7 @@ Footer > .footer--description {
 .box-value {
     height: 100%;
     content-align: center middle;
-    color: #e8f3f8;
+    color: $foreground;
     text-style: bold;
 }
 
@@ -90,25 +90,25 @@ Footer > .footer--description {
 /* --- Status Indicator Styles (Error Code Box) --- */
 #error-code {
     content-align: center middle;
-    color: #657781;
+    color: $foreground;
     text-style: bold;
 }
 
 #error-code.fail {
-    color: #ff5d5d;
+    color: $error;
 }
 
 #error-code.running {
-    color: #f2c94c;
+    color: $warning;
 }
 
 #error-code.pass {
-    color: #40c878;
+    color: $success;
 }
 
 /* --- Diagnostic Timer Styles --- */
 #elapsed-time {
-    color: #f2c94c;
+    color: $warning;
     text-style: bold;
     content-align: center middle;
 }
@@ -124,19 +124,20 @@ Footer > .footer--description {
     height: 3;
     margin: 0;
     padding: 0 1;
-    background: #071016;
-    color: #f2f7fa;
-    border: solid #3e6476;
+    background: $background;
+    color: $foreground;
+    border: solid $primary;
     text-style: bold;
 }
 
 #serial-input:focus {
-    border: solid #8fb6c9;
+    border: solid $accent;
 }
 
 #serial-input:disabled {
-    color: #657781;
-    border: solid #1d3039;
+    color: $foreground;
+    border: solid $secondary;
+    opacity: 0.5;
 }
 
 #start-button {
@@ -145,17 +146,21 @@ Footer > .footer--description {
     margin: 0;
     margin-left: 4;
     content-align: center middle;
-    border: solid #8fb6c9;
+    border: solid $primary;
+    background: $panel;
+    color: $foreground;
     text-style: bold;
 }
 
 #start-button:focus {
-    border: solid #8fb6c9;
+    border: solid $accent;
 }
 
 #start-button:disabled {
-    border: solid #1d3039;
-    color: #657781;
+    border: solid $secondary;
+    color: $foreground;
+    background: $panel;
+    opacity: 0.5;
 }
 
 /* ==========================================================================
@@ -174,8 +179,8 @@ Footer > .footer--description {
 #items-panel,
 #log-panel {
     height: 100%;
-    background: #0a151c;
-    border: solid #2c4655;
+    background: $panel;
+    border: solid $secondary;
 }
 
 /* --- Left Column: Test Steps Management --- */
@@ -186,14 +191,14 @@ Footer > .footer--description {
 
 #items-table {
     height: 1fr;
-    background: #081218;
-    color: #d9e1e7;
+    background: $surface;
+    color: $foreground;
     border: none;
 }
 
 #items-table > .datatable--header {
-    background: #132833;
-    color: #e8f3f8;
+    background: $secondary;
+    color: $foreground;
     text-style: bold;
 }
 
@@ -205,8 +210,8 @@ Footer > .footer--description {
 
 #log-title {
     height: 1;
-    background: #132833;
-    color: #e8f3f8;
+    background: $secondary;
+    color: $foreground;
     text-style: bold;
     content-align: center middle;
 }
@@ -214,7 +219,7 @@ Footer > .footer--description {
 /* --- Execution Result Overlay Banner --- */
 #result-banner {
     height: 0;
-    background: #081218;
+    background: $surface;
     content-align: center middle;
     text-style: bold;
     border: none;
@@ -227,19 +232,19 @@ Footer > .footer--description {
 }
 
 #result-banner.pass {
-    border: heavy #2e7d32;
-    color: #40c878;
+    border: heavy $success;
+    color: $success;
 }
 
 #result-banner.fail {
-    border: heavy #c62828;
-    color: #ff5d5d;
+    border: heavy $error;
+    color: $error;
 }
 
 #live-log {
     height: 1fr;
-    background: #081218;
-    color: #d9e1e7;
+    background: $surface;
+    color: $foreground;
     border: none;
 }
 
@@ -276,21 +281,21 @@ QuitConfirmScreen {
     grid-rows: 2 1fr 3;
     grid-gutter: 1;
     padding: 1 2;
-    background: #0b1820;
-    border: heavy #f2c94c;
+    background: $panel;
+    border: heavy $accent;
 }
 
 #quit-title {
     column-span: 5;
     content-align: center middle;
     text-style: bold;
-    color: #f2f7fa;
+    color: $foreground;
 }
 
 #quit-message {
     column-span: 5;
     content-align: center middle;
-    color: #a6c7d8;
+    color: $foreground;
 }
 
 #quit-yes,

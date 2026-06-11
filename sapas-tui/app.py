@@ -12,6 +12,7 @@ from textual import on
 from textual.app import App, ComposeResult
 from textual.containers import Container
 from textual.events import Resize
+from textual.theme import Theme
 from textual.widgets import Button, Input, Static, Footer, Header
 
 # Ensure the repository root and sapas-tui directory are in the system path for seamless module imports
@@ -36,6 +37,21 @@ from engine.log_interceptor import LogInterceptor
 from engine.runner_worker import run_flow_in_daemon_thread
 
 
+sapas_classic_theme = Theme(
+    name="sapas-classic",
+    primary="#123244",
+    secondary="#132833",
+    accent="#f2c94c",
+    background="#071016",
+    foreground="#d9e1e7",
+    surface="#081218",
+    panel="#0b1820",
+    success="#40c878",
+    warning="#f2c94c",
+    error="#ff5d5d",
+)
+
+
 class SapasDashboard(App[None]):
     """Factory-grade Sapas production test dashboard built with Textual."""
 
@@ -45,6 +61,7 @@ class SapasDashboard(App[None]):
         ("ctrl+q", "request_quit", "Quit"),
         ("ctrl+c", "request_quit", "Quit"),
         ("f2", "focus_serial", "Serial Number"),
+        ("f3", "cycle_theme", "Theme"),
     ]
 
     def __init__(self, context=None, cli_args=None) -> None:
@@ -138,6 +155,9 @@ class SapasDashboard(App[None]):
 
     async def on_mount(self) -> None:
         """Triggers asynchronous setup routines once screen mounting finishes initialization."""
+        self.register_theme(sapas_classic_theme)
+        self.theme = "sapas-classic"
+
         self.install_signal_handlers()
         
         self.setup_dashboard_flow()       
@@ -239,7 +259,7 @@ class SapasDashboard(App[None]):
         self.query_one("#info-value", Static).update(info_text)
         
         # 5. Update header title and sub_title with colors and symbols
-        self.title = Text.assemble(("Sapas TUI ", "bold cyan"), ("Tester", "bold white"))
+        self.title = Text.assemble(("Sapas TUI ", "bold cyan"), ("Tester", "bold"))
         self.sub_title = Text.assemble(
             ("❱❱ ", "bold yellow"),
             (f"Cycle {self.current_cycle}/{self.total_cycles}", "bold yellow"),
@@ -294,6 +314,19 @@ class SapasDashboard(App[None]):
     def action_focus_serial(self) -> None:
         """Action handler to focus on the serial number input field."""
         self.focus_serial_input()
+
+    def action_cycle_theme(self) -> None:
+        """Cycle through the registered available themes."""
+        themes = list(self.available_themes.keys())
+        if not themes:
+            return
+        try:
+            current_index = themes.index(self.theme)
+        except ValueError:
+            current_index = 0
+        next_index = (current_index + 1) % len(themes)
+        self.theme = themes[next_index]
+        self.write_terminal_log(f"[INFO] Theme switched to: {self.theme}")
 
     def action_request_quit(self) -> None:
         """Ask the operator to confirm before stopping execution and closing the TUI."""
@@ -397,18 +430,18 @@ class SapasDashboard(App[None]):
         minutes, seconds = divmod(remainder, 60)
         self.query_one("#elapsed-time", Static).update(f"{int(hours):02d}:{int(minutes):02d}:{seconds:05.2f}")
 
-    def write_log(self, message: str, style: str = "white") -> None:
+    def write_log(self, message: str, style: str = "") -> None:
         """Applies advanced regular expression highlight parsing to live engine output lines."""
         self.query_one("#live-log", LogView).write_log(message, style)
 
-    def write_terminal_log(self, message: str, style: str = "white") -> None:
+    def write_terminal_log(self, message: str, style: str = "") -> None:
         """Writes message logs and updates item metrics simultaneously."""
         if self._abort_ui:
             return
         self.log_interceptor.feed_line(message)
         self.write_log(message, style)
 
-    def emit_from_worker(self, message: str, style: str = "white") -> None:
+    def emit_from_worker(self, message: str, style: str = "") -> None:
         """Safely passes incoming background worker thread messages into the TUI main loop thread."""
         if self._abort_ui:
             return
@@ -450,7 +483,7 @@ class SapasDashboard(App[None]):
         
         res = Text()
         res.append(f"{result}  ", style=color)
-        res.append(f"[{sn}]  ", style="bold white")
+        res.append(f"[{sn}]  ", style="bold")
         res.append(f"{symbol} {status_text}", style=color)
         return res
 
@@ -503,7 +536,7 @@ class SapasDashboard(App[None]):
         serial_input.value = serial_number
         self.started_at = datetime.now()
         self.set_error_code("RUNNING", "running")
-        self.write_terminal_log(f"Serial Number accepted: {serial_number}", "bold white")
+        self.write_terminal_log(f"Serial Number accepted: {serial_number}", "bold")
         self.write_terminal_log("Station interlock engaged. Real Sapas flow started.", "yellow")
 
         # Offload synchronous execution without blocking Textual's message pump or app shutdown.

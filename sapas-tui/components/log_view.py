@@ -6,10 +6,10 @@ from textual.widgets import RichLog
 class LogView(RichLog):
     """Component managing log displays and real-time syntax color highlighting."""
 
-    def write_log(self, message: str, style: str = "white") -> None:
+    def write_log(self, message: str, style: str = "") -> None:
         """Applies advanced regular expression highlight parsing to live engine output lines."""
         timestamp = datetime.now().strftime("%H:%M:%S")
-        log_text = Text(message, style=style)
+        log_text = Text(message, style=style if style else None)
 
         # Color core subsystem markers distinctly
         log_text.highlight_regex(r"\[\s*RUNNER\s*\]", "bold #5f87af")

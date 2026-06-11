@@ -66,7 +66,7 @@ def execute_real_flow(
         run_context.set("STOP_REQUESTED", True)
     runner = Runner(run_context)
 
-    tui_handler = TUILogHandler(lambda line: emit_line_cb(line, "white"))
+    tui_handler = TUILogHandler(lambda line: emit_line_cb(line, ""))
     tui_handler.setFormatter(logging.Formatter("%(message)s"))
     root_logger = logging.getLogger()
     root_logger.addHandler(tui_handler)
