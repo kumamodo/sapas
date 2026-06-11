@@ -40,7 +40,7 @@ from engine.runner_worker import run_flow_in_daemon_thread
 sapas_classic_theme = Theme(
     name="sapas-classic",
     primary="#123244",
-    secondary="#132833",
+    secondary="#0E4C70",
     accent="#f2c94c",
     background="#071016",
     foreground="#d9e1e7",
