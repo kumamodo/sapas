@@ -318,7 +318,7 @@ DeviceManagerScreen {
 }
 
 #dev-manager-dialog {
-    width: 80;
+    width: 90;
     height: 24;
     background: $panel;
     border: heavy $accent;
@@ -372,6 +372,73 @@ DeviceManagerScreen {
 
 #dev-btn-refresh:focus,
 #dev-btn-close:focus {
+    border: solid $accent;
+}
+
+/* ==========================================================================
+   Network Manager Overlay Screen & Dialog
+   ========================================================================== */
+
+NetworkManagerScreen {
+    align: center middle;
+    background: #000000 75%;
+}
+
+#net-manager-dialog {
+    width: 90;
+    height: 24;
+    background: $panel;
+    border: heavy $accent;
+    padding: 1 2;
+    layout: vertical;
+}
+
+#net-manager-title {
+    content-align: center middle;
+    text-style: bold;
+    color: $accent;
+    height: 1;
+    margin-bottom: 1;
+}
+
+#net-manager-table {
+    height: 12;
+    background: $surface;
+    color: $foreground;
+    border: none;
+}
+
+#net-manager-table > .datatable--header {
+    background: $secondary;
+    color: $foreground;
+    text-style: bold;
+}
+
+#net-manager-status {
+    height: 1;
+    content-align: center middle;
+    color: $warning;
+    margin: 0;
+    text-style: italic;
+}
+
+#net-manager-actions {
+    layout: horizontal;
+    height: 3;
+    align: center middle;
+    margin-top: 2;
+}
+
+#net-btn-refresh,
+#net-btn-close {
+    width: 20;
+    height: 3;
+    margin: 0 8;
+    text-style: bold;
+}
+
+#net-btn-refresh:focus,
+#net-btn-close:focus {
     border: solid $accent;
 }
 

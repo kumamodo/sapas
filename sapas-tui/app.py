@@ -32,6 +32,7 @@ from components.steps_table import StepsTable
 from components.log_view import LogView
 from screens.quit_confirm import QuitConfirmScreen
 from screens.device_manager import DeviceManagerScreen
+from screens.network_manager import NetworkManagerScreen
 from utils.constants import PASS_SYMBOL, FAIL_SYMBOL, SKIP_FLOW_COMMANDS
 from utils.data_types import TestStep
 from engine.log_interceptor import LogInterceptor
@@ -64,6 +65,7 @@ class SapasDashboard(App[None]):
         ("f2", "focus_serial", "Serial Number"),
         ("f3", "cycle_theme", "Theme"),
         ("f4", "toggle_device_manager", "Device Manager"),
+        ("f6", "toggle_network_manager", "Network Adapters"),
     ]
 
     def __init__(self, context=None, cli_args=None) -> None:
@@ -343,6 +345,14 @@ class SapasDashboard(App[None]):
                 self.pop_screen()
                 return
         self.push_screen(DeviceManagerScreen())
+
+    def action_toggle_network_manager(self) -> None:
+        """Toggle the Network Adapter Manager overlay screen."""
+        for screen in self.screen_stack:
+            if isinstance(screen, NetworkManagerScreen):
+                self.pop_screen()
+                return
+        self.push_screen(NetworkManagerScreen())
 
     def handle_quit_confirmation(self, confirmed: bool) -> None:
         """Handle operator confirmation result from the quit dialog."""
