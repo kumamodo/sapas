@@ -15,28 +15,20 @@ from textual.events import Resize
 from textual.theme import Theme
 from textual.widgets import Button, Input, Static, Footer, Header
 
-# Ensure the repository root and sapas-tui directory are in the system path for seamless module imports
-TUI_ROOT = Path(__file__).resolve().parent
-REPO_ROOT = TUI_ROOT.parent
-if str(REPO_ROOT) not in sys.path:
-    sys.path.insert(0, str(REPO_ROOT))
-if str(TUI_ROOT) not in sys.path:
-    sys.path.insert(0, str(TUI_ROOT))
-
 from sapas.cli import setup_context
 from sapas.core.flow_loader import FlowLoader
 
 # Subcomponents & modules
-from components.info_panel import InfoPanel
-from components.steps_table import StepsTable
-from components.log_view import LogView
-from screens.quit_confirm import QuitConfirmScreen
-from screens.device_manager import DeviceManagerScreen
-from screens.network_manager import NetworkManagerScreen
-from utils.constants import PASS_SYMBOL, FAIL_SYMBOL, SKIP_FLOW_COMMANDS
-from utils.data_types import TestStep
-from engine.log_interceptor import LogInterceptor
-from engine.runner_worker import run_flow_in_daemon_thread
+from sapas.tui.components.info_panel import InfoPanel
+from sapas.tui.components.steps_table import StepsTable
+from sapas.tui.components.log_view import LogView
+from sapas.tui.screens.quit_confirm import QuitConfirmScreen
+from sapas.tui.screens.device_manager import DeviceManagerScreen
+from sapas.tui.screens.network_manager import NetworkManagerScreen
+from sapas.tui.utils.constants import PASS_SYMBOL, FAIL_SYMBOL, SKIP_FLOW_COMMANDS
+from sapas.tui.utils.data_types import TestStep
+from sapas.tui.engine.log_interceptor import LogInterceptor
+from sapas.tui.engine.runner_worker import run_flow_in_daemon_thread
 
 
 sapas_classic_theme = Theme(

@@ -1,7 +1,7 @@
 from textual.widgets import DataTable
 
-from utils.constants import format_status
-from utils.data_types import TestStep
+from sapas.tui.utils.constants import format_status
+from sapas.tui.utils.data_types import TestStep
 
 
 class StepsTable(DataTable):
