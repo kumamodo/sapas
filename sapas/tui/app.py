@@ -1,130 +1,49 @@
-# from __future__ import annotations
-
 import asyncio
 import contextlib
-import logging
-import re
 import signal
 import sys
-import threading
 import yaml
 from argparse import Namespace
-from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 
 from rich.text import Text
 from textual import on
 from textual.app import App, ComposeResult
-from textual.containers import Container, Grid
+from textual.containers import Container
 from textual.events import Resize
-from textual.screen import ModalScreen
-from textual.widgets import Button, Input, RichLog, Static, Footer, Header, DataTable
-
-
-# Ensure the repository root is in the system path for seamless module imports
-REPO_ROOT = Path(__file__).resolve().parents[1]
-if str(REPO_ROOT) not in sys.path:
-    sys.path.insert(0, str(REPO_ROOT))
+from textual.theme import Theme
+from textual.widgets import Button, Input, Static, Footer, Header
 
 from sapas.cli import setup_context
 from sapas.core.flow_loader import FlowLoader
-from sapas.core.runner import Runner
 
-# Global Unicode Status Symbols matching standard visual weights
-PASS_SYMBOL = "\u2713"
-FAIL_SYMBOL = "\u274c"
-
-# Structural flow control markers that do not map to physical execution steps
-SKIP_FLOW_COMMANDS = {"cycle", "if", "end_if"}
-
-
-@dataclass(frozen=True)
-class TestStep:
-    """Data representation of an executable test sequence item parsed from flow files."""
-    item_id: str
-    runner_index: str
-    item_label: str
-    flow_item: str
-    command: str
+# Subcomponents & modules
+from sapas.tui.components.info_panel import InfoPanel
+from sapas.tui.components.steps_table import StepsTable
+from sapas.tui.components.log_view import LogView
+from sapas.tui.screens.quit_confirm import QuitConfirmScreen
+from sapas.tui.screens.device_manager import DeviceManagerScreen
+from sapas.tui.screens.network_manager import NetworkManagerScreen
+from sapas.tui.utils.constants import PASS_SYMBOL, FAIL_SYMBOL, SKIP_FLOW_COMMANDS
+from sapas.tui.utils.data_types import TestStep
+from sapas.tui.engine.log_interceptor import LogInterceptor
+from sapas.tui.engine.runner_worker import run_flow_in_daemon_thread
 
 
-def format_status(status: str) -> Text:
-    """Generates padded Rich Text tokens for side-panel menu item statuses."""
-    cells = {
-        "PENDING": ("PENDING", "dim"),
-        "RUNNING": ("RUNNING", "bold yellow"),
-        "PASS": (f"{PASS_SYMBOL} PASS", "bold green"),
-        "FAIL": (f"{FAIL_SYMBOL} FAIL", "bold red"),
-        "SKIP": ("- SKIP", "cyan"),
-    }
-    value, style = cells[status]
-    return Text(value, style=style, no_wrap=True)
-
-
-class TUILogHandler(logging.Handler):
-    """Custom logging handler routing structured logs from root engine to TUI logging widget."""
-    def __init__(self, emit_line) -> None:
-        super().__init__(level=logging.INFO)
-        self.emit_line = emit_line
-
-    def emit(self, record: logging.LogRecord) -> None:
-        self.emit_line(self.format(record))
-
-
-class LineCapture:
-    """Thread-safe stream interceptor caching standard error text chunks into structured lines."""
-    def __init__(self, emit_line, stream_name: str) -> None:
-        self.emit_line = emit_line
-        self.stream_name = stream_name
-        self._buffer = ""
-        self._lock = threading.Lock()
-
-    def write(self, data: str) -> int:
-        with self._lock:
-            self._buffer += data
-            while "\n" in self._buffer:
-                line, self._buffer = self._buffer.split("\n", 1)
-                if line.strip():
-                    self.emit_line(f"[{self.stream_name}] {line.rstrip()}")
-        return len(data)
-
-    def flush(self) -> None:
-        with self._lock:
-            if self._buffer.strip():
-                self.emit_line(f"[{self.stream_name}] {self._buffer.rstrip()}")
-            self._buffer = ""
-
-
-class QuitConfirmScreen(ModalScreen[bool]):
-    """Confirmation dialog used to prevent accidental production stop/exit."""
-
-    BINDINGS = [
-        ("escape", "cancel", "Cancel"),
-        ("n", "cancel", "No"),
-        ("y", "confirm", "Yes"),
-    ]
-
-    def compose(self) -> ComposeResult:
-        yield Grid(
-            Static("Exit Sapas TUI Tester?", id="quit-title"),
-            Static("Current test will stop after the active item completes.", id="quit-message"),
-            Static("", classes="quit-spacer"),
-            Button("Yes", variant="error", id="quit-yes"),
-            Static("", classes="quit-spacer"),
-            Button("No", variant="primary", id="quit-no"),
-            Static("", classes="quit-spacer"),
-            id="quit-dialog",
-        )
-
-    def on_button_pressed(self, event: Button.Pressed) -> None:
-        self.dismiss(event.button.id == "quit-yes")
-
-    def action_confirm(self) -> None:
-        self.dismiss(True)
-
-    def action_cancel(self) -> None:
-        self.dismiss(False)
+sapas_classic_theme = Theme(
+    name="sapas-classic",
+    primary="#123244",
+    secondary="#0E4C70",
+    accent="#f2c94c",
+    background="#071016",
+    foreground="#d9e1e7",
+    surface="#081218",
+    panel="#0b1820",
+    success="#40c878",
+    warning="#f2c94c",
+    error="#ff5d5d",
+)
 
 
 class SapasDashboard(App[None]):
@@ -136,6 +55,9 @@ class SapasDashboard(App[None]):
         ("ctrl+q", "request_quit", "Quit"),
         ("ctrl+c", "request_quit", "Quit"),
         ("f2", "focus_serial", "Serial Number"),
+        ("f3", "cycle_theme", "Theme"),
+        ("f4", "toggle_device_manager", "Device Manager"),
+        ("f6", "toggle_network_manager", "Network Adapters"),
     ]
 
     def __init__(self, context=None, cli_args=None) -> None:
@@ -157,54 +79,68 @@ class SapasDashboard(App[None]):
         self._previous_sigint_handler = None
         self._sigint_pending = False
 
+        # Instantiate log parser with callbacks
+        self.log_interceptor = LogInterceptor(
+            on_cycle_start=self._handle_cycle_start,
+            on_step_start=self._handle_step_start,
+            on_delay_start=self._handle_delay_start,
+            on_step_result=self._handle_step_result,
+            on_delay_finish=self._handle_delay_finish,
+            on_block_skip=self._handle_block_skip,
+        )
+
+    def _handle_context_created(self, context) -> None:
+        self.context = context
+
+    def _handle_cycle_start(self, current_cycle: int, total_cycles: int) -> None:
+        self.current_cycle = current_cycle
+        self.total_cycles = total_cycles
+        self.update_info_display()
+        self.reset_cycle_view()
+
+    def _handle_step_start(self, runner_index: str) -> None:
+        row_key = self.step_index_by_runner_index.get(runner_index)
+        if row_key:
+            self.running_step_key = row_key
+            self.set_step_status(row_key, "RUNNING")
+
+    def _handle_delay_start(self, delay_item: str) -> None:
+        row_key = self.pop_next_pending_step(delay_item)
+        if row_key:
+            self.running_step_key = row_key
+            self.set_step_status(row_key, "RUNNING")
+
+    def _handle_step_result(self, item: str, return_code: int) -> None:
+        row_key = self.running_step_key or self.pop_next_pending_step(item)
+        if row_key:
+            self.set_step_status(row_key, "PASS" if return_code == 0 else "FAIL")
+            self.running_step_key = None
+
+    def _handle_delay_finish(self) -> None:
+        if self.running_step_key:
+            self.set_step_status(self.running_step_key, "PASS")
+            self.running_step_key = None
+
+    def _handle_block_skip(self) -> None:
+        for step in self.test_steps:
+            if self.step_status.get(step.item_id) == "PENDING":
+                self.set_step_status(step.item_id, "SKIP")
+                break
+
     def compose(self) -> ComposeResult:
         """Constructs the TUI visual tree hierarchy layout."""
-        info_box = Container(
-            Static("Loading...", id="info-value", classes="box-value"), 
-            classes="top-box", 
-            id="info-box"
-        )
-        error_box = Container(
-            Static("", id="error-code", classes="box-value"), 
-            classes="top-box", 
-            id="error-box"
-        )
-        elapsed_box = Container(
-            Static("00:00:00.00", id="elapsed-time", classes="box-value"), 
-            classes="top-box", 
-            id="elapsed-box"
-        )
-        serial_box = Container(
-            Input(placeholder="sapas1234567890", id="serial-input"),
-            Button("Start", id="start-button"),
-            classes="top-box",
-            id="serial-box"
-        )
-
-        # Apply structural titles to standard component borders
-        info_box.border_title = "Information"
-        error_box.border_title = "Error Code"
-        elapsed_box.border_title = "Elapsed Time"
-        serial_box.border_title = "Serial Number"
-
         yield Container(
             Header(show_clock=True),
-            Container(
-                info_box,
-                error_box,
-                elapsed_box,
-                serial_box,
-                id="top-row",
-            ),
+            InfoPanel(id="top-row"),
             Container(
                 Container(
-                    DataTable(id="items-table"),
+                    StepsTable(id="items-table"),
                     id="items-panel"
                 ),
                 Container(
                     Static("Live Log", id="log-title"),
                     Static("", id="result-banner"),
-                    RichLog(id="live-log", wrap=True, auto_scroll=True, highlight=False),
+                    LogView(id="live-log", wrap=True, auto_scroll=True, highlight=False),
                     id="log-panel"
                 ),
                 id="main-body",
@@ -215,21 +151,18 @@ class SapasDashboard(App[None]):
 
     async def on_mount(self) -> None:
         """Triggers asynchronous setup routines once screen mounting finishes initialization."""
+        self.register_theme(sapas_classic_theme)
+        self.theme = "sapas-classic"
+
         self.install_signal_handlers()
         
-        # Initialize DataTable columns
-        table = self.query_one("#items-table", DataTable)
-        table.add_column("Items", width=29, key="item")
-        table.add_column("Status", key="status")
-        table.cursor_type = "none" # Disable cell selection highlight
-
         self.setup_dashboard_flow()       
         self.reset_station_view(clear_log=True)
         self.set_interval(0.2, self.update_elapsed)
         self.set_interval(0.1, self.check_signal_quit_request)
         self.set_interval(1, self.toggle_sf_blink)
         self.apply_responsive_layout(self.screen.size.width)
-        self.query_one("#live-log", RichLog).can_focus = False
+        self.query_one("#live-log", LogView).can_focus = False
         self.call_after_refresh(self.focus_serial_input)
 
     def toggle_sf_blink(self) -> None:
@@ -272,7 +205,6 @@ class SapasDashboard(App[None]):
         self.current_cycle = 1
         
         self.update_info_display()
-
         self.rebuild_step_indexes()
 
     def update_info_display(self) -> None:
@@ -315,18 +247,15 @@ class SapasDashboard(App[None]):
             app_root.border_title = ""
 
         # 5. Construct metadata text string using left-aligned factory guidelines
-        sn = getattr(self.args, "serialNumber", "N/A") or "N/A"
         info_text = (
-            f"Serial:  {sn}\n"
             f"Station: {station_name}\n"
             f"Script:  {script_version}\n"
-            f"Flow:    {requested_flow}\n"
-            f"Shopfloor: {sf_status}"
+            f"Flow:    {requested_flow}"
         )
         self.query_one("#info-value", Static).update(info_text)
         
         # 5. Update header title and sub_title with colors and symbols
-        self.title = Text.assemble(("Sapas TUI ", "bold cyan"), ("Tester", "bold white"))
+        self.title = Text.assemble(("Sapas TUI ", "bold cyan"), ("Tester", "bold"))
         self.sub_title = Text.assemble(
             ("❱❱ ", "bold yellow"),
             (f"Cycle {self.current_cycle}/{self.total_cycles}", "bold yellow"),
@@ -382,11 +311,40 @@ class SapasDashboard(App[None]):
         """Action handler to focus on the serial number input field."""
         self.focus_serial_input()
 
+    def action_cycle_theme(self) -> None:
+        """Cycle through the registered available themes."""
+        themes = list(self.available_themes.keys())
+        if not themes:
+            return
+        try:
+            current_index = themes.index(self.theme)
+        except ValueError:
+            current_index = 0
+        next_index = (current_index + 1) % len(themes)
+        self.theme = themes[next_index]
+        self.write_terminal_log(f"[INFO] Theme switched to: {self.theme}")
+
     def action_request_quit(self) -> None:
         """Ask the operator to confirm before stopping execution and closing the TUI."""
         if any(isinstance(screen, QuitConfirmScreen) for screen in self.screen_stack):
             return
         self.push_screen(QuitConfirmScreen(), self.handle_quit_confirmation)
+
+    def action_toggle_device_manager(self) -> None:
+        """Toggle the Device Manager overlay screen."""
+        for screen in self.screen_stack:
+            if isinstance(screen, DeviceManagerScreen):
+                self.pop_screen()
+                return
+        self.push_screen(DeviceManagerScreen())
+
+    def action_toggle_network_manager(self) -> None:
+        """Toggle the Network Adapter Manager overlay screen."""
+        for screen in self.screen_stack:
+            if isinstance(screen, NetworkManagerScreen):
+                self.pop_screen()
+                return
+        self.push_screen(NetworkManagerScreen())
 
     def handle_quit_confirmation(self, confirmed: bool) -> None:
         """Handle operator confirmation result from the quit dialog."""
@@ -422,7 +380,7 @@ class SapasDashboard(App[None]):
         self.render_items_list()
 
         if clear_log:
-            self.query_one("#live-log", RichLog).clear()
+            self.query_one("#live-log", LogView).clear()
             self.write_log("Station ready. Awaiting Serial Number input.", "dim")
 
         self.query_one("#error-code", Static).remove_class("fail", "running", "pass")
@@ -440,29 +398,11 @@ class SapasDashboard(App[None]):
 
     def render_items_list(self) -> None:
         """Renders out clean alphanumeric step identifiers within the diagnostic item view panel."""
-        table = self.query_one("#items-table", DataTable)
-        table.clear()
-        for step in self.test_steps:
-            label = f"[{step.item_id}] {step.item_label}"
-            status = self.step_status.get(step.item_id, "PENDING")
-            table.add_row(label, format_status(status), key=step.item_id)
+        self.query_one("#items-table", StepsTable).render_steps(self.test_steps, self.step_status)
 
     def set_step_status(self, row_key: str, status: str) -> None:
         """Updates internal dictionary keys and triggers state re-renders for test list cells."""
-        self.step_status[row_key] = status
-        try:
-            table = self.query_one("#items-table", DataTable)
-            # Check if row exists before updating to prevent CellDoesNotExist errors
-            if row_key in table.rows:
-                table.update_cell(row_key, "status", format_status(status))
-                if status == "RUNNING":
-                    table.scroll_to_row(row_key)
-            else:
-                # Row not found, trigger full refresh
-                self.render_items_list()
-        except Exception:
-            # Catch-all fallback to ensure the UI continues to function
-            self.render_items_list()
+        self.query_one("#items-table", StepsTable).update_step_status(row_key, status, self.test_steps, self.step_status)
 
     def item_lookup_keys(self, item: str) -> list[str]:
         """Returns stable lookup aliases for flow items whose log text may be normalized."""
@@ -502,45 +442,18 @@ class SapasDashboard(App[None]):
         minutes, seconds = divmod(remainder, 60)
         self.query_one("#elapsed-time", Static).update(f"{int(hours):02d}:{int(minutes):02d}:{seconds:05.2f}")
 
-    def write_log(self, message: str, style: str = "white") -> None:
+    def write_log(self, message: str, style: str = "") -> None:
         """Applies advanced regular expression highlight parsing to live engine output lines."""
-        timestamp = datetime.now().strftime("%H:%M:%S")
-        log_text = Text(message, style=style)
-        
-        # Color core subsystem markers distinctly
-        log_text.highlight_regex(r"\[\s*RUNNER\s*\]", "bold #5f87af")    
-        log_text.highlight_regex(r"\[\s*ACTION\s*\]", "bold #8787af")    
-        log_text.highlight_regex(r"\[\s*USER\s*\]", "bold #00afaf")      
-        log_text.highlight_regex(r"\[\s*INFO\s*\]", "bold #5f87af")      
-        log_text.highlight_regex(r"\[\s*WARN\s*\]", "bold yellow")      
-        log_text.highlight_regex(r"\[\s*ERROR\s*\]", "bold red")        
-        log_text.highlight_regex(r"\[\s*SSH\s*\]|\[\s*SFTP\s*\]", "bold #af87af") 
-        log_text.highlight_regex(r"\[\s*STDERR\s*\]", "bold red")      
-        log_text.highlight_regex(r"\[\s*ITEM\s*\]", "bold #87afd7")    
-        log_text.highlight_regex(r"\[\s*OUT\s*\]", "bold #d787d7")     
-        
-        # Identify specific low-level data telemetry dumps
-        if message.startswith("##"):
-            log_text.style = "yellow"
-            
-        # Parse acceptance or rejection strings to match color flags
-        if "PASS" in message or "accepted" in message:
-            log_text.highlight_regex(r"PASS|Unit accepted\.", "bold green")
-        if "FAIL" in message or "Error" in message or "rejected" in message:
-            log_text.highlight_regex(r"FAIL|Error[^|]*|Unit rejected\.", "bold red")
+        self.query_one("#live-log", LogView).write_log(message, style)
 
-        self.query_one("#live-log", RichLog).write(
-            Text.assemble((timestamp, "dim"), (" | ", "dim"), log_text)
-        )
-
-    def write_terminal_log(self, message: str, style: str = "white") -> None:
+    def write_terminal_log(self, message: str, style: str = "") -> None:
         """Writes message logs and updates item metrics simultaneously."""
         if self._abort_ui:
             return
-        self.update_step_state_from_log(message)
+        self.log_interceptor.feed_line(message)
         self.write_log(message, style)
 
-    def emit_from_worker(self, message: str, style: str = "white") -> None:
+    def emit_from_worker(self, message: str, style: str = "") -> None:
         """Safely passes incoming background worker thread messages into the TUI main loop thread."""
         if self._abort_ui:
             return
@@ -559,122 +472,6 @@ class SapasDashboard(App[None]):
         error_widget.update("RUNNING")
         error_widget.add_class("running")
         self.set_result_banner("")
-
-    def update_step_state_from_log(self, message: str) -> None:
-        """State Machine Parser: Updates current step execution records using real-time log signatures."""
-        # Detect starting test cycle to reset item status
-        cycle_match = re.search(r"Starting Test Cycle (\d+) / (\d+)", message)
-        if cycle_match:
-            self.current_cycle = int(cycle_match.group(1))
-            self.total_cycles = int(cycle_match.group(2))
-            self.update_info_display()
-            self.reset_cycle_view()
-            return
-
-        # Match standard test item start signatures emitted by Runner.log_banner:
-        # "12 sapas demo_logs.py". The numeric prefix is the original flow index,
-        # so it disambiguates duplicate script names.
-        start_match = re.search(r"\b(\d+)\s+sapas\s+(.+)$", message)
-        if start_match:
-            runner_index = f"{int(start_match.group(1)):02d}"
-            row_key = self.step_index_by_runner_index.get(runner_index)
-            if row_key:
-                self.running_step_key = row_key
-                self.set_step_status(row_key, "RUNNING")
-            return
-
-        # Match structural dynamic delay triggers
-        delay_match = re.search(r"Start delay:\s+(.+?)\s+seconds", message)
-        if delay_match:
-            delay_item = delay_match.group(1).strip()
-            row_key = self.pop_next_pending_step(delay_item)
-            if row_key:
-                self.running_step_key = row_key
-                self.set_step_status(row_key, "RUNNING")
-            return
-
-        # Match termination tracking outputs
-        result_match = re.search(r"\[Item\]:\s+(.+?)\s+\|\s+code=([-\d]+)", message)
-        if result_match:
-            item = result_match.group(1).strip()
-            return_code = int(result_match.group(2))
-            row_key = self.running_step_key or self.pop_next_pending_step(item)
-            if row_key:
-                self.set_step_status(row_key, "PASS" if return_code == 0 else "FAIL")
-                self.running_step_key = None
-            return
-
-        # Catch delay end confirmations
-        if "Delay finished." in message and self.running_step_key:
-            self.set_step_status(self.running_step_key, "PASS")
-            self.running_step_key = None
-            return
-
-        # Intercept condition failures for conditionally skipped block sequences
-        if "Skipping block..." in message:
-            for step in self.test_steps:
-                if self.step_status.get(step.item_id) == "PENDING":
-                    self.set_step_status(step.item_id, "SKIP")
-                    break 
-            return
-
-    def execute_real_flow(self, serial_number: str, timestamp: str):
-        """Spins up synchronous flow execution engines with structured console logging redirection wrappers."""
-        if self._abort_ui:
-            return "STOP", self.context
-
-        self.args.serialNumber = serial_number
-        self.args.timeStamp = timestamp
-
-        context = setup_context(self.args)
-        self.context = context
-        if self.stop_requested:
-            context.set("STOP_REQUESTED", True)
-        runner = Runner(context)
-
-        tui_handler = TUILogHandler(lambda line: self.emit_from_worker(line, "white"))
-        tui_handler.setFormatter(logging.Formatter("%(message)s"))
-        root_logger = logging.getLogger()
-        root_logger.addHandler(tui_handler)
-
-        stderr_capture = LineCapture(lambda line: self.emit_from_worker(line, "bold red"), "STDERR")
-        try:
-            with contextlib.redirect_stderr(stderr_capture):
-                runner.execute_flows(self.args)
-        finally:
-            stderr_capture.flush()
-            root_logger.removeHandler(tui_handler)
-
-        return context.get("ERROR_CODE", "UNKNOWN"), context
-
-    async def run_flow_in_daemon_thread(self, serial_number: str, timestamp: str):
-        """Run the blocking runner without tying UI shutdown to asyncio's default executor."""
-        loop = asyncio.get_running_loop()
-        future = loop.create_future()
-
-        def finish(result=None, error: BaseException | None = None) -> None:
-            if future.done():
-                return
-            if error is not None:
-                future.set_exception(error)
-            else:
-                future.set_result(result)
-
-        def worker() -> None:
-            try:
-                result = self.execute_real_flow(serial_number, timestamp)
-            except BaseException as exc:
-                if not self._abort_ui:
-                    with contextlib.suppress(Exception):
-                        self.call_from_thread(finish, None, exc)
-            else:
-                if not self._abort_ui:
-                    with contextlib.suppress(Exception):
-                        self.call_from_thread(finish, result, None)
-
-        thread = threading.Thread(target=worker, name="SapasRunnerThread", daemon=True)
-        thread.start()
-        return await future
 
     def set_result_banner(self, result: str) -> None:
         """Toggles layout classes and maps visibility flags for overlay pass/fail result banners."""
@@ -698,7 +495,7 @@ class SapasDashboard(App[None]):
         
         res = Text()
         res.append(f"{result}  ", style=color)
-        res.append(f"[{sn}]  ", style="bold white")
+        res.append(f"[{sn}]  ", style="bold")
         res.append(f"{symbol} {status_text}", style=color)
         return res
 
@@ -751,12 +548,29 @@ class SapasDashboard(App[None]):
         serial_input.value = serial_number
         self.started_at = datetime.now()
         self.set_error_code("RUNNING", "running")
-        self.write_terminal_log(f"Serial Number accepted: {serial_number}", "bold white")
+        self.write_terminal_log(f"Serial Number accepted: {serial_number}", "bold")
         self.write_terminal_log("Station interlock engaged. Real Sapas flow started.", "yellow")
 
         # Offload synchronous execution without blocking Textual's message pump or app shutdown.
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        final_status, context = await self.run_flow_in_daemon_thread(serial_number, timestamp)
+        try:
+            final_status, context = await run_flow_in_daemon_thread(
+                args=self.args,
+                context=self.context,
+                serial_number=serial_number,
+                timestamp=timestamp,
+                emit_line_cb=self.emit_from_worker,
+                stop_requested=self.stop_requested,
+                abort_requested_cb=lambda: self._abort_ui,
+                call_from_thread_fn=self.call_from_thread,
+                on_context_created=self._handle_context_created
+            )
+        except Exception as e:
+            import traceback
+            self.write_terminal_log(f"[ERROR] Exception in runner thread: {e}", "bold red")
+            self.write_terminal_log(traceback.format_exc(), "bold red")
+            final_status = "FAIL"
+            context = self.context
 
         end_time = datetime.now()
         exact_elapsed = (end_time - self.started_at).total_seconds()

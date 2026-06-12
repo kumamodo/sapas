@@ -168,7 +168,7 @@ def main():
         run_user_script(script_path.name, cli_args=args, user_args=remaining_args)
     elif args.tui:
         # Mode B: wrap it with a TUI shell.
-        from sapas.tui.sapas_tui_dashboard import SapasDashboard
+        from sapas.tui.app import SapasDashboard
         
         # Pass the existing context and args into the TUI,
         # so it doesn't have to initialize them blindly on its own.
