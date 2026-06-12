@@ -307,3 +307,71 @@ QuitConfirmScreen {
 .quit-spacer {
     height: 3;
 }
+
+/* ==========================================================================
+   Device Manager Overlay Screen & Dialog
+   ========================================================================== */
+
+DeviceManagerScreen {
+    align: center middle;
+    background: #000000 75%;
+}
+
+#dev-manager-dialog {
+    width: 80;
+    height: 24;
+    background: $panel;
+    border: heavy $accent;
+    padding: 1 2;
+    layout: vertical;
+}
+
+#dev-manager-title {
+    content-align: center middle;
+    text-style: bold;
+    color: $accent;
+    height: 1;
+    margin-bottom: 1;
+}
+
+#dev-manager-table {
+    height: 12;
+    background: $surface;
+    color: $foreground;
+    border: none;
+}
+
+#dev-manager-table > .datatable--header {
+    background: $secondary;
+    color: $foreground;
+    text-style: bold;
+}
+
+#dev-manager-status {
+    height: 1;
+    content-align: center middle;
+    color: $warning;
+    margin: 0;
+    text-style: italic;
+}
+
+#dev-manager-actions {
+    layout: horizontal;
+    height: 3;
+    align: center middle;
+    margin-top: 2;
+}
+
+#dev-btn-refresh,
+#dev-btn-close {
+    width: 20;
+    height: 3;
+    margin: 0 8;
+    text-style: bold;
+}
+
+#dev-btn-refresh:focus,
+#dev-btn-close:focus {
+    border: solid $accent;
+}
+
