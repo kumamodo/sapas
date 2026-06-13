@@ -33,8 +33,15 @@ class Runner():
             return True
         return False
 
+    def _should_abort_critical(self) -> bool:
+        if not self.critical_error:
+            return False
+        return self.ctx.get('IS_EXCEPTION_STOP', True)
+
     def _execute_script_item(self, item_str: str):
         parts = shlex.split(item_str)
+        if not parts:
+            return None
         script_name = parts[0]
         script_args = parts[1:]
 
@@ -71,7 +78,7 @@ class Runner():
 
         return_code = result.return_code
         # if not result.success:
-        if return_code == 1:
+        if return_code != 0 and return_code != 80:
             self.critical_error = True
             error_msg = f"{item_str} got exception!"
             if result.stderr:
@@ -154,6 +161,12 @@ class Runner():
             self.logger = savelog.logger
             self.ctx.set('RUNNER_LOGGER', self.logger)
 
+            # Log deferred deprecation warnings
+            deprecation_warnings = self.ctx.get('_DEPRECATION_WARNINGS')
+            if deprecation_warnings:
+                for warning in deprecation_warnings:
+                    warn(f"[DEPRECATION] {warning}", tag='RUNNER')
+
             if args.test_flow:
                 station_flow_file = args.test_flow
                 info(f"Using user specified flow: {station_flow_file}", tag='RUNNER')
@@ -198,9 +211,10 @@ class Runner():
             for idx, item in enumerate(self.on_fail_list, 1):
                 info(f'  {idx:02d}. {item}', tag='RUNNER')
 
-            while current_cycle <= self.cycle and not self.critical_error and not is_cycle_fail and not stop_test_flag:
+            while current_cycle <= self.cycle and not self._should_abort_critical() and not is_cycle_fail and not stop_test_flag:
                 # At the start of each new iteration, reset the state for the current cycle.
                 info(f"Starting Test Cycle {current_cycle} / {self.cycle}", tag='RUNNER')
+                self.critical_error = False
 
                 # Reset the context to clear all per-cycle runtime variables.
                 self.ctx.reset()
@@ -219,6 +233,8 @@ class Runner():
                 
                 while self.item_index < len(self.test_item_list):
                     stop_test_flag = False
+                    has_item_fail = False
+                    self.critical_error = False
                     item = self.test_item_list[self.item_index]
                     prefix = item[0].strip()
                     self.current_item = item[1].strip()
@@ -249,6 +265,7 @@ class Runner():
                                     self.item_index += 1
                                     if self.item_index >= len(self.test_item_list):
                                         error("[Error]: Missing END_IF for IF condition!", tag='RUNNER')
+                                        self.critical_error = True
                                         break
                                     
                                     next_item_prefix = self.test_item_list[self.item_index][0].strip().upper()
@@ -284,8 +301,8 @@ class Runner():
                     return_code = self._run_test_script(self.current_item)
 
                     # Any value other than 0 (PASS) indicates an issue
-                    # (e.g., a 8080 failure condition or a script crash).
-                    if return_code == 8080:
+                    # (e.g., a 80 failure condition or a script crash).
+                    if return_code == 80:
                         if prefix == 'verify':
                             warn(f"Item failure detected. Aborting...", tag='RUNNER')
                             has_item_fail = True
@@ -307,9 +324,6 @@ class Runner():
                             has_item_fail = True
                             self.critical_error = True
 
-                    if prefix == 'action' and return_code == 0:
-                        self.ctx.set('ERROR_CODE', 'PASS')
-
                     if has_item_fail or self.critical_error:
                         warn(f'Got test item fail, Going to FAIL block!', tag='RUNNER')
                         if self.is_fail_stop:
@@ -321,9 +335,10 @@ class Runner():
 
                         if self.critical_error:
                             error('Got a critical error!', tag='RUNNER')
-                            if prefix == 'action':
-                                self.ctx.set('ERROR_CODE', 'CRITICAL')
-                            break
+                            if self._should_abort_critical():
+                                break
+                            else:
+                                warn('IS_EXCEPTION_STOP is False, continuing despite critical error...', tag='RUNNER')
 
                         if stop_test_flag:
                             warn('stop testing', tag='RUNNER')
@@ -335,7 +350,7 @@ class Runner():
                 # End of one cycle
                 current_cycle += 1
                 self._export_execution_snapshot()
-                if current_cycle <= self.cycle and not self.critical_error and not is_cycle_fail and not stop_test_flag:
+                if current_cycle <= self.cycle and not self._should_abort_critical() and not is_cycle_fail and not stop_test_flag:
                     # Small delay between cycles for visual feedback and system stabilization
                     time.sleep(1.0)
 

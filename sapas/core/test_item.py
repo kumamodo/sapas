@@ -191,7 +191,7 @@ class TestItem(BaseItem, ABC):
         failure codes and descriptions.
 
         Returns:
-            int: Execution status code (0 for PASS, 8080 for FAIL).
+            int: Execution status code (0 for PASS, 80 for FAIL).
         """
         # Before saving, convert the proxy dictionary back
         # into a list that matches the CSV column order.

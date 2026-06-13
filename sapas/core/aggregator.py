@@ -229,7 +229,7 @@ class ResultManager:
                         error_count += 1
 
         info(f"{error_count} error(s) found", tag='OUT')
-        return 8080 if error_count > 0 else 0
+        return 80 if error_count > 0 else 0
 
     def process_test_results(self, txt_file, result_file, measure_value=None, dynamic_name=None):
         """Main orchestrator method to back up raw measurements, evaluate statuses, and generate outputs."""

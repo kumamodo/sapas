@@ -214,6 +214,10 @@ def main():
                         status_style = "bold green"
                         border_style = "green"
                         display_text = f"✅ [bold green][blink]SERIAL NUMBER: {args.serialNumber} \n\nFINAL RESULT: {final_status} - TEST SUCCESS[/]"
+                    elif final_status == "CHECK":
+                        status_style = "bold yellow"
+                        border_style = "yellow"
+                        display_text = f"⚠️ [bold yellow][blink]SERIAL NUMBER: {args.serialNumber} \n\nFINAL RESULT: {final_status} - MANUAL CHECK REQUIRED[/]"
                     else:
                         status_style = "bold red"
                         border_style = "red"

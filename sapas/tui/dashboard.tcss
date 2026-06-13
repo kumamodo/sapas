@@ -102,6 +102,10 @@ Footer > .footer--description {
     color: $warning;
 }
 
+#error-code.check {
+    color: $warning;
+}
+
 #error-code.pass {
     color: $success;
 }
@@ -234,6 +238,11 @@ Footer > .footer--description {
 #result-banner.pass {
     border: heavy $success;
     color: $success;
+}
+
+#result-banner.check {
+    border: heavy $warning;
+    color: $warning;
 }
 
 #result-banner.fail {

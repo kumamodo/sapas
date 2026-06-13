@@ -3,7 +3,7 @@
 # ==========================================
 
 # Define connectivity for all physical hardware units
-link:
+LINK:
   # --- MAIN DUT: Primary Device Under Test ---
   main_dut:
     type: ssh                # Connection type: supports ssh, adb, com
