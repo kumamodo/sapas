@@ -64,9 +64,12 @@ class ActionItem(BaseItem, ABC):
         ctx.set("ACTIVE_ITEM", self)
         try:
             self.run_action()
+            ctx.set('ERROR_CODE', 'PASS')
             return 0
         except Exception as e:
             self.error(str(e))
+            ctx.set('ERROR_CODE', 'CRITICAL')
+            ctx.set('ERROR_DESCRIPTION', str(e))
             return 1
         finally:
             ctx.set("ACTIVE_LOGGER", None)

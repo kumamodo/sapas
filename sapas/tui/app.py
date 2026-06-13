@@ -383,7 +383,7 @@ class SapasDashboard(App[None]):
             self.query_one("#live-log", LogView).clear()
             self.write_log("Station ready. Awaiting Serial Number input.", "dim")
 
-        self.query_one("#error-code", Static).remove_class("fail", "running", "pass")
+        self.query_one("#error-code", Static).remove_class("fail", "running", "pass", "check")
         self.query_one("#error-code", Static).update("")
         self.query_one("#elapsed-time", Static).update("00:00:00.00")
         self.set_result_banner("")
@@ -391,7 +391,7 @@ class SapasDashboard(App[None]):
     def set_error_code(self, value: str, state: str = "") -> None:
         """Updates display contents and shifts background styles on the error status indicator."""
         error_widget = self.query_one("#error-code", Static)
-        error_widget.remove_class("fail", "running", "pass")
+        error_widget.remove_class("fail", "running", "pass", "check")
         if state:
             error_widget.add_class(state)
         error_widget.update(value)
@@ -468,7 +468,7 @@ class SapasDashboard(App[None]):
 
         # Reset error code and banner for the new cycle
         error_widget = self.query_one("#error-code", Static)
-        error_widget.remove_class("fail", "running", "pass")
+        error_widget.remove_class("fail", "running", "pass", "check")
         error_widget.update("RUNNING")
         error_widget.add_class("running")
         self.set_result_banner("")
@@ -476,27 +476,41 @@ class SapasDashboard(App[None]):
     def set_result_banner(self, result: str) -> None:
         """Toggles layout classes and maps visibility flags for overlay pass/fail result banners."""
         banner = self.query_one("#result-banner", Static)
-        banner.remove_class("active", "pass", "fail")
+        banner.remove_class("active", "pass", "fail", "check")
         if not result:
             box = banner
             box.update("")
             return
         banner.add_class("active")
-        banner.add_class("pass" if result == "PASS" else "fail")
+        if result == "PASS":
+            banner.add_class("pass")
+        elif result == "CHECK":
+            banner.add_class("check")
+        else:
+            banner.add_class("fail")
         banner.update(self.make_result_banner(result))
 
     def make_result_banner(self, result: str) -> Text:
         """Formats the textual payload string displayed inside overlay banners using Rich Text."""
         sn = getattr(self.args, "serialNumber", "N/A") or "N/A"
         
-        color = "bold green" if result == "PASS" else "bold red"
-        symbol = PASS_SYMBOL if result == "PASS" else FAIL_SYMBOL
-        status_text = "UNIT ACCEPTED" if result == "PASS" else "UNIT REJECTED"
+        if result == "PASS":
+            color = "bold green"
+            symbol = PASS_SYMBOL
+            status_text = "UNIT ACCEPTED"
+        elif result == "CHECK":
+            color = "bold yellow"
+            symbol = "\u26a0"
+            status_text = "MANUAL CHECK REQUIRED"
+        else:
+            color = "bold red"
+            symbol = FAIL_SYMBOL
+            status_text = "UNIT REJECTED"
         
         res = Text()
         res.append(f"{result}  ", style=color)
         res.append(f"[{sn}]  ", style="bold")
-        res.append(f"{symbol} {status_text}", style=color)
+        res.append(f"{symbol}  {status_text}", style=color)
         return res
 
     @on(Input.Submitted, "#serial-input")
@@ -591,6 +605,9 @@ class SapasDashboard(App[None]):
         elif final_status == "STOP":
             self.set_error_code(str(error_code or "STOP"), "running")
             self.set_result_banner("FAIL")
+        elif final_status == "CHECK":
+            self.set_error_code(str(error_code or "CHECK"), "check")
+            self.set_result_banner("CHECK")
         else:
             error_code = str(error_code or "UNKNOWN")
             self.set_error_code(error_code, "fail")

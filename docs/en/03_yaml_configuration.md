@@ -60,10 +60,11 @@ The following are key parameters referenced or automatically generated within th
 | `PROJECT_NAME` | String | Project name. The system looks for the corresponding folder based on this. |
 | `STATION_NAME` | String | Station name. The system looks for `station.yaml` and the default `.flow` based on this. |
 | `IS_FAIL_STOP` | Boolean | If `True`, the test will immediately interrupt and jump to `on_fail` when a `verify` command fails. |
+| `IS_EXCEPTION_STOP` | Boolean | If `True`, the test will immediately interrupt when a script throws an exception or crashes (non-`80` return code). Set to `False` to debug alongside `IS_FAIL_STOP`. |
 | `ENABLE_SHOPFLOOR`| Boolean | Indicates whether the current test is connected to Shopfloor. |
 | `ENABLE_SMB` | Boolean | Whether to upload logs and data from the test process (usually `output/{Serial}`) to a server for later tracking. |
-| `link` | Dict | Defines connection drivers (e.g., SSH). Contains sub-parameters like `driver`, `host`, `user`, etc. |
+| `LINK` | Dict | Defines connection drivers (e.g., SSH). Contains sub-parameters like `driver`, `host`, `user`, etc. Lowercase `link` is legacy and deprecated. |
 | `WORKSPACE_ROOT`| Path | (Auto-generated) Points to the root directory where the command is executed. |
-| `ERROR_CODE` | String | (Generated at runtime) Current test status. Common values: `PASS`, `FAIL`, `CRITICAL`, `STOP`. |
+| `ERROR_CODE` | String | (Generated at runtime) Current test status. Common values and meanings:<br>- `PASS`: Test passed successfully.<br>- `FAIL`: Test failed (usually due to a `verify` command failure).<br>- `CRITICAL`: Critical exception (script crash, syntax error, or connection lost).<br>- `STOP`: Test stopped manually by operator.<br>- `CHECK`: Does not mean the test failed. When you want to scan all test items quickly (e.g. setting `IS_FAIL_STOP=False`), the system sets the final status to `CHECK`, prompting the engineer to manually inspect the log or TUI to judge and verify the status of each test item. |
 | `ERROR_DESCRIPTION`| String | (Generated at runtime) Detailed description when a failure occurs. |
 | `RUNNER_LOGGER` | Object | (Internal) Logger object for Python scripts to call. |
