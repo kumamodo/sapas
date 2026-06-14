@@ -9,33 +9,33 @@ class TestADBConnection(ActionItem):
     """
 
     def run_action(self):
-        self.info("Getting ADB connection instance [adb_device]...")
+        sapas.info("Getting ADB connection instance [adb_device]...")
 
         # Retrieve 'adb_device' connection from link.
         # It automatically executes connection logic based on priorities defined in project.yaml.
         try:
             device = sapas.link.get('adb_device')
         except Exception as e:
-            self.error(f"Connection failed: {e}")
+            sapas.error(f"Connection failed: {e}")
             return
 
-        self.info(f"Current device ID: {device.current_serial}")
+        sapas.info(f"Current device ID: {device.current_serial}")
 
         # Execute basic ADB commands
-        self.info("Executing command: uptime")
+        sapas.info("Executing command: uptime")
         uptime = device.exec("uptime")
-        self.info(f"Uptime output: {uptime.strip()}")
+        sapas.info(f"Uptime output: {uptime.strip()}")
 
-        self.info("Executing command: uname -a")
+        sapas.info("Executing command: uname -a")
         uname = device.exec("uname -a")
-        self.info(f"System info: {uname.strip()}")
+        sapas.info(f"System info: {uname.strip()}")
 
         # Demonstrate getting Android properties (if target is an Android device)
-        self.info("Attempting to get Android property: ro.product.model")
+        sapas.info("Attempting to get Android property: ro.product.model")
         model = device.exec("getprop ro.product.model")
         if model.strip():
-            self.info(f"Device model: {model.strip()}")
+            sapas.info(f"Device model: {model.strip()}")
         else:
-            self.info("Could not retrieve ro.product.model. Target might not be Android or permission denied.")
+            sapas.info("Could not retrieve ro.product.model. Target might not be Android or permission denied.")
 
-        self.info("ADB driver test completed.")
+        sapas.info("ADB driver test completed.")

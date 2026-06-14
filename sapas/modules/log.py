@@ -9,12 +9,17 @@ _log_deprecated_shown = False
 
 def _log(tag, *args):
     # Smart Detection: Priority 1: Current active item logger, Priority 2: Global runner logger
-    logger = ctx.get("ACTIVE_LOGGER") or ctx.get("RUNNER_LOGGER")
+    logger = None
+    active_item = None
+    try:
+        logger = ctx.get("ACTIVE_LOGGER") or ctx.get("RUNNER_LOGGER")
+        active_item = ctx.get("ACTIVE_ITEM")
+    except RuntimeError:
+        pass
 
     # If the user called info/warn/error without a specific tag (i.e., tag is 'INFO'/'WARN'/'ERROR'),
     # we try to resolve it to ACTION or USER if we are inside a script.
     if tag == 'INFO':
-        active_item = ctx.get("ACTIVE_ITEM")
         if active_item:
             from sapas.core.test_item import TestItem
             from sapas.core.action_item import ActionItem
