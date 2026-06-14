@@ -1,5 +1,5 @@
 import re
-import time
+import sapas
 from sapas import TestItem
 
 class GetMcuVersion(TestItem):
@@ -10,7 +10,7 @@ class GetMcuVersion(TestItem):
     logs_name = "get_mcu_version.log"
 
     def run_test(self):
-        pUDP = self.link.get('main_mcu')
+        pUDP = sapas.link.get('main_mcu')
         resultMessage = ""
 
         # Retry up to 3 times before giving up
@@ -18,13 +18,13 @@ class GetMcuVersion(TestItem):
             resultMessage = pUDP.exec('revision', timeout=0.5)
             if resultMessage:
                 break
-            self.log(f"No response from MCU, retrying... ({attempt}/3)")
-            time.sleep(1)
+            sapas.info(f"No response from MCU, retrying... ({attempt}/3)")
+            sapas.sleep(1)
         else:
-            self.log("MCU did not respond after 3 attempts.")
+            sapas.info("MCU did not respond after 3 attempts.")
             resultMessage = "Exception"
 
-        self.log(resultMessage)
+        sapas.info(resultMessage)
 
         # Extract and log the MCU SW revision
         ver_match = re.search(r"SW Revision\s+:\s+([0-9.]+)", resultMessage)

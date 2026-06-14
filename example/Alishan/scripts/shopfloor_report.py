@@ -21,6 +21,7 @@ class ShopfloorReport(ActionItem):
 
         # 3. Print the formatted payload to terminal/log for full traceability
         sapas.info(f'[Shopfloor] Preparing to report data...\n{clean_payload}')
+        sapas.sleep(3)
 
         # TODO: Implement your shopfloor API client or socket connection here
         # e.g., shopfloor_client.post(clean_payload)

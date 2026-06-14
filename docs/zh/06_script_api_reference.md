@@ -50,7 +50,7 @@ class MyOsTest(sapas.TestItem):
     logs_name     = "os_check.log"
 
     def run_test(self):
-        self.info("開始檢查作業系統版本...")
+        sapas.info("開始檢查作業系統版本...")
         
         # 1. 執行動作 (例如透過 SSH 或本地指令獲取數據)
         # 這裡以獲取系統資訊為例
@@ -62,7 +62,7 @@ class MyOsTest(sapas.TestItem):
         # 3. 紀錄量測值 (名稱 "OS_NAME" 必須存在於 criteria_file 中)
         self.measure.OS_NAME = extracted_name
         
-        self.info(f"提取的系統名稱為: {extracted_name}")
+        sapas.info(f"提取的系統名稱為: {extracted_name}")
 ```
 ---
 
@@ -79,10 +79,10 @@ import sapas
 
 class SetupSystem(sapas.ActionItem):
     def run_action(self):
-        self.info("正在執行系統初始化...")
+        sapas.info("正在執行系統初始化...")
         ssh = sapas.link.get("DUT")
         ssh.exec("rm -rf /tmp/old_logs")
-        self.info("清理完成")
+        sapas.info("清理完成")
 ```
 
 ### 開發注意事項
@@ -110,7 +110,7 @@ def run_test(self):
 
 ---
 
-## 3. 變數存取 (sapas.var)
+## 5. 變數存取 (sapas.var)
 
 `sapas.var` 用於存取在 `YAML` 設定檔中定義的變數，或在不同腳本間傳遞動態數據。
 
@@ -131,7 +131,7 @@ def run_test(self):
 
 ---
 
-## 4. 連線驅動 (sapas.link)
+## 6. 連線驅動 (sapas.link)
 
 `sapas.link` 用於獲取在 `station.yaml` 中定義的連線物件。
 
@@ -144,28 +144,64 @@ def run_test(self):
     
     # 執行指令並獲取結果
     result = ssh.exec("uname -a")
-    self.info(f"OS Version: {result.stdout}")
+    sapas.info(f"OS Version: {result.stdout}")
 ```
 
 ---
 
-## 5. 日誌輸出
+## 7. 日誌輸出
 
-在 `TestItem` 內，推薦使用以下內建方法，日誌會自動帶上 Tag 並保存至檔案。
+在腳本中，推薦使用 `sapas` 提供之全域日誌函數進行日誌輸出。系統會自動檢測目前執行腳本的上下文（`TestItem` 或 `ActionItem`），自動套用合適的日誌標籤（Tag）並將日誌同時輸出至終端機與對應的日誌檔案中。
 
-- **`self.info(msg)`**: 紀錄一般資訊 (Tag: USER)。
-- **`self.warn(msg)`**: 紀錄警告資訊 (Tag: WARN)。
-- **`self.error(msg)`**: 紀錄錯誤資訊 (Tag: ERROR)。
+- **`sapas.info(msg)`**: 紀錄一般資訊。在 `TestItem` 中顯示標籤為 `[  USER  ]`；在 `ActionItem` 中顯示標籤為 `[ ACTION ]`。
+- **`sapas.warn(msg)`**: 紀錄警告資訊 (Tag: `[  WARN  ]`)。
+- **`sapas.error(msg)`**: 紀錄錯誤資訊 (Tag: `[ ERROR  ]`)。
 
-如果您想在腳本外或全域調用：
 ```python
 import sapas
-sapas.info("這是全域日誌")
+
+class LogDemo(sapas.ActionItem):
+    def run_action(self):
+        sapas.info("這是一條一般資訊日誌")
+        sapas.warn("這是一條警告日誌")
+        sapas.error("這是一條錯誤日誌")
 ```
 
 ---
 
-## 6. 自定義參數 (@sapas.arg)
+## 8. 內建延遲 (sapas.sleep)
+
+為了避免使用 Python 原生的 `time.sleep()` 導致日誌時間不透明，Sapas 提供了內建的延遲功能：
+
+- **`sapas.sleep(seconds)`**: 延遲指定的秒數（支援整數與浮點數），並在終端機或 TUI 中顯示即時倒數計時。
+
+```python
+import sapas
+
+class SleepDemo(sapas.ActionItem):
+    def run_action(self):
+        sapas.info("準備發送 Shopfloor 數據...")
+        # 延遲 5.5 秒，會在 Log 中輸出倒數資訊，避免畫面凍結
+        sapas.sleep(5.5)
+        sapas.info("數據發送成功")
+```
+
+執行此腳本時，會自動在 Log 中輸出如下內容：
+```text
+[ ACTION ] [DELAY] Sleep for 5.5 seconds.
+[ ACTION ] [DELAY] Countdown 6 sec...
+[ ACTION ] [DELAY] Countdown 5 sec...
+[ ACTION ] [DELAY] Countdown 4 sec...
+[ ACTION ] [DELAY] Countdown 3 sec...
+[ ACTION ] [DELAY] Countdown 2 sec...
+[ ACTION ] [DELAY] Countdown 1 sec...
+[ ACTION ] [DELAY] Countdown 0.5 sec...
+[ ACTION ] [DELAY] Sleep finished.
+```
+
+---
+
+## 9. 自定義參數 (@sapas.arg)
 
 如果您需要從 `.flow` 傳遞參數給腳本，可以使用 `@sapas.arg` 裝飾器。
 
@@ -176,7 +212,7 @@ class MyTest(sapas.TestItem):
     def run_test(self):
         # 透過 self.args 存取參數
         current_mode = self.args.mode
-        self.info(f"當前模式為: {current_mode}")
+        sapas.info(f"當前模式為: {current_mode}")
 ```
 
 在 `.flow` 中呼叫方式：
@@ -186,7 +222,7 @@ verify my_custom_test.py --mode fast
 
 ---
 
-## 7. 標準腳本模板
+## 10. 標準腳本模板
 
 ```python
 import sapas
@@ -201,7 +237,7 @@ class StandardTest(sapas.TestItem):
     logs_name     = "std.log"
 
     def run_test(self):
-        self.info("開始執行標準測試...")
+        sapas.info("開始執行標準測試...")
         
         # 1. 獲取連線與參數
         ssh = sapas.link.get("DUT")
@@ -215,11 +251,11 @@ class StandardTest(sapas.TestItem):
         self.measure.UPTIME = uptime
         self.measure.STATUS = "1" if uptime > limit else "0"
         
-        self.info(f"測試完成，Uptime: {uptime}")
+        sapas.info(f"測試完成，Uptime: {uptime}")
 ```
 ---
 
-## 8. 腳本偵錯方式
+## 11. 腳本偵錯方式
 
 為了確保腳本在 Sapas 環境下正確運行，**不建議**直接使用 `python script.py` 執行。請統一使用 Sapas 提供的 CLI 指令進行偵錯：
 

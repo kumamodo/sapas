@@ -14,7 +14,7 @@ class TestViaUart(ActionItem):
         # The 'uart_device' link is defined in your project.yaml.
         uart = sapas.link.get("uart_device")
 
-        self.info("--- Starting UART Connectivity Test ---")
+        sapas.info("--- Starting UART Connectivity Test ---")
 
 
         # 2. Execute a simple command to check system info

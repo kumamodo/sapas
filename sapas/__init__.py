@@ -6,6 +6,7 @@ from sapas.core.base_item import BaseItem
 from sapas.modules.message import Message
 from sapas.modules.log import info, warn, error
 from sapas.runtime.runtime import ctx
+from sapas.core.builtins import sleep
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -41,5 +42,5 @@ def __getattr__(name):
 __all__ = [
     "ctx", "link", "var", "arg",
     "TestItem", "ActionItem", "BaseItem", "Message",
-    "info", "warn", "error"
+    "info", "warn", "error", "sleep"
 ]

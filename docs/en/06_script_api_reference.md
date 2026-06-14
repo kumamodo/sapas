@@ -50,7 +50,7 @@ class MyOsTest(sapas.TestItem):
     logs_name     = "os_check.log"
 
     def run_test(self):
-        self.info("Starting OS version check...")
+        sapas.info("Starting OS version check...")
         
         # 1. Execute action (e.g., get data via SSH or local command)
         # Example: get system information
@@ -62,7 +62,7 @@ class MyOsTest(sapas.TestItem):
         # 3. Record measurement (the name "OS_NAME" must exist in the criteria_file)
         self.measure.OS_NAME = extracted_name
         
-        self.info(f"Extracted OS name: {extracted_name}")
+        sapas.info(f"Extracted OS name: {extracted_name}")
 ```
 ---
 
@@ -79,10 +79,10 @@ import sapas
 
 class SetupSystem(sapas.ActionItem):
     def run_action(self):
-        self.info("Performing system initialization...")
+        sapas.info("Performing system initialization...")
         ssh = sapas.link.get("main_dut")
         ssh.exec("rm -rf /tmp/old_logs")
-        self.info("Cleanup complete")
+        sapas.info("Cleanup complete")
 ```
 
 ### Development Notes
@@ -144,28 +144,64 @@ def run_test(self):
     
     # Execute command and get results
     result = ssh.exec("uname -a")
-    self.info(f"OS Version: {result.stdout}")
+    sapas.info(f"OS Version: {result.stdout}")
 ```
 
 ---
 
 ## 7. Log Output
 
-Within a `TestItem`, it is recommended to use the following built-in methods. Logs will automatically include tags and be saved to files.
+Within a script, it is recommended to use the global log functions provided by `sapas`. The system automatically detects the current script execution context (`TestItem` or `ActionItem`), applies the correct tag, and outputs the logs simultaneously to the console and the corresponding log file.
 
-- **`self.info(msg)`**: Records general information (Tag: USER).
-- **`self.warn(msg)`**: Records warning information (Tag: WARN).
-- **`self.error(msg)`**: Records error information (Tag: ERROR).
+- **`sapas.info(msg)`**: Records general information. Displayed as `[  USER  ]` in `TestItem` and `[ ACTION ]` in `ActionItem`.
+- **`sapas.warn(msg)`**: Records warning information (Tag: `[  WARN  ]`).
+- **`sapas.error(msg)`**: Records error information (Tag: `[ ERROR  ]`).
 
-If you want to call them outside a script or globally:
 ```python
 import sapas
-sapas.info("This is a global log")
+
+class LogDemo(sapas.ActionItem):
+    def run_action(self):
+        sapas.info("This is a general info log")
+        sapas.warn("This is a warning log")
+        sapas.error("This is an error log")
 ```
 
 ---
 
-## 8. Custom Arguments (@sapas.arg)
+## 8. Built-in Delay (sapas.sleep)
+
+To prevent timeline opacity caused by standard Python `time.sleep()`, Sapas provides a built-in delay helper:
+
+- **`sapas.sleep(seconds)`**: Delays execution for the specified duration (supports float and integer seconds) and logs a real-time countdown.
+
+```python
+import sapas
+
+class SleepDemo(sapas.ActionItem):
+    def run_action(self):
+        sapas.info("Preparing to send Shopfloor data...")
+        # Delay for 5.5 seconds with live countdown logs
+        sapas.sleep(5.5)
+        sapas.info("Data sent successfully")
+```
+
+Running this script outputs the following logs dynamically:
+```text
+[ ACTION ] [DELAY] Sleep for 5.5 seconds.
+[ ACTION ] [DELAY] Countdown 6 sec...
+[ ACTION ] [DELAY] Countdown 5 sec...
+[ ACTION ] [DELAY] Countdown 4 sec...
+[ ACTION ] [DELAY] Countdown 3 sec...
+[ ACTION ] [DELAY] Countdown 2 sec...
+[ ACTION ] [DELAY] Countdown 1 sec...
+[ ACTION ] [DELAY] Countdown 0.5 sec...
+[ ACTION ] [DELAY] Sleep finished.
+```
+
+---
+
+## 9. Custom Arguments (@sapas.arg)
 
 If you need to pass arguments from a `.flow` to a script, you can use the `@sapas.arg` decorator.
 
@@ -176,7 +212,7 @@ class MyTest(sapas.TestItem):
     def run_test(self):
         # Access arguments via self.args
         current_mode = self.args.mode
-        self.info(f"Current mode is: {current_mode}")
+        sapas.info(f"Current mode is: {current_mode}")
 ```
 
 Calling method in `.flow`:
@@ -186,7 +222,7 @@ verify my_custom_test.py --mode fast
 
 ---
 
-## 9. Standard Script Template
+## 10. Standard Script Template
 
 ```python
 import sapas
@@ -201,7 +237,7 @@ class StandardTest(sapas.TestItem):
     logs_name     = "std.log"
 
     def run_test(self):
-        self.info("Starting standard test...")
+        sapas.info("Starting standard test...")
         
         # 1. Get connection and arguments
         ssh = sapas.link.get("main_dut")
@@ -215,11 +251,11 @@ class StandardTest(sapas.TestItem):
         self.measure.UPTIME = uptime
         self.measure.STATUS = "1" if uptime > limit else "0"
         
-        self.info(f"Test complete, Uptime: {uptime}")
+        sapas.info(f"Test complete, Uptime: {uptime}")
 ```
 ---
 
-## 10. Script Debugging Method
+## 11. Script Debugging Method
 
 To ensure scripts run correctly within the Sapas environment, it is **not recommended** to execute them directly using `python script.py`. Please use the CLI command provided by Sapas for debugging:
 
