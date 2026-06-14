@@ -10,6 +10,7 @@ class StepsTable(DataTable):
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
         self.cursor_type = "none"
+        self.zebra_stripes = True
 
     def on_mount(self) -> None:
         self.add_column("Items", width=29, key="item")

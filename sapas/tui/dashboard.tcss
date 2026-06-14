@@ -7,6 +7,15 @@ Screen {
     color: $foreground;
 }
 
+Screen, Widget {
+    scrollbar-background: $surface;
+    scrollbar-background-hover: $surface;
+    scrollbar-background-active: $surface;
+    scrollbar-color: $foreground 40%;
+    scrollbar-color-hover: $accent;
+    scrollbar-color-active: $accent;
+}
+
 #app-root {
     height: 100%;
     width: 100%;
@@ -198,6 +207,14 @@ Footer > .footer--description {
     background: $surface;
     color: $foreground;
     border: none;
+}
+
+#items-table > .datatable--even-row {
+    background: $surface;
+}
+
+#items-table > .datatable--odd-row {
+    background: $panel;
 }
 
 #items-table > .datatable--header {

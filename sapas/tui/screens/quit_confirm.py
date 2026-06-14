@@ -7,6 +7,8 @@ from textual.widgets import Button, Static
 class QuitConfirmScreen(ModalScreen[bool]):
     """Confirmation dialog used to prevent accidental production stop/exit."""
 
+    AUTO_FOCUS = "#quit-no"
+
     BINDINGS = [
         ("escape", "cancel", "Cancel"),
         ("n", "cancel", "No"),
