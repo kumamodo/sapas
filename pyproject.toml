@@ -14,7 +14,8 @@ dependencies = [
     "rich",
     "paramiko",
     "textual>=0.80",
-    "pyserial"
+    "pyserial",
+    "Pillow"
 ]
 
 [project.scripts]

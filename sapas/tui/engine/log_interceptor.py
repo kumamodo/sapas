@@ -12,6 +12,8 @@ class LogInterceptor:
         on_step_result=None,
         on_delay_finish=None,
         on_block_skip=None,
+        on_prompt_start=None,
+        on_prompt_finish=None,
     ) -> None:
         self.on_cycle_start = on_cycle_start
         self.on_step_start = on_step_start
@@ -19,6 +21,8 @@ class LogInterceptor:
         self.on_step_result = on_step_result
         self.on_delay_finish = on_delay_finish
         self.on_block_skip = on_block_skip
+        self.on_prompt_start = on_prompt_start
+        self.on_prompt_finish = on_prompt_finish
 
     def feed_line(self, message: str) -> None:
         """Parses a log line and fires appropriate callbacks if matches are found."""
@@ -44,6 +48,13 @@ class LogInterceptor:
                 self.on_delay_start(delay_match.group(1).strip())
             return
 
+        # Match prompt start
+        prompt_match = re.search(r"Start prompt:\s+(.+)$", message)
+        if prompt_match:
+            if self.on_prompt_start:
+                self.on_prompt_start(prompt_match.group(1).strip())
+            return
+
         # Match termination tracking outputs
         result_match = re.search(r"\[Item\]:\s+(.+?)\s+\|\s+code=([-\d]+)", message)
         if result_match:
@@ -55,6 +66,12 @@ class LogInterceptor:
         if "Delay finished." in message:
             if self.on_delay_finish:
                 self.on_delay_finish()
+            return
+
+        # Catch prompt end confirmations
+        if "Prompt finished." in message:
+            if self.on_prompt_finish:
+                self.on_prompt_finish()
             return
 
         # Intercept condition failures for conditionally skipped block sequences

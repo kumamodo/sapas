@@ -87,6 +87,8 @@ class SapasDashboard(App[None]):
             on_step_result=self._handle_step_result,
             on_delay_finish=self._handle_delay_finish,
             on_block_skip=self._handle_block_skip,
+            on_prompt_start=self._handle_prompt_start,
+            on_prompt_finish=self._handle_prompt_finish,
         )
 
     def _handle_context_created(self, context) -> None:
@@ -110,6 +112,12 @@ class SapasDashboard(App[None]):
             self.running_step_key = row_key
             self.set_step_status(row_key, "RUNNING")
 
+    def _handle_prompt_start(self, prompt_item: str) -> None:
+        row_key = self.pop_next_pending_step(prompt_item)
+        if row_key:
+            self.running_step_key = row_key
+            self.set_step_status(row_key, "RUNNING")
+
     def _handle_step_result(self, item: str, return_code: int) -> None:
         row_key = self.running_step_key or self.pop_next_pending_step(item)
         if row_key:
@@ -117,6 +125,11 @@ class SapasDashboard(App[None]):
             self.running_step_key = None
 
     def _handle_delay_finish(self) -> None:
+        if self.running_step_key:
+            self.set_step_status(self.running_step_key, "PASS")
+            self.running_step_key = None
+
+    def _handle_prompt_finish(self) -> None:
         if self.running_step_key:
             self.set_step_status(self.running_step_key, "PASS")
             self.running_step_key = None
@@ -287,7 +300,7 @@ class SapasDashboard(App[None]):
             if command in SKIP_FLOW_COMMANDS:
                 continue
             item_id = f"{len(steps) + 1:02d}"
-            label = f"{command} {item}".strip() if command == "delay" else item
+            label = f"{command} {item}".strip() if command in ("delay", "prompt") else item
             steps.append(
                 TestStep(
                     item_id=item_id,
