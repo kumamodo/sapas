@@ -40,8 +40,21 @@ start function
             end_if
         end_if
 
-        # --- Logging Demo ---
+         # --- Logging Demo ---
         action demo_logs.py                                 # Demonstrates TUI logging colors and dynamic tagging
+
+        # --- Operator Prompt Demo ---
+        # 1. Both Image & Text
+        prompt --show usb_disk.png --text "Please insert the USB drive into the left port of the DUT"
+        
+        # 2. Only Image
+        prompt --show usb_disk.png
+        
+        # 3. Only Text
+        prompt --text "Please switch all fixture toggles to the OFF position"
+        
+        # 4. Missing Image (should show warning cleanly instead of crashing)
+        prompt --show non-existent-image.png --text "Image missing, proceed anyway."
 
         # --- Shopfloor Integration ---
         action shopfloor_report.py                          # Aggregate context metrics and report to shopfloor/MES system

@@ -287,7 +287,7 @@ class SapasDashboard(App[None]):
             if command in SKIP_FLOW_COMMANDS:
                 continue
             item_id = f"{len(steps) + 1:02d}"
-            label = f"{command} {item}".strip() if command == "delay" else item
+            label = f"{command} {item}".strip() if command in ("delay", "prompt") else item
             steps.append(
                 TestStep(
                     item_id=item_id,

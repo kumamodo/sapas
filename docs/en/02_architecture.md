@@ -22,16 +22,17 @@ The `Runner` is responsible for parsing `.flow` files. Refer to `example/Alishan
 ```yaml
 start function
     cycle 1
-        verify get_os_name.py           # Execute script and verify result
-        delay 3                         # Built-in delay function
+        verify get_os_name.py                                              # Execute script and verify result
+        delay 3                                                            # Built-in delay function
         if FACTORY_LOCATION == Chiayi
-            action sleep.py --sec 2     # Conditional execution
+            action sleep.py --sec 2                                        # Conditional execution
         end_if
-        action demo_logs.py             # Execute log demonstration script
+        action demo_logs.py                                                # Execute log demonstration script
+        prompt --show usb_disk.png --text "Insert USB"                     # Operator prompt
 stop
 
 on_fail
-    action sleep.py --sec 4             # Rollback mechanism on failure
+    action sleep.py --sec 4                                                # Rollback mechanism on failure
 end
 ```
 
@@ -39,6 +40,8 @@ end
 
 - `verify`: Immediately interrupts and jumps to `on_fail` upon failure.
 - `action`: Executes a task but does not force a result check.
+- `delay`: Built-in delay function, pauses execution for a specified number of seconds.
+- `prompt`: Built-in operator prompt dialog. Supports popping up a flat, dark-themed window to display images (`--show`) and custom instructions (`--text`). Operators can press Space or Enter for quick confirmation. Falls back to terminal input mode automatically in headless environments.
 - `if / end_if`: Supports branch judgment based on variables in the `ExecutionContext`.
 
 ## 3. ResultManager

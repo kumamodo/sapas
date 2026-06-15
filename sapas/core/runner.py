@@ -143,6 +143,55 @@ class Runner():
 
         info("Delay finished.", tag='RUNNER')
 
+    def _cmd_prompt(self, arg_str: str):
+        """
+        Handle the prompt command natively, displaying a custom dark-themed GUI dialog.
+        """
+        import argparse
+        import shlex
+        from sapas.core.prompt import show_operator_prompt
+
+        class PromptParser(argparse.ArgumentParser):
+            def error(self, message):
+                raise ValueError(message)
+
+        parser = PromptParser(add_help=False)
+        parser.add_argument('--show', type=str, default=None)
+        parser.add_argument('--text', type=str, default=None)
+
+        image_name = None
+        text_content = None
+
+        try:
+            tokens = shlex.split(arg_str)
+            parsed_args, remaining = parser.parse_known_args(tokens)
+            image_name = parsed_args.show
+            text_content = parsed_args.text
+
+            # Handle positional/legacy fallback (e.g. prompt plug-in-USB-disk.png "text")
+            if not image_name and not text_content and remaining:
+                first_arg = remaining[0]
+                if first_arg.lower().endswith(('.png', '.jpg', '.jpeg', '.gif', '.bmp')):
+                    image_name = first_arg
+                    if len(remaining) > 1:
+                        text_content = remaining[1]
+                else:
+                    text_content = arg_str
+        except Exception as e:
+            warn(f"Failed parsing prompt args '{arg_str}': {e}. Treating as text.", tag='RUNNER')
+            image_name = None
+            text_content = arg_str
+
+        # Resolve image path relative to the active project folder if specified
+        image_path = None
+        if image_name:
+            image_path = self.workspace_root / self.project_name / "prompt_pictures" / image_name
+
+        info(f"Operator Prompt triggered. Text: '{text_content or ''}', Image: '{image_name or ''}'", tag='RUNNER')
+        
+        # Display the prompt (this will block until closed)
+        show_operator_prompt(image_path=image_path, text_content=text_content, logger=self.logger)
+
     def execute_flows(self, args):
         self.critical_error = False
         self.error_code = None
@@ -241,6 +290,15 @@ class Runner():
 
                     if prefix == "delay":
                         self._cmd_delay(item[1].strip())
+                        self.item_index += 1
+                        continue
+
+                    if prefix == "prompt":
+                        log_banner(f'{self.item_index:02d} sapas {self.current_item}')
+                        start_time = time.time()
+                        self._cmd_prompt(item[1].strip())
+                        duration = time.time() - start_time
+                        _log('RUNNER', f"[Item]: {self.current_item} | code=0 | time={duration:.2f} sec")
                         self.item_index += 1
                         continue
 
