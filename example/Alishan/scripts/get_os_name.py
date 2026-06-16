@@ -27,5 +27,5 @@ class OsName(TestItem):
 
         # Write the measured value.
         # The name "OS_NAME" comes from the item name defined in your criteria file.
-        self.measure.OS_NAME = extracted_name
+        sapas.measure.OS_NAME = extracted_name
         sapas.info(f"Extracted OS Name for Measurement: {extracted_name}")

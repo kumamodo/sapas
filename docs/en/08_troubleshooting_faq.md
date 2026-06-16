@@ -55,11 +55,11 @@ This document lists common errors you may encounter when using the Sapas framewo
 ## 4. Judgment and Result Issues
 
 ### Q: `Test item does not exist in the CSV.` appears
-- **Cause**: You used `self.measure.ITEM_A = 10` in the script, but `ITEM_A` is missing from the corresponding `criteria_file` (CSV).
+- **Cause**: You used `sapas.measure.ITEM_A = 10` in the script, but `ITEM_A` is missing from the corresponding `criteria_file` (CSV).
 - **Solution**: Add the corresponding test item name to the CSV file, ensuring spelling and case match exactly.
 
 ### Q: Why are all test item results `NA`?
-- **Cause**: The script executed successfully, but `self.measure` was never called to assign values.
+- **Cause**: The script executed successfully, but `sapas.measure` was never called to assign values.
 - **Solution**: Check script logic to ensure that measurements are uploaded for every test path.
 
 ---

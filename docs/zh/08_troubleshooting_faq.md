@@ -55,11 +55,11 @@
 ## 4. 判定與結果問題
 
 ### Q: 出現 `Test item does not exist in the CSV.`
-- **原因**：您在腳本中使用 `self.measure.ITEM_A = 10`，但對應的 `criteria_file` (CSV) 中沒有 `ITEM_A` 這一行。
+- **原因**：您在腳本中使用 `sapas.measure.ITEM_A = 10`，但對應的 `criteria_file` (CSV) 中沒有 `ITEM_A` 這一行。
 - **解決**：在 CSV 檔案中新增對應的測項名稱，並確保拼字與大小寫一致。
 
 ### Q: 為什麼所有測項結果都是 `NA`？
-- **原因**：腳本執行成功，但可能完全沒有呼叫到 `self.measure` 進行賦值。
+- **原因**：腳本執行成功，但可能完全沒有呼叫到 `sapas.measure` 進行賦值。
 - **解決**：檢查腳本邏輯，確保每個測試路徑都有對應的量測值上傳。
 
 ---

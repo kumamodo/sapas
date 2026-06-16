@@ -33,6 +33,7 @@ sapas/
         ├── configs/         # 專案級別變數
         ├── criteria/        # 測試規範 (CSV 格式)
         ├── flows/           # 測試流程定義
+        ├── prompt_pictures/ # 作業員提示視窗使用的圖片 (例如 usb_disk.png)
         ├── scripts/         # Python 測試腳本
         └── stations/        # 工位專屬設定 (Function, Wireless)
 ```

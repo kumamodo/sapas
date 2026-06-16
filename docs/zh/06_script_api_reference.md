@@ -21,9 +21,9 @@
 
 ### 與 Flow 的互動
 當 Flow 執行 `verify my_test.py` 時：
-1. **實例化**：系統加載 `TestItem` 並初始化環境。
+1. **實例化**：系統加載 `TestItem`並初始化環境。
 2. **執行**：呼叫 `run_test()` 方法。
-3. **判定**：腳本執行完畢後，`ResultManager` 會根據 `self.measure` 的數據與 `criteria_file` 進行比對。
+3. **判定**：腳本執行完畢後，`ResultManager` 會根據 `sapas.measure` 的數據與 `criteria_file` 進行比對。
 4. **流控**：若判定結果為 **FAIL**，Flow 會立即中斷並跳轉至 `on_fail` 區塊。
 
 ### 必須定義的屬性
@@ -35,7 +35,7 @@
 - **`logs_name`**: 該測項的日誌檔名。
 
 ### 必須實作的方法
-- **`run_test(self)`**: 測試邏輯的主入口。在此方法中，你必須透過 `self.measure` 回傳關鍵數據。
+- **`run_test(self)`**: 測試邏輯的主入口。在此方法中，你必須透過 `sapas.measure` 回傳關鍵數據。
 
 ### TestItem 標準模板
 ```python
@@ -60,7 +60,7 @@ class MyOsTest(sapas.TestItem):
         extracted_name = "Windows" if "Windows" in raw_output else "Other"
         
         # 3. 紀錄量測值 (名稱 "OS_NAME" 必須存在於 criteria_file 中)
-        self.measure.OS_NAME = extracted_name
+        sapas.measure.OS_NAME = extracted_name
         
         sapas.info(f"提取的系統名稱為: {extracted_name}")
 ```
@@ -86,24 +86,24 @@ class SetupSystem(sapas.ActionItem):
 ```
 
 ### 開發注意事項
-1. **日誌 Tag**: `ActionItem` 的日誌預設 Tag 為 `[ ACTION ]`。
+1. **日誌 Tag**: `ActionItem` 的日誌預設 Tag 為 `[  USER  ]`。
 2. **無判定結果**: 它不會產出 `result.csv`，若腳本執行過程中拋出例外，流程會被視為失敗。
 3. **用途建議**: 適合用於 `flows` 中的環境設置 (Setup)、結果上傳 (Reporting) 或失敗後的回退處理 (on_fail)。
 
 ---
 
-## 4. 數據量測與判定 (self.measure)
+## 4. 數據量測與判定 (sapas.measure)
 
-`self.measure` 是一個代理物件，讓您能直接將量測值與 `criteria` 中的項目對應。
+`sapas.measure` 是一個代理物件，讓您能直接將量測值與 `criteria` 中的項目對應。
 
 ```python
 def run_test(self):
     # 假設 criteria CSV 中有一個測項叫 "CPU_TEMP"
     temp = 45.5
-    self.measure.CPU_TEMP = temp  # 自動紀錄量測值
+    sapas.measure.CPU_TEMP = temp  # 自動紀錄量測值
     
     # 假設有一個字串比對測項叫 "OS_NAME"
-    self.measure.OS_NAME = "Windows"
+    sapas.measure.OS_NAME = "Windows"
 ```
 
 > **注意**：若您賦值的屬性名稱不在 `criteria_file` 中，系統會立即拋出錯誤。
@@ -248,8 +248,8 @@ class StandardTest(sapas.TestItem):
         uptime = float(output.split()[0])
         
         # 3. 紀錄量測值 (對應 criteria CSV)
-        self.measure.UPTIME = uptime
-        self.measure.STATUS = "1" if uptime > limit else "0"
+        sapas.measure.UPTIME = uptime
+        sapas.measure.STATUS = "1" if uptime > limit else "0"
         
         sapas.info(f"測試完成，Uptime: {uptime}")
 ```

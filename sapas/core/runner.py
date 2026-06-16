@@ -354,7 +354,7 @@ class Runner():
                         self.item_index += 1
                         continue
 
-                    log_banner(f'{self.item_index:02d} sapas {self.current_item}')
+                    log_banner(f'sapas {self.current_item}')
                     return_code = self._run_test_script(self.current_item)
 
                     # Any value other than 0 (PASS) indicates an issue

@@ -26,8 +26,8 @@ class ReadMacAddress(TestItem):
         # The name "READ_MAC_ADDRESS" comes from the item name defined in your criteria file.
 
         # Method 1: Key-value pair format (supports spaces/special characters, suitable for dynamic keys).
-        self.measure['READ MAC ADDRESS'] = mac_address
+        sapas.measure['READ MAC ADDRESS'] = mac_address
         # Method 2: Attribute-style format (more intuitive to write, but names cannot contain spaces).
-        self.measure.READ_MAC_ADDRESS = mac_address
+        sapas.measure.READ_MAC_ADDRESS = mac_address
 
         # Both methods above can write values into the measure field.

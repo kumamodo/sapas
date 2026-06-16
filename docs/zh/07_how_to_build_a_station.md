@@ -49,7 +49,7 @@
 - **路徑**：`example/Alishan/scripts/my_custom_test.py`
 - **重點**：
   - 使用 `sapas.var.get()` 讀取設定。
-  - 使用 `measure.add()` 紀錄測試結果。
+  - 使用 `sapas.measure` 紀錄測試結果 (詳細請參考 API 說明文件)。
 
 ### 第四步：設定判定規範 (Criteria)
 在 `criteria/` 目錄下建立與腳本對應的 CSV 規範檔案。

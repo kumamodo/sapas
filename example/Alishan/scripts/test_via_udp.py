@@ -28,4 +28,4 @@ class GetMcuVersion(TestItem):
 
         # Extract and log the MCU SW revision
         ver_match = re.search(r"SW Revision\s+:\s+([0-9.]+)", resultMessage)
-        self.measure.MCU_SW_VERSION = ver_match.group(1) if ver_match else 'Exception'
+        sapas.measure.MCU_SW_VERSION = ver_match.group(1) if ver_match else 'Exception'

@@ -34,4 +34,4 @@ class GetCpuSerialNumber(TestItem):
 
         # 4. Assign the parsed value to the measure attribute. 
         #    The framework will automatically validate this against the Criteria file later.
-        self.measure.CPU_SN = match.group(0)
+        sapas.measure.CPU_SN = match.group(0)

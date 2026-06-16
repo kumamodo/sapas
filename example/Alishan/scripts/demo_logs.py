@@ -4,10 +4,10 @@ from sapas import ActionItem
 class DemoLogs(ActionItem):
     """
     [Example] Demonstrates the use of sapas.info, sapas.warn, and sapas.error.
-    The tags will automatically appear as [ ACTION ] because this is an ActionItem.
+    The tags will automatically appear as [  USER  ] because this is a user-written ActionItem.
     """
     def run_action(self):
-        # 1. Standard informational log (Automatically tagged as [ ACTION ])
+        # 1. Standard informational log (Automatically tagged as [  USER  ])
         sapas.info("This is an informational message using sapas.info()")
         
         # 2. Warning message (Tagged as [  WARN  ])

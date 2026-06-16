@@ -121,7 +121,7 @@ class TestItem(BaseItem, ABC):
         item_names = self.pResult.get_item_names()
         
         # Create a proxy object.
-        self.measure = MeasureProxy(item_names)
+        self._measure_proxy = MeasureProxy(item_names)
         self.measure_value = []
 
         # Initialize the log
@@ -172,6 +172,21 @@ class TestItem(BaseItem, ABC):
         """Logs an error message."""
         self._log_impl(message, *args, tag="ERROR")
 
+    @property
+    def measure(self):
+        if not getattr(self, '_measure_deprecated_shown', False):
+            msg = (
+                "[DEPRECATION] self.measure is deprecated and will be removed in future versions.\n"
+                "             Please use sapas.measure instead for consistency."
+            )
+            self.warn(msg)
+            setattr(self, '_measure_deprecated_shown', True)
+        return self._measure_proxy
+
+    @measure.setter
+    def measure(self, value):
+        self._measure_proxy = value
+
     @abstractmethod
     def run_test(self) -> None:
         """
@@ -195,7 +210,7 @@ class TestItem(BaseItem, ABC):
         """
         # Before saving, convert the proxy dictionary back
         # into a list that matches the CSV column order.
-        self.measure_value = self.measure.to_list()
+        self.measure_value = self._measure_proxy.to_list()
 
         # Write the test values to the result file.
         ret = self.pResult.process_test_results(self.measure_file, self.result_file, self.measure_value)
