@@ -33,6 +33,7 @@ sapas/
         ├── configs/         # Project-level variables
         ├── criteria/        # Test specifications (CSV format)
         ├── flows/           # Test flow definitions
+        ├── prompt_pictures/ # Images for operator GUI prompts (e.g. usb_disk.png)
         ├── scripts/         # Python test scripts
         └── stations/        # Station-specific settings (Function, Wireless)
 ```

@@ -23,7 +23,7 @@ In Sapas, scripts are divided into two main categories based on their purpose:
 When a Flow executes `verify my_test.py`:
 1. **Instantiation**: The system loads `TestItem` and initializes the environment.
 2. **Execution**: Calls the `run_test()` method.
-3. **Judgment**: After the script finishes, `ResultManager` compares the data in `self.measure` with the `criteria_file`.
+3. **Judgment**: After the script finishes, `ResultManager` compares the data in `sapas.measure` with the `criteria_file`.
 4. **Flow Control**: If the judgment result is **FAIL**, the Flow immediately interrupts and jumps to the `on_fail` block.
 
 ### Required Attributes
@@ -35,7 +35,7 @@ To allow the system to process data automatically, a `TestItem` must define the 
 - **`logs_name`**: Filename of the log file for this test item.
 
 ### Required Methods
-- **`run_test(self)`**: The main entry point for test logic. In this method, you must return key data via `self.measure`.
+- **`run_test(self)`**: The main entry point for test logic. In this method, you must return key data via `sapas.measure`.
 
 ### TestItem Standard Template
 ```python
@@ -60,7 +60,7 @@ class MyOsTest(sapas.TestItem):
         extracted_name = "Windows" if "Windows" in raw_output else "Other"
         
         # 3. Record measurement (the name "OS_NAME" must exist in the criteria_file)
-        self.measure.OS_NAME = extracted_name
+        sapas.measure.OS_NAME = extracted_name
         
         sapas.info(f"Extracted OS name: {extracted_name}")
 ```
@@ -86,24 +86,24 @@ class SetupSystem(sapas.ActionItem):
 ```
 
 ### Development Notes
-1. **Log Tag**: The default tag for `ActionItem` logs is `[ ACTION ]`.
+1. **Log Tag**: The default tag for `ActionItem` logs is `[  USER  ]`.
 2. **No Judgment Result**: It does not produce a `result.csv`. If an exception is thrown during script execution, the flow is considered failed.
 3. **Recommended Uses**: Suitable for environment setup (Setup), result reporting (Reporting), or rollback handling (on_fail) in `flows`.
 
 ---
 
-## 4. Data Measurement and Judgment (self.measure)
+## 4. Data Measurement and Judgment (sapas.measure)
 
-`self.measure` is a proxy object that allows you to directly map measured values to items in `criteria`.
+`sapas.measure` is a proxy object that allows you to directly map measured values to items in `criteria`.
 
 ```python
 def run_test(self):
     # Assume there is a test item called "CPU_TEMP" in the criteria CSV
     temp = 45.5
-    self.measure.CPU_TEMP = temp  # Automatically records the measurement
+    sapas.measure.CPU_TEMP = temp  # Automatically records the measurement
     
     # Assume there is a string comparison test item called "OS_NAME"
-    self.measure.OS_NAME = "Windows"
+    sapas.measure.OS_NAME = "Windows"
 ```
 
 > **Note**: If the attribute name you assign does not exist in the `criteria_file`, the system will throw an error immediately.
@@ -248,8 +248,8 @@ class StandardTest(sapas.TestItem):
         uptime = float(output.split()[0])
         
         # 3. Record measurements (corresponding to criteria CSV)
-        self.measure.UPTIME = uptime
-        self.measure.STATUS = "1" if uptime > limit else "0"
+        sapas.measure.UPTIME = uptime
+        sapas.measure.STATUS = "1" if uptime > limit else "0"
         
         sapas.info(f"Test complete, Uptime: {uptime}")
 ```

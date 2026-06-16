@@ -36,7 +36,7 @@ class ExArgs(TestItem):
         sapas.info(f"Fetched custom argument from user: {user_value}")
 
         # 3. Setting Measurement (Mapping to Criteria):
-        #    Assign the fetched value to `self.measure.<field_name>`.
+        #    Assign the fetched value to `sapas.measure.<field_name>`.
         #    CRITICAL: The attribute name (USER_ARGS) must strictly match the 'Key' 
         #    defined in your criteria.csv for the automated PASS/FAIL evaluation to work.
-        self.measure.USER_ARGS = user_value
+        sapas.measure.USER_ARGS = user_value

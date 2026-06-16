@@ -49,7 +49,7 @@ Place your Python test logic in the `scripts/` directory.
 - **Path**: `example/Alishan/scripts/my_custom_test.py`
 - **Key Points**:
   - Use `sapas.var.get()` to read configurations.
-  - Use `self.measure` to record test results (refer to API documentation for details).
+  - Use `sapas.measure` to record test results (refer to API documentation for details).
 
 ### Step 4: Set Judgment Specifications (Criteria)
 Create a CSV specification file corresponding to the script in the `criteria/` directory.

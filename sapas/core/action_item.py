@@ -27,7 +27,7 @@ class ActionItem(BaseItem, ABC):
         """Defines the concrete execution behavior."""
         ...
 
-    def log(self, message: str, *args: any, tag: str = "ACTION") -> None:
+    def log(self, message: str, *args: any, tag: str = "USER") -> None:
         """
         Logs information during the test process. Supports formatted strings.
         
@@ -40,7 +40,7 @@ class ActionItem(BaseItem, ABC):
             setattr(self, '_log_deprecated_shown', True)
         self._log_impl(message, *args, tag=tag)
 
-    def _log_impl(self, message: str, *args: any, tag: str = "ACTION") -> None:
+    def _log_impl(self, message: str, *args: any, tag: str = "USER") -> None:
         """Internal logging implementation."""
         formatted_tag = f"[{tag:^8}]"
         full_message = f"{formatted_tag} {message}"
@@ -48,7 +48,7 @@ class ActionItem(BaseItem, ABC):
 
     def info(self, message: str, *args: any) -> None:
         """Logs an informational message."""
-        self._log_impl(message, *args, tag="ACTION")
+        self._log_impl(message, *args, tag="USER")
 
     def warn(self, message: str, *args: any) -> None:
         """Logs a warning message."""

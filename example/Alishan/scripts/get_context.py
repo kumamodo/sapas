@@ -22,7 +22,7 @@ class VerifyMacAddress(TestItem):
         # Execute the subsequent test logic (e.g., format validation).
         if mac_addr.startswith("00-1A"):
             sapas.info("MAC prefix validation passed!")
-            self.measure['PREFIX CHECK'] = 'VALID'
+            sapas.measure['PREFIX CHECK'] = 'VALID'
         else:
             sapas.error("Invalid MAC prefix!")
-            self.measure['PREFIX CHECK'] = 'INVALID'
+            sapas.measure['PREFIX CHECK'] = 'INVALID'

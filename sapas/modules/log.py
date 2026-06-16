@@ -23,10 +23,8 @@ def _log(tag, *args):
         if active_item:
             from sapas.core.test_item import TestItem
             from sapas.core.action_item import ActionItem
-            if isinstance(active_item, TestItem):
+            if isinstance(active_item, (TestItem, ActionItem)):
                 tag = 'USER'
-            elif isinstance(active_item, ActionItem):
-                tag = 'ACTION'
 
     formatted_tag = f"[{tag:^8}]"
     

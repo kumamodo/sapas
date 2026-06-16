@@ -10,11 +10,13 @@ from sapas.core.builtins import sleep
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    # Let the IDE recognize the types of sapas.link and sapas.var.
+    # Let the IDE recognize the types of sapas.link, sapas.var, and sapas.measure.
     from .runtime.connection_manager import ConnectionManager
     from .runtime.runtime import VarProxy
+    from .core.measure_proxy import MeasureProxy
     link: ConnectionManager
     var: VarProxy
+    measure: MeasureProxy
 
 def arg(*args, **kwargs):
     """
@@ -37,10 +39,18 @@ def __getattr__(name):
         return ctx.link
     if name == "var":
         return ctx.var
+    if name == "measure":
+        active_item = ctx.get("ACTIVE_ITEM")
+        if active_item is None:
+            raise RuntimeError("No active TestItem running in execution context. Cannot access sapas.measure.")
+        measure = getattr(active_item, "_measure_proxy", None)
+        if measure is None:
+            raise RuntimeError("The active item does not have a measure proxy. Only TestItem supports measurements.")
+        return measure
     raise AttributeError(f"module '{__name__}' has no attribute '{name}'")
 
 __all__ = [
-    "ctx", "link", "var", "arg",
+    "ctx", "link", "var", "measure", "arg",
     "TestItem", "ActionItem", "BaseItem", "Message",
     "info", "warn", "error", "sleep"
 ]
