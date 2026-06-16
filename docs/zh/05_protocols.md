@@ -1,4 +1,4 @@
-# 03 連線層指南
+# 05 連線層指南
 
 Sapas 透過 `ConnectionManager` 統一管理與待測物 (DUT) 的連線。
 

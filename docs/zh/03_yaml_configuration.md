@@ -1,4 +1,4 @@
-# 05 配置規範 (YAML Configuration)
+# 03 配置規範 (YAML Configuration)
 
 Sapas 採用多層級的 YAML 配置系統，讓開發者能彈性管理全域環境、專案變數與工位設定。
 
