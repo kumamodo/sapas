@@ -8,7 +8,7 @@ You can define connection information in `station.yaml` or `project.yaml`:
 
 ```yaml
 # Define connectivity for all physical hardware units
-link:
+LINK:
   # --- MAIN DUT: Primary Device Under Test ---
   main_dut:
     type: ssh                # Connection type: supports ssh, adb, uart
@@ -73,7 +73,7 @@ Used for communication with MCU or other network-based hardware via UDP packets.
 
 ### Configuration Example:
 ```yaml
-link:
+LINK:
   mcu:
     type: udp
     host: "192.168.1.111"
@@ -99,7 +99,7 @@ Used for communication with hardware via serial ports (RS232/TTL).
 
 ### Configuration Example:
 ```yaml
-link:
+LINK:
   uart_device:
     type: uart
     port: "COM4"             # Serial port (e.g., COM3 on Win, /dev/ttyUSB0 on Linux)

@@ -19,5 +19,6 @@
 
 ### 4. 維護與支援
 - [08 故障排除與 FAQ (Troubleshooting)](08_troubleshooting_faq.md) - 常見錯誤排除、連線問題與環境設定 Q&A。
+- [09 TUI 儀表板操作指引 (TUI Dashboard Guide)](09_tui_guide.md) - 終端機介面佈局、狀態燈號語意、常用快捷鍵與 SOP 操作說明。
 
 ---
