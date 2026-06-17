@@ -8,7 +8,7 @@ Sapas 透過 `ConnectionManager` 統一管理與待測物 (DUT) 的連線。
 
 ```yaml
 # Define connectivity for all physical hardware units
-link:
+LINK:
   # --- MAIN DUT: Primary Device Under Test ---
   main_dut:
     type: ssh                # Connection type: supports ssh, adb, uart
@@ -74,7 +74,7 @@ print(model)
 
 ### 配置範例：
 ```yaml
-link:
+LINK:
   mcu:
     type: udp
     host: "192.168.1.111"
@@ -100,7 +100,7 @@ print(response)
 
 ### 配置範例：
 ```yaml
-link:
+LINK:
   uart_device:
     type: uart
     port: "COM4"             # 序列埠名稱 (例如 Win: COM3, Linux: /dev/ttyUSB0)
