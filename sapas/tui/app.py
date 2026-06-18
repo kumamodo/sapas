@@ -78,6 +78,7 @@ class SapasDashboard(App[None]):
         self._cycle_task: asyncio.Task | None = None
         self._previous_sigint_handler = None
         self._sigint_pending = False
+        self._sf_blink_counter = 2
 
         # Instantiate log parser with callbacks
         self.log_interceptor = LogInterceptor(
@@ -179,12 +180,20 @@ class SapasDashboard(App[None]):
         self.call_after_refresh(self.focus_serial_input)
 
     def toggle_sf_blink(self) -> None:
-        """Toggles the blink class on the app root if Shopfloor is disabled."""
+        """Toggles the blink class on the app root if Shopfloor is disabled using a 4-second cycle (3s on, 1s off)."""
         app_root = self.query_one("#app-root")
-        if app_root.has_class("sf-disabled"):
-            app_root.toggle_class("blink")
+        if not app_root.has_class("sf-disabled"):
+            app_root.remove_class("blink")
+            self._sf_blink_counter = 2
+            return
+
+        # 0: Off (add blink), 1, 2, 3, 4, 5: On (remove blink)
+        if self._sf_blink_counter == 0:
+            app_root.add_class("blink")
         else:
             app_root.remove_class("blink")
+
+        self._sf_blink_counter = (self._sf_blink_counter + 1) % 6
 
     def install_signal_handlers(self) -> None:
         """Route terminal Ctrl+C/SIGINT through the same guarded quit dialog."""

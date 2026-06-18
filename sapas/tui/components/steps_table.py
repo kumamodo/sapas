@@ -11,17 +11,19 @@ class StepsTable(DataTable):
         super().__init__(*args, **kwargs)
         self.cursor_type = "none"
         self.zebra_stripes = True
+        self.fixed_columns = 2
 
     def on_mount(self) -> None:
-        self.add_column("Items", width=29, key="item")
+        self.add_column("ID", key="id")
         self.add_column("Status", key="status")
+        self.add_column("Items", key="item")
 
     def render_steps(self, test_steps: list[TestStep], step_status: dict[str, str]) -> None:
         self.clear()
         for step in test_steps:
-            label = f"[{step.item_id}] {step.item_label}"
+            label = step.item_label
             status = step_status.get(step.item_id, "PENDING")
-            self.add_row(label, format_status(status), key=step.item_id)
+            self.add_row(step.item_id, format_status(status), label, key=step.item_id)
 
     def update_step_status(self, row_key: str, status: str, test_steps: list[TestStep], step_status: dict[str, str]) -> None:
         """Updates internal dictionary keys and triggers state re-renders for test list cells."""
