@@ -18,6 +18,9 @@
 start function
     cycle 1                                                 # Start of test loop (runs once)
         verify get_os_name.py                               # Verify OS type and system environment
+        verify verify_voltage.py --sapas-tag FIRST          # Measure voltage at Standby phase (Tag demo)
+        prompt --text "Please adjust the fixture power supply voltage to 12V, then click OK to continue."
+        verify verify_voltage.py --sapas-tag SECOND         # Measure voltage at Active phase (Tag demo)
         delay 3                                             # Pause for 3s to allow system stability
         verify set_context.py                               # Read Bluetooth MAC from DUT
         verify get_context.py                               # Verify Bluetooth MAC prefix
@@ -49,9 +52,6 @@ start function
         
         # 2. Only Image
         prompt --show usb_disk.png
-        
-        # 3. Only Text
-        prompt --text "Please switch all fixture toggles to the OFF position"
         
         # 4. Missing Image (should show warning cleanly instead of crashing)
         prompt --show non-existent-image.png --text "Image missing, proceed anyway."

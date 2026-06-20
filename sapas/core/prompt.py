@@ -1,8 +1,11 @@
 import sys
 from pathlib import Path
 
+import os
 # Try to import tkinter and PIL
 try:
+    if os.environ.get("SAPAS_HEADLESS"):
+        raise ImportError("Headless mode forced by SAPAS_HEADLESS")
     import tkinter as tk
     from PIL import Image, ImageTk
     TK_AVAILABLE = True

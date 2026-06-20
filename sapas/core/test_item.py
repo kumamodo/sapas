@@ -107,6 +107,20 @@ class TestItem(BaseItem, ABC):
                 f"--------------------------------------------------"
             )
 
+        # Retrieve the current tag from context
+        self.sapas_tag = ctx.get("CURRENT_SAPAS_TAG")
+
+        # Format item attributes if sapas_tag is provided and they contain placeholder '{}'
+        if self.sapas_tag:
+            if '{}' in self.logs_folder:
+                self.logs_folder = self.logs_folder.format(self.sapas_tag)
+            if '{}' in self.logs_name:
+                self.logs_name = self.logs_name.format(self.sapas_tag)
+            if '{}' in self.result_file:
+                self.result_file = self.result_file.format(self.sapas_tag)
+            if '{}' in self.measure_file:
+                self.measure_file = self.measure_file.format(self.sapas_tag)
+
         # Initialize Workspace and Output Directories.
         workspace_root = ctx.get('WORKSPACE_ROOT')
         self.outputFolder = os.path.join(
@@ -115,13 +129,14 @@ class TestItem(BaseItem, ABC):
         os.makedirs(self.outputFolder, exist_ok=True)
 
         # Initialize the ResultManager
-        self.pResult = ResultManager(self.outputFolder, self.criteria_file, self.measure_file)
+        self.pResult = ResultManager(self.outputFolder, self.criteria_file, self.measure_file, sapas_tag=self.sapas_tag)
 
-        # Retrieve the list of criteria items from the ResultManager.
+        # Retrieve the list of criteria items and mapping from the ResultManager.
         item_names = self.pResult.get_item_names()
+        item_mapping = self.pResult.get_item_name_mapping()
         
         # Create a proxy object.
-        self._measure_proxy = MeasureProxy(item_names)
+        self._measure_proxy = MeasureProxy(item_names, item_mapping)
         self.measure_value = []
 
         # Initialize the log

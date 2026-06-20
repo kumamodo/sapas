@@ -40,6 +40,26 @@ class ScriptExecutor:
         return_code = 0
 
         try:
+            # Extract and strip --sapas-tag from script_args
+            sapas_tag = None
+            if script_args:
+                new_args = []
+                i = 0
+                while i < len(script_args):
+                    if script_args[i] == '--sapas-tag':
+                        if i + 1 < len(script_args):
+                            sapas_tag = script_args[i + 1]
+                            i += 2
+                            continue
+                        else:
+                            raise RuntimeError("Error: --sapas-tag requires a value.")
+                    new_args.append(script_args[i])
+                    i += 1
+                script_args = new_args
+
+            from sapas.runtime.runtime import ctx
+            ctx.set("CURRENT_SAPAS_TAG", sapas_tag)
+
             module_name = f"test_module_{uuid.uuid4().hex}"
             spec = importlib.util.spec_from_file_location(module_name, script_path)
             if spec is None or spec.loader is None:
