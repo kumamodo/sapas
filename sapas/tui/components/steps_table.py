@@ -32,8 +32,13 @@ class StepsTable(DataTable):
             # Check if row exists before updating to prevent CellDoesNotExist errors
             if row_key in self.rows:
                 self.update_cell(row_key, "status", format_status(status))
-                if status == "RUNNING":
-                    self.scroll_to_row(row_key)
+                if status in ("RUNNING", "PASS", "FAIL"):
+                    try:
+                        row_index = self.get_row_index(row_key)
+                        region = self._get_row_region(row_index)
+                        self.scroll_to_region(region, animate=False)
+                    except Exception:
+                        pass
             else:
                 # Row not found, trigger full refresh
                 self.render_steps(test_steps, step_status)

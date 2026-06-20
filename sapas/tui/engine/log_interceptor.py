@@ -34,11 +34,10 @@ class LogInterceptor:
             return
 
         # Match standard test item start signatures
-        start_match = re.search(r"\b(\d+)\s+sapas\s+(.+)$", message)
+        start_match = re.search(r"sapas\s+([^\s=]+.*?)\s*={0,2}$", message)
         if start_match:
             if self.on_step_start:
-                runner_index = f"{int(start_match.group(1)):02d}"
-                self.on_step_start(runner_index)
+                self.on_step_start(start_match.group(1).strip())
             return
 
         # Match structural dynamic delay triggers
