@@ -8,7 +8,7 @@ from datetime import datetime
 from pathlib import Path
 
 from rich.text import Text
-from textual import on
+from textual import events, on
 from textual.app import App, ComposeResult
 from textual.containers import Container
 from textual.events import Resize
@@ -101,8 +101,8 @@ class SapasDashboard(App[None]):
         self.update_info_display()
         self.reset_cycle_view()
 
-    def _handle_step_start(self, runner_index: str) -> None:
-        row_key = self.step_index_by_runner_index.get(runner_index)
+    def _handle_step_start(self, item_name: str) -> None:
+        row_key = self.pop_next_pending_step(item_name)
         if row_key:
             self.running_step_key = row_key
             self.set_step_status(row_key, "RUNNING")
@@ -154,7 +154,7 @@ class SapasDashboard(App[None]):
                 Container(
                     Static("Live Log", id="log-title"),
                     Static("", id="result-banner"),
-                    LogView(id="live-log", wrap=True, auto_scroll=True, highlight=False),
+                    LogView(id="live-log", wrap=False, auto_scroll=True, highlight=False),
                     id="log-panel"
                 ),
                 id="main-body",
@@ -548,6 +548,26 @@ class SapasDashboard(App[None]):
             return
         self.start_cycle(self.query_one("#serial-input", Input).value.strip())
 
+    @on(events.Enter, "#start-button")
+    def on_start_button_enter(self) -> None:
+        """Focus the start/stop button when mouse hovers over it."""
+        start_button = self.query_one("#start-button", Button)
+        if not start_button.disabled:
+            start_button.can_focus = True
+            start_button.focus()
+
+    @on(events.Leave, "#start-button")
+    def on_start_button_leave(self) -> None:
+        """Remove focus and restore safety when mouse leaves the button."""
+        start_button = self.query_one("#start-button", Button)
+        if self.is_testing:
+            start_button.can_focus = False
+            if self.focused is start_button:
+                self.set_focus(None)
+        else:
+            if self.focused is start_button:
+                self.focus_serial_input()
+
     def request_test_stop(self) -> None:
         """Raise a cooperative stop request while keeping the dashboard open."""
         if self.stop_requested:
@@ -576,6 +596,7 @@ class SapasDashboard(App[None]):
         serial_input.disabled = True
         start_button.disabled = False
         start_button.label = "Stop"
+        start_button.can_focus = False
 
         self.reset_station_view(clear_log=True)
         self.args.serialNumber = serial_number
@@ -642,6 +663,7 @@ class SapasDashboard(App[None]):
         serial_input.disabled = False
         start_button.disabled = False
         start_button.label = "Start"
+        start_button.can_focus = True
         self.call_after_refresh(self.focus_serial_input)
 
 
