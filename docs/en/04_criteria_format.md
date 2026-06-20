@@ -31,3 +31,35 @@ Sapas tightly integrates script development with automated judgment. Below is th
     *   **Load**: `ResultManager` automatically reads the corresponding Criteria CSV (e.g., `get_os_name_criteria.csv`).
     *   **Compare**: The system compares the measured value with the `LSL/USL` in the CSV.
     *   **Report**: Judges the result (PASS/FAIL), records the status, and generates the final test report.
+
+## Duplicate Test Items & Parameterization
+
+When the same test script needs to be executed multiple times in a Flow file (e.g., measuring voltage before and after power-on), Sapas supports **parameterized fields** and **tag mapping** to prevent subsequent test results from overwriting previous ones:
+
+### 1. Define Criteria Placeholder with `{}`
+In the Criteria CSV, add the `{}` placeholder to the name of the duplicate test item, e.g., `VOLTAGE_{}`:
+
+| Test Item | LSL | USL | Measured | Status | Description | ErrCode |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| VOLTAGE_{} | 4.5 | 13.0 | | | Verify system voltage | E0001 |
+
+### 2. Differentiate in Flow using `--sapas-tag`
+In the `.flow` file, specify a suffix tag for different stages of the test via `--sapas-tag <Value>`:
+```text
+verify verify_voltage.py --sapas-tag FIRST
+prompt --text "Please adjust voltage to 12V..."
+verify verify_voltage.py --sapas-tag SECOND
+```
+
+### 3. Transparent Code Mapping (Decoupled Logic)
+Custom Python scripts do not need to perform any string formatting; simply write to the standard variable name:
+```python
+sapas.measure.VOLTAGE = 5.05
+```
+The Sapas framework automatically maps `VOLTAGE` to `VOLTAGE_FIRST` or `VOLTAGE_SECOND` behind the scenes.
+
+### 4. Strict Validation (Poka-yoke)
+To prevent human configuration mistakes, Sapas enforces strict bi-directional validation:
+- If the Criteria CSV contains `{}`, the Flow file **must** include the `--sapas-tag` argument.
+- If the Criteria CSV does not contain `{}`, the Flow file **must not** include the `--sapas-tag` argument.
+If there is a mismatch, the test engine raises a `ValueError` at startup and aborts execution.

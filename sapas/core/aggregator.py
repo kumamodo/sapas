@@ -22,8 +22,9 @@ class ResultManager:
 
     HEADER_LABELS = ['Test Item', 'LSL', 'USL', 'Measured', 'Status', 'Description', 'ErrCode']
 
-    def __init__(self, out_path, criteria_file_name, txt_file_name):
+    def __init__(self, out_path, criteria_file_name, txt_file_name, sapas_tag=None):
         self.local_dir = Path(__file__).parent.resolve()
+        self.sapas_tag = sapas_tag
 
         workspace_root = Path(ctx.get('WORKSPACE_ROOT'))
         project_name = ctx.get('PROJECT_NAME')
@@ -35,7 +36,7 @@ class ResultManager:
         # Keep the header included here, as this defines the structure of the output CSV.
         self.test_criteria = [self.HEADER_LABELS]
         
-        self.fill_test_item_name = None
+        self.fill_test_item_name = sapas_tag
 
         if not self.criteria_file.exists():
             raise RuntimeError(f'Criteria file [{criteria_file_name}] not found...')
@@ -43,8 +44,28 @@ class ResultManager:
         with open(self.criteria_file, 'r', encoding='utf-8') as f:
             reader = csv.reader(f)
             rows = list(reader)
-            self.test_item_list = [row[0] for row in rows[1:]]
-        
+            raw_item_names = [row[0] for row in rows[1:]]
+
+        # Strict Configuration Validation:
+        has_placeholders = any('{}' in name for name in raw_item_names)
+        if has_placeholders and not self.sapas_tag:
+            raise ValueError(f"Criteria file contains parameter placeholders '{{}}', but no --sapas-tag was specified in the flow.")
+        if not has_placeholders and self.sapas_tag:
+            raise ValueError(f"A --sapas-tag '{self.sapas_tag}' was specified, but the criteria file contains no placeholders '{{}}'.")
+
+        # Build formatted item list and mappings
+        self.test_item_list = []
+        self.item_name_mapping = {}
+        for name in raw_item_names:
+            if '{}' in name:
+                full_name = name.format(self.sapas_tag)
+                base_name = name.replace('{}', '').strip('_').strip('-')
+            else:
+                full_name = name
+                base_name = name
+            self.test_item_list.append(full_name)
+            self.item_name_mapping[base_name] = full_name
+
         info(f"Loaded {len(self.test_item_list)} test items.", tag='OUT')
         self._load_criteria_from_file(self.criteria_file)
 
@@ -68,6 +89,10 @@ class ResultManager:
         """
         return self.test_item_list
 
+    def get_item_name_mapping(self):
+        """Returns the mapping from base name to formatted item name."""
+        return self.item_name_mapping
+
     def _load_measurements_from_file(self, filepath, dictionary):
         """Reads temporary key=value measurements from the txt file into a dictionary."""
         with open(filepath, "r", encoding='utf-8') as f:
@@ -87,6 +112,8 @@ class ResultManager:
             header = next(reader)
             for row in reader:
                 if row:
+                    if '{}' in row[0] and self.sapas_tag:
+                        row[0] = row[0].format(self.sapas_tag)
                     self.test_criteria.append(row)
 
     def _evaluate_item(self, val, c_min, c_max, err_raw):
