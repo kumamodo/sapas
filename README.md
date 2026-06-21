@@ -5,9 +5,9 @@
 ![Open Source](https://img.shields.io/badge/Open%20Source-%E2%9D%A4-brightgreen)
 ![Price](https://img.shields.io/badge/Price-100%25%20Free-blue)
 
-> **Sapas** /sa'paʃ/ — Inspired by the phrase for *"Bravo! Well done!"* Our goal is simple: when a test flow transits from design to factory, it just **PASS**.
+> **Sapas** /sa'paʃ/ — Inspired by the phrase for *"Bravo! Well done!"* Our goal is simple: automate your hardware tests seamlessly from early-stage bring-up to high-throughput production.
 
-A unified test automation platform bridging the gap between RD hardware verification and factory production testing.
+A unified hardware test automation platform for the entire product lifecycle — bridging the gap between RD verification, CI/CD Hardware-in-the-Loop (HIL) testing, factory production, and RMA diagnostics.
 
 ---
 
@@ -16,15 +16,27 @@ A unified test automation platform bridging the gap between RD hardware verifica
 
 ![Sapas Interactive TUI Dashboard](./docs/images/tui_screenshot.png)
 
-## The Problem It Solves: The Cross-Team Fragmentation
+## The Problem It Solves: The Lifecycle Fragmentation
 
-In the lifecycle of product development, a destructive cycle often occurs:
+In the lifecycle of hardware product development, testing is often fragmented across different teams and phases:
 
-1. **RD (Research & Development)** writes their own validation scripts in the lab to bring up the hardware.
-2. **TE (Test Engineering)** re-writes completely different automation blocks to fit their test equipment.
-3. **PE (Production/Manufacturing)** struggles to deploy a frankenstein framework on the shop floor, resulting in untraceable bugs and heavy maintenance overhead.
+1. **RD (Research & Development)** writes custom validation scripts in the lab to bring up the hardware and run sweeps.
+2. **QA/TE (Quality Assurance & Test Engineering)** re-writes validation test benches for regression and reliability testing.
+3. **PE (Production/Manufacturing)** struggles to deploy a frankenstein framework on the shop floor, leading to untraceable bugs and heavy maintenance.
+4. **RMA (Return Merchandise Authorization)** uses different ad-hoc tools to diagnose returned devices.
 
-**Sapas** is built to break this silo. It is NOT just another "high-performance" runner; it is a **unified testing platform** designed to be the single source of truth from the engineering lab to the continuous assembly line.
+**Sapas** is built to break these silos. It is NOT just another "high-performance" runner; it is a **unified hardware testing platform** designed to be the single source of truth from early engineering labs to continuous assembly lines and service centers.
+
+---
+
+## 🎯 Target Scenarios: Beyond the Factory Floor
+
+Sapas's decoupled architecture makes it versatile across multiple stages of hardware development:
+
+* **🔬 RD Lab & Characterization**: Sweep testing, calibration, and characterization (e.g., PVT testing) without writing boilerplate logging or reporting logic.
+* **🤖 CI/CD & HIL (Hardware-in-the-Loop)**: Run daily smoke tests or firmware regression validation on physical test benches automatically on every code commit.
+* **🏭 Factory Production Lines**: Station looping, operator-friendly TUI, barcode serial number bindings, and secure data convergence for shopfloor databases.
+* **🔧 RMA & Field Service Diagnostics**: A lightweight, terminal-based TUI tool for repair centers to run step-by-step guided hardware diagnostics on technicians' laptops.
 
 ---
 
@@ -34,19 +46,19 @@ Sapas provides a clean abstraction layer that allows RD, TE, and Factory operato
 
 * **For RD (Lab Verification)**: It acts as a structured environment to write modular `TestItem` blocks using standard protocols (SSH, ADB, UART) without worrying about factory databases or UI rendering.
 * **For TE (Deployment & Criteria)**: It separates test logic from standard criteria. TE can shift test limits or sequencing via dynamic configuration files (YAML/CSV) without touching the core code written by RD.
-* **For Factory Control (Station Loop)**: It wraps everything into a robust, operator-friendly CLI/TUI environment. It handles continuous looping, serial number inputs, and data hygiene automatically.
+* **For Factory Control & Automation**: It wraps everything into a robust, operator-friendly CLI/TUI environment. It handles continuous looping, serial number inputs, and data hygiene automatically.
 
 ---
 
 ## Why Sapas?
 
-* \*\*Bridge the Gap\*\*: Stop re-writing scripts. The exact same Python code written during early validation can be directly deployed onto the production line.**Bridge the Gap**: Stop re-writing scripts. The exact same Python code written during early validation can be directly deployed onto the production line.
+* **Bridge the Gap**: Stop re-writing scripts. The exact same Python code written during early validation can be directly deployed onto the production line or used in automated regression testing.
 * **Separation of Concerns**:
   * **RD** controls the **Logic** (How to interact with the device).
   * **TE** controls the **Criteria & Sequence** (What defines a PASS/FAIL and in what order).
   * **Sapas Engine** controls the **Infrastructure** (Logs, UI, data convergence, and hardware connection pools).
 * **Defensive by Design**: Implements strict data normalization (e.g., rigid boolean convergence) and contract checking (`opas.var.require`) to prevent laboratory scripts from breaking under harsh factory environments.
-* **Aesthetic & Noise-Free CLI**: A unified terminal output powered by `rich`, using balanced visual markers (`✓` / `❌`) ensuring that field technicians can instantly read station health without parsing through raw text noise.
+* **Aesthetic & Noise-Free CLI**: A unified terminal output powered by `rich`, using balanced visual markers (`✓` / `❌`) ensuring that field technicians or developers can instantly read station health without parsing through raw text noise.
 
 ---
 
