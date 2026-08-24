@@ -31,7 +31,28 @@ class Runner():
         self.project_name = self.ctx.get("PROJECT_NAME")
         self.station_name = self.ctx.get("STATION_NAME")
 
+        self.station_start_time = 0.0
+        self.station_timeout = 0.0
+        self._timeout_logged = False
+
+    def _is_timeout(self) -> bool:
+        if self.station_timeout > 0 and self.station_start_time > 0:
+            elapsed = time.time() - self.station_start_time
+            if elapsed > self.station_timeout:
+                if not self._timeout_logged:
+                    error(
+                        f"Station execution timeout detected! Spent {elapsed:.1f}s (Limit: {self.station_timeout:.1f}s), stopping test.",
+                        tag='RUNNER'
+                    )
+                    self._timeout_logged = True
+                self.ctx.set('ERROR_CODE', 'STATION_TIMEOUT')
+                self.ctx.set('ERROR_DESCRIPTION', f'Station timeout exceeded ({self.station_timeout}s)')
+                return True
+        return False
+
     def _is_stop_requested(self) -> bool:
+        if self._is_timeout():
+            return True
         if self.ctx.get('STOP_REQUESTED', False):
             info("STOP_REQUESTED detected, stopping test.", tag='RUNNER')
             return True
@@ -190,8 +211,14 @@ class Runner():
 
             info(f"Operator Prompt triggered. Text: '{text_content or ''}', Image: '{image_name or ''}'", tag='RUNNER')
             
+            p_start = time.time()
             # Display the prompt (this will block until closed)
             show_operator_prompt(image_path=image_path, text_content=text_content, logger=self.logger)
+            p_duration = time.time() - p_start
+
+            if self.station_start_time > 0:
+                self.station_start_time += p_duration
+                info(f"Operator prompt duration ({p_duration:.1f}s) excluded from station timeout calculation.", tag='RUNNER')
         finally:
             info("Prompt finished.", tag='RUNNER')
 
@@ -227,6 +254,16 @@ class Runner():
                 info(f"Using default station flow: {station_flow_file}", tag='RUNNER')
 
             self.station_flow = station_flow_file
+
+            self.station_start_time = time.time()
+            self._timeout_logged = False
+            try:
+                self.station_timeout = float(self.ctx.get('STATION_TIMEOUT', 0))
+            except (ValueError, TypeError):
+                self.station_timeout = 0.0
+
+            if self.station_timeout > 0:
+                info(f"[STATION_TIMEOUT]: {self.station_timeout:.1f}s limit configured", tag='RUNNER')
 
             self.is_fail_stop = self.ctx.get('IS_FAIL_STOP', True)
             if self.is_fail_stop is False:
@@ -348,6 +385,9 @@ class Runner():
                         continue
 
                     if self._is_stop_requested():
+                        if self._is_timeout():
+                            self.critical_error = True
+                            has_item_fail = True
                         break
 
                     if prefix == 'cycle':
@@ -356,6 +396,10 @@ class Runner():
 
                     log_banner(f'sapas {self.current_item}')
                     return_code = self._run_test_script(self.current_item)
+
+                    if self._is_timeout():
+                        self.critical_error = True
+                        has_item_fail = True
 
                     # Any value other than 0 (PASS) indicates an issue
                     # (e.g., a 80 failure condition or a script crash).
@@ -411,7 +455,9 @@ class Runner():
                     # Small delay between cycles for visual feedback and system stabilization
                     time.sleep(1.0)
 
-            if self._is_stop_requested():
+            if self._is_timeout():
+                pass
+            elif self._is_stop_requested():
                 warn('User stop test!', tag='RUNNER')
                 self.ctx.set('ERROR_CODE', 'STOP')
             elif not self.is_fail_stop:

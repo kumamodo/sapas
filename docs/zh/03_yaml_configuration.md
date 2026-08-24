@@ -60,6 +60,7 @@ Sapas 採用多層級的 YAML 配置系統，讓開發者能彈性管理全域�
 | `PROJECT_NAME` | String | 專案名稱。系統據此尋找對應的資料夾。 |
 | `STATION_NAME` | String | 工位名稱。系統據此尋找 `station.yaml` 與預設 `.flow`。 |
 | `IS_FAIL_STOP` | Boolean | 若為 `True`，當 `verify` 指令失敗時，會立即中斷測試並跳轉至 `on_fail`。 |
+| `STATION_TIMEOUT` | Number | 工位總執行超時時間（秒）。預設 `0` 表示不限制。若總耗時超過此門檻，測試將自動中斷並標記為 `STATION_TIMEOUT` 失敗。 |
 | `IS_EXCEPTION_STOP` | Boolean | 若為 `True`，當腳本拋出異常或崩潰（非 `80` 錯誤碼）時，會立即中斷測試。設為 `False` 可在開發時搭配 `IS_FAIL_STOP` 做完整測試。 |
 | `ENABLE_SHOPFLOOR`| Boolean | 表示當前測試是否連接 Shopfloor。 |
 | `ENABLE_SMB` | Boolean | 是否將測試過程中的 Log 與數據 (通常為 `output/{序號}`) 上傳至 Server 以供日後追蹤。 |

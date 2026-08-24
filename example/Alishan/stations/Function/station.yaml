@@ -12,3 +12,6 @@ TUI_SOCKET_PORT: 2003
 
 NOISE_SENSOR_COM_PORT: COM25
 NOISE_SENSOR_BAUDRATE: 9600
+
+# [Optional] Station execution time limit in seconds (0 = unlimited)
+STATION_TIMEOUT: 0

@@ -60,6 +60,7 @@ The following are key parameters referenced or automatically generated within th
 | `PROJECT_NAME` | String | Project name. The system looks for the corresponding folder based on this. |
 | `STATION_NAME` | String | Station name. The system looks for `station.yaml` and the default `.flow` based on this. |
 | `IS_FAIL_STOP` | Boolean | If `True`, the test will immediately interrupt and jump to `on_fail` when a `verify` command fails. |
+| `STATION_TIMEOUT` | Number | Total station execution time limit (in seconds). Default `0` means unlimited. If total execution time exceeds this threshold, the test aborts and marks `STATION_TIMEOUT` failure. |
 | `IS_EXCEPTION_STOP` | Boolean | If `True`, the test will immediately interrupt when a script throws an exception or crashes (non-`80` return code). Set to `False` to debug alongside `IS_FAIL_STOP`. |
 | `ENABLE_SHOPFLOOR`| Boolean | Indicates whether the current test is connected to Shopfloor. |
 | `ENABLE_SMB` | Boolean | Whether to upload logs and data from the test process (usually `output/{Serial}`) to a server for later tracking. |
