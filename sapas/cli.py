@@ -103,25 +103,51 @@ def draw_welcome_screen(project_name: str, station_name: str, test_flow: str):
     console.print("\n")
     time.sleep(0.5)
 
+def find_site_infra(start_dir: Path) -> tuple[Path | None, dict]:
+    """
+    Search upwards from start_dir for site_infra.yaml.
+    Returns (infra_root_path, env_dict).
+    """
+    curr = start_dir.resolve()
+    while True:
+        candidate = curr / "site_infra.yaml"
+        if candidate.is_file():
+            return curr, load_yaml(candidate)
+        if curr.parent == curr:
+            break
+        curr = curr.parent
+    return None, {}
+
 def setup_context(args):
     # [Environment Initialization] Responsible for converting all YAML files
-    #  into a unified context and wiring it into the global rt.
+    # into a unified context and wiring it into the global rt.
 
-    # Load the base environment configuration (site_infra.yaml).
-    env_path = Path("site_infra.yaml")
-    env = load_yaml(env_path) if env_path.exists() else {}
+    curr_dir = Path.cwd().resolve()
+    infra_root, env = find_site_infra(curr_dir)
 
-    # Determine the project and test station
-    # priority: CLI arguments > site_infra.yaml.
+    # Determine the project and test station (priority: CLI arguments > site_infra.yaml).
     project_name = args.project or env.get("PROJECT_NAME")
     station_name = args.station or env.get("STATION_NAME")
 
     if not project_name or not station_name:
         print("\033[91m[Error] Project or Station not specified!\033[0m")
+        print("Please specify via CLI arguments (--project <Project> --station <Station>) or define them in site_infra.yaml.")
         sys.exit(1)
 
-    workspace_root = Path.cwd()
-    project_dir = workspace_root / project_name
+    # Smart Workspace & Project Directory Resolution
+    if infra_root:
+        workspace_root = infra_root
+        if curr_dir == workspace_root / project_name or curr_dir.name == project_name:
+            project_dir = curr_dir
+        else:
+            project_dir = workspace_root / project_name
+    else:
+        if (curr_dir / "stations").is_dir() or curr_dir.name == project_name:
+            project_dir = curr_dir
+            workspace_root = curr_dir.parent
+        else:
+            workspace_root = curr_dir
+            project_dir = workspace_root / project_name
 
     # Define the path and check whether it exists.
     station_path = project_dir / "stations" / f"{station_name}" / "station.yaml"
@@ -129,6 +155,7 @@ def setup_context(args):
 
     if not station_path.exists():
         print(f"\033[91m[Error] Station config not found: {station_path}\033[0m")
+        print(f"Please check if project '{project_name}' and station '{station_name}' exist in '{workspace_root}'.")
         sys.exit(1)
 
     station_var = load_yaml(station_path)
