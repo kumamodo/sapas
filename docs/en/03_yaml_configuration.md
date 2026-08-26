@@ -37,7 +37,7 @@ This makes `sapas.var` a powerful global data hub, facilitating the transfer of 
 ### site_infra.yaml (Environment Infrastructure)
 *   **Location**: Usually placed in the workspace root directory (e.g., `example/`).
 *   **Purpose**: Information shared across projects. For example, all stations in the same factory connect to the same Shopfloor system.
-*   **Typical Parameters**: `FACTORY_LOCATION`, `ENABLE_SHOPFLOOR`, `SMB_SERVER_IP`.
+*   **Typical Parameters**: `FACTORY_LOCATION`, `ENABLE_SHOPFLOOR`, `SMB_SERVER_IP`, `TEST_FLOW` (locks the test flow file to run on the current station PC).
 
 ### project.yaml (Project Definition)
 *   **Location**: `{Project}/configs/project.yaml`.
@@ -59,6 +59,7 @@ The following are key parameters referenced or automatically generated within th
 | :--- | :--- | :--- |
 | `PROJECT_NAME` | String | Project name. The system looks for the corresponding folder based on this. |
 | `STATION_NAME` | String | Station name. The system looks for `station.yaml` and the default `.flow` based on this. |
+| `TEST_FLOW` | String | Locks the test flow file to run for the current station (format: `FlowName.flow`). Only takes effect when defined in `site_infra.yaml`. |
 | `IS_FAIL_STOP` | Boolean | If `True`, the test will immediately interrupt and jump to `on_fail` when a `verify` command fails. |
 | `STATION_TIMEOUT` | Number | Total station execution time limit (in seconds). Default `0` means unlimited. If total execution time exceeds this threshold, the test aborts and marks `STATION_TIMEOUT` failure. |
 | `IS_EXCEPTION_STOP` | Boolean | If `True`, the test will immediately interrupt when a script throws an exception or crashes (non-`80` return code). Set to `False` to debug alongside `IS_FAIL_STOP`. |

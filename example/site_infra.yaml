@@ -1,5 +1,6 @@
 PROJECT_NAME: Alishan
 STATION_NAME: Function
+TEST_FLOW: wireless.flow
 
 IS_AUTO_LINE: False
 IS_FAIL_STOP: True

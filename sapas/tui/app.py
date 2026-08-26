@@ -250,7 +250,7 @@ class SapasDashboard(App[None]):
             pass
 
         # 3. Calculate target test flow layout descriptor
-        requested_flow = self.args.test_flow or f"{station_name}.flow"
+        requested_flow = self.args.test_flow or self.context.env.get("TEST_FLOW") or f"{station_name}.flow"
 
         # 4. Check Shopfloor status
         sf_enabled = self.context.get("ENABLE_SHOPFLOOR", False)
@@ -270,9 +270,9 @@ class SapasDashboard(App[None]):
 
         # 5. Construct metadata text string using left-aligned factory guidelines
         info_text = (
-            f"Station: {station_name}\n"
-            f"Script:  {script_version}\n"
-            f"Flow:    {requested_flow}"
+            f"Project: {project_name}\n"
+            f"Station: {station_name} ▸ {requested_flow}\n"
+            f"Script:  {script_version}"
         )
         self.query_one("#info-value", Static).update(info_text)
         
@@ -292,7 +292,7 @@ class SapasDashboard(App[None]):
         workspace_root = Path(self.context.get("WORKSPACE_ROOT", Path.cwd()))
         project_name = self.context.get("PROJECT_NAME")
         station_name = self.context.get("STATION_NAME")
-        requested_flow = self.args.test_flow or f"{station_name}.flow"
+        requested_flow = self.args.test_flow or self.context.env.get("TEST_FLOW") or f"{station_name}.flow"
         flow_dir = workspace_root / project_name / "flows"
         flow_path = flow_dir / requested_flow
 

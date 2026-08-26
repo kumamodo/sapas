@@ -30,9 +30,9 @@ Located on the left, displaying static environment info for the current station:
 
 | Field | Description |
 |------|------|
-| `Station` | Name of the current test station |
+| `Project` | Name of the current project |
+| `Station` | Name of the current test station and the active test flow file (format: `StationName ▸ FlowName.flow`) |
 | `Script` | Version number of the test script |
-| `Flow` | The active test flow file (`.flow`) currently executing |
 
 #### 📌 Error Code (Result Status)
 Displays the overall decision/result of the current test run. Its background color changes in real time according to the status (see Section 2 for details).
@@ -148,10 +148,10 @@ Upon completion, a large banner overlays the center section of the Live Log, pro
 sapas --tui
 ```
 
-Or target a specific project and station:
+Or target a specific project, station, and test flow:
 
 ```bash
-sapas --tui --project Alishan --station Function
+sapas --tui --project Alishan --station Function --test_flow Function.flow
 ```
 
 ---

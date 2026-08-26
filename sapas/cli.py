@@ -186,7 +186,21 @@ def main():
 
     project_name = context.get("PROJECT_NAME", "Unknown")
     station_name = context.get("STATION_NAME", "Unknown")
-    final_flow = args.test_flow if args.test_flow else f"{station_name}.flow"
+    final_flow = args.test_flow or context.env.get("TEST_FLOW") or f"{station_name}.flow"
+
+    # Verify flow file existence before proceeding (unless running a standalone script)
+    if not (args.script and args.script.endswith(".py")):
+        workspace_root = Path(context.get("WORKSPACE_ROOT", Path.cwd()))
+        flow_dir = workspace_root / project_name / "flows"
+        flow_path = flow_dir / final_flow
+        if not flow_path.exists():
+            matches = [path for path in flow_dir.glob("*.flow") if path.name.lower() == final_flow.lower()]
+            if matches:
+                final_flow = matches[0].name
+            else:
+                print(f"\033[91m[Error] Flow file '{final_flow}' not found in project '{project_name}' flows folder!\033[0m")
+                print(f"Expected path: {flow_path}")
+                sys.exit(1)
 
     if args.script and args.script.endswith(".py"):
         # Mode A: execute a standalone script.

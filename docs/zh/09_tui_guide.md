@@ -30,9 +30,9 @@ Sapas TUI 儀表板採用三層垂直式佈局，搭配左右分割的主體內�
 
 | 欄位 | 說明 |
 |------|------|
-| `Station` | 目前使用的測試工位名稱 |
+| `Project` | 目前執行的專案名稱 |
+| `Station` | 目前使用的測試工位名稱與執行中的流程檔（格式：`工位名稱 ▸ 流程檔名.flow`） |
 | `Script` | 測試腳本版本號 |
-| `Flow` | 執行中的測試流程檔（`.flow`） |
 
 #### 📌 Error Code（結果狀態）
 顯示目前測試的整體判定結果，顏色會隨狀態即時變化（詳見第 2 節）。
@@ -148,10 +148,10 @@ Sapas TUI 儀表板採用三層垂直式佈局，搭配左右分割的主體內�
 sapas --tui
 ```
 
-或指定特定專案與工位：
+或指定特定專案、工位與測試流程：
 
 ```bash
-sapas --tui --project Alishan --station Function
+sapas --tui --project Alishan --station Function --test_flow Function.flow
 ```
 
 ---

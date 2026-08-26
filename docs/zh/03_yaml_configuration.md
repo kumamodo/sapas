@@ -37,7 +37,7 @@ Sapas 採用多層級的 YAML 配置系統，讓開發者能彈性管理全域�
 ### site_infra.yaml (環境基礎設施)
 *   **位置**：通常放在工作區根目錄（如 `example/`）。
 *   **用途**：跨專案共享的資訊。例如，同一工廠內所有工位都連到同一個 Shopfloor 系統。
-*   **典型參數**：`FACTORY_LOCATION`, `ENABLE_SHOPFLOOR`, `SMB_SERVER_IP`。
+*   **典型參數**：`FACTORY_LOCATION`, `ENABLE_SHOPFLOOR`, `SMB_SERVER_IP`, `TEST_FLOW`（鎖定目前工位實體電腦應執行的流程檔名稱）。
 
 ### project.yaml (專案定義)
 *   **位置**：`{Project}/configs/project.yaml`。
@@ -59,6 +59,7 @@ Sapas 採用多層級的 YAML 配置系統，讓開發者能彈性管理全域�
 | :--- | :--- | :--- |
 | `PROJECT_NAME` | String | 專案名稱。系統據此尋找對應的資料夾。 |
 | `STATION_NAME` | String | 工位名稱。系統據此尋找 `station.yaml` 與預設 `.flow`。 |
+| `TEST_FLOW` | String | 鎖定目前工位應執行的流程檔（格式：`流程檔名.flow`）。僅在 `site_infra.yaml` 內生效以達防呆目的。 |
 | `IS_FAIL_STOP` | Boolean | 若為 `True`，當 `verify` 指令失敗時，會立即中斷測試並跳轉至 `on_fail`。 |
 | `STATION_TIMEOUT` | Number | 工位總執行超時時間（秒）。預設 `0` 表示不限制。若總耗時超過此門檻，測試將自動中斷並標記為 `STATION_TIMEOUT` 失敗。 |
 | `IS_EXCEPTION_STOP` | Boolean | 若為 `True`，當腳本拋出異常或崩潰（非 `80` 錯誤碼）時，會立即中斷測試。設為 `False` 可在開發時搭配 `IS_FAIL_STOP` 做完整測試。 |
