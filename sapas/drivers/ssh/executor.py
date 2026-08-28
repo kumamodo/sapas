@@ -15,7 +15,7 @@ ANSI_ESCAPE = re.compile(r'\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])')
 
 
 class SSHExecutor:
-    def __init__(self, host, user, password, port=22, stop_chars=None):
+    def __init__(self, host, user, password, port=22, stop_chars=None, source_ip=None):
         '''
         Args:
             host (str): Host ip
@@ -23,6 +23,7 @@ class SSHExecutor:
             password (str): password for login
             port (int): SSH port (default 22)
             stop_chars (list): Default stop characters/prompts
+            source_ip (str): Local NIC source IP to bind connection to (optional)
 
         Returns:
             None
@@ -31,6 +32,7 @@ class SSHExecutor:
         self.user = user
         self.password = password
         self.port = port
+        self.source_ip = source_ip
         self.bufsize = 65536  # Increased buffer size for better performance
         self.client = None
         self.channel = None
@@ -113,8 +115,22 @@ class SSHExecutor:
             self.client = paramiko.SSHClient()
             self.client.set_missing_host_key_policy(paramiko.AutoAddPolicy)
             
-            # Revert to positional arguments and original timeout
-            self.client.connect(self.host, 22, username=self.user, password=self.password, timeout=timeout)
+            sock = None
+            if self.source_ip:
+                info(f'Binding SSH connection source IP to [{self.source_ip}] -> [{self.host}]', tag='SSH')
+                sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                sock.settimeout(timeout)
+                sock.bind((self.source_ip, 0))
+                sock.connect((self.host, self.port))
+
+            self.client.connect(
+                self.host,
+                self.port,
+                username=self.user,
+                password=self.password,
+                timeout=timeout,
+                sock=sock
+            )
             
             info(f'Successfully connected to [{self.host}]', tag='SSH')
             

@@ -33,7 +33,7 @@ class ConnectionManager:
         type_ = cfg["type"]
 
         if type_ == "ssh":
-            ssh_params = {key: value for key, value in cfg.items() if key in ("host", "user", "password", "stop_chars")}
+            ssh_params = {key: value for key, value in cfg.items() if key in ("host", "user", "password", "stop_chars", "source_ip")}
             return SSHDriver(**ssh_params)       
         elif type_ == "udp":
             from sapas.drivers.udp.driver import UDPDriver

@@ -10,17 +10,17 @@ def sleep(seconds: float | int) -> None:
     sec = float(seconds)
     info(f"[DELAY] Sleep for {sec} seconds.")
 
-    remaining = sec
-    # Countdown in 1-second intervals while there's at least 1 second left
+    fraction = round(sec - math.floor(sec), 4)
+    if fraction > 0:
+        info(f"[DELAY] Countdown {sec:g} sec...")
+        time.sleep(fraction)
+        remaining = float(math.floor(sec))
+    else:
+        remaining = sec
+
     while remaining >= 1.0:
-        current_display = math.ceil(remaining)
-        info(f"[DELAY] Countdown {current_display} sec...")
+        info(f"[DELAY] Countdown {int(remaining)} sec...")
         time.sleep(1.0)
         remaining -= 1.0
-
-    # Handle remaining fractional time (e.g. 0.5 seconds)
-    if remaining > 0:
-        info(f"[DELAY] Countdown {remaining:.1f} sec...")
-        time.sleep(remaining)
 
     info("[DELAY] Sleep finished.")

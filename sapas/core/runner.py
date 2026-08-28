@@ -1,5 +1,6 @@
 import sys
 import time
+import math
 import yaml
 import shlex
 import argparse
@@ -150,24 +151,26 @@ class Runner():
             return
 
         info(f"Start delay: {sec} seconds", tag='RUNNER')
-        remaining = sec
+        
+        fraction = round(sec - math.floor(sec), 4)
+        if fraction > 0:
+            if self._is_stop_requested():
+                warn("Delay interrupted by stop request.", tag='RUNNER')
+                return
+            info(f"Countdown {sec:g} sec...", tag='RUNNER')
+            time.sleep(fraction)
+            remaining = float(math.floor(sec))
+        else:
+            remaining = sec
+
         while remaining >= 1.0:
             if self._is_stop_requested():
                 warn("Delay interrupted by stop request.", tag='RUNNER')
                 return
 
-            # Use round to handle floating-point display errors
-            current_display = int(round(remaining))
-            info(f"Countdown {current_display} sec...", tag='RUNNER')
-            time.sleep(1)
+            info(f"Countdown {int(remaining)} sec...", tag='RUNNER')
+            time.sleep(1.0)
             remaining -= 1.0
-            
-        # Handle the fractional part (remaining time less than 1 second).
-        if remaining > 0:
-            if self._is_stop_requested():
-                return
-            info(f"Countdown {remaining:.1f} sec...", tag='RUNNER')
-            time.sleep(remaining)
 
         info("Delay finished.", tag='RUNNER')
 
@@ -246,9 +249,12 @@ class Runner():
                 for warning in deprecation_warnings:
                     warn(f"[DEPRECATION] {warning}", tag='RUNNER')
 
-            if args.test_flow:
+            if args and getattr(args, 'test_flow', None):
                 station_flow_file = args.test_flow
                 info(f"Using user specified flow: {station_flow_file}", tag='RUNNER')
+            elif self.ctx.get('TEST_FLOW'):
+                station_flow_file = self.ctx.get('TEST_FLOW')
+                info(f"Using configured TEST_FLOW: {station_flow_file}", tag='RUNNER')
             else:
                 station_flow_file = f"{self.station_name}.flow"
                 info(f"Using default station flow: {station_flow_file}", tag='RUNNER')

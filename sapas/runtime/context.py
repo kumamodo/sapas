@@ -22,6 +22,21 @@ class _BaseTypedManager:
 
         return conn
 
+def deep_merge(base: dict, override: dict) -> dict:
+    """
+    Recursively merge two dictionaries.
+    Values from 'override' replace values in 'base', 
+    unless both are dicts, in which case they are merged recursively.
+    """
+    merged = (base or {}).copy()
+    for key, value in (override or {}).items():
+        if key in merged and isinstance(merged[key], dict) and isinstance(value, dict):
+            merged[key] = deep_merge(merged[key], value)
+        else:
+            merged[key] = value
+    return merged
+
+
 class ExecutionContext:
     # Internal components should use self.ctx directly
     # while end-users are encouraged to use the sapas.var proxy.
@@ -65,12 +80,10 @@ class ExecutionContext:
         self.uart = _BaseTypedManager(self.link, SerialDriver)
 
     def _merge_config(self):
-        # Later entries override earlier ones.
-        self.config = {
-            **self.station, 
-            **self.project, 
-            **self.env
-        }
+        # Merge configuration layers with deep merge:
+        # site_infra.yaml (env) <- project.yaml (project) <- station.yaml (station - highest priority)
+        merged = deep_merge(self.env, self.project)
+        self.config = deep_merge(merged, self.station)
 
     def inject_sf(self, sf_data: dict):
         self.external.update(sf_data)

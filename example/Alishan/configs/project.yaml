@@ -6,11 +6,12 @@
 LINK:
   # --- MAIN DUT: Primary Device Under Test ---
   main_dut:
-    type: ssh                # Connection type: supports ssh, adb, com
-    host: 192.168.1.110      # Device IP address
-    user: kumamodo           # Login username
-    password:                # Login password
-    stop_chars: ':~$'        # [Optional] Shell prompt termination characters
+    type: ssh                          # Connection type: supports ssh, adb, com
+    # source_ip: "192.168.1.100"       # [Optional] Local PC network interface IP. Leave empty to use OS routing
+    host: 192.168.1.110                # Device IP address
+    user: kumamodo                     # Login username
+    password: ''                       # Login password
+    stop_chars: ':~$'                  # [Optional] Shell prompt termination characters
 
   main_mcu:
     type: "udp"

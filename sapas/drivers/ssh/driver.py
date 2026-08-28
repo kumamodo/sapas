@@ -10,13 +10,14 @@ logging.getLogger("paramiko").setLevel(logging.ERROR)
 
 class SSHDriver:
 
-    def __init__(self, host, user, password, stop_chars=None):
+    def __init__(self, host, user, password, stop_chars=None, source_ip=None):
         self.host = host
         self.user = user
         self.password = password
         self.stop_chars = stop_chars
+        self.source_ip = source_ip
 
-        self._ssh = SSHExecutor(host, user, password, stop_chars=stop_chars)
+        self._ssh = SSHExecutor(host, user, password, stop_chars=stop_chars, source_ip=source_ip)
         # Lazy initialization of SFTP connection (initialized only when needed).
         self._sftp = None
         self._connected = False

@@ -65,7 +65,7 @@ Sapas 採用多層級的 YAML 配置系統，讓開發者能彈性管理全域�
 | `IS_EXCEPTION_STOP` | Boolean | 若為 `True`，當腳本拋出異常或崩潰（非 `80` 錯誤碼）時，會立即中斷測試。設為 `False` 可在開發時搭配 `IS_FAIL_STOP` 做完整測試。 |
 | `ENABLE_SHOPFLOOR`| Boolean | 表示當前測試是否連接 Shopfloor。 |
 | `ENABLE_SMB` | Boolean | 是否將測試過程中的 Log 與數據 (通常為 `output/{序號}`) 上傳至 Server 以供日後追蹤。 |
-| `LINK` | Dict | 定義連線驅動（如 SSH）。內部包含 `driver`, `host`, `user` 等子參數。小寫的 `link` 屬舊式寫法，未來將棄用。 |
+| `LINK` | Dict | 定義連線驅动（如 SSH、ADB、UDP、UART）。內部包含 `type`, `host`, `user`, `password`, `source_ip` (可選，綁定 PC 的本地網卡來源 IP) 等子參數。小寫的 `link` 屬舊式寫法，未來將棄用。 |
 | `WORKSPACE_ROOT`| Path | (系統自動生成) 指向當前執行指令的根目錄。 |
 | `ERROR_CODE` | String | (執行時生成) 目前測試狀態。常見值與含意：<br>- `PASS`：測試成功通過。<br>- `FAIL`：測試不合格（通常為 `verify` 指令判定失敗）。<br>- `CRITICAL`：嚴重異常（腳本崩潰、語法錯誤或連線中斷）。<br>- `STOP`：操作員手動中斷測試。<br>- `CHECK`：不代表測試不通過。當希望快速掃完所有測試項目後（例如設定 `IS_FAIL_STOP=False`），系統會將最終狀態設為 `CHECK`，提示工程師需自行至 Log 或介面中判定與確認每個測試項目的實際狀況。 |
 | `ERROR_DESCRIPTION`| String | (執行時生成) 失敗時的詳細描述。 |
