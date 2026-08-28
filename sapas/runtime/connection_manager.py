@@ -41,7 +41,8 @@ class ConnectionManager:
                 "host": cfg.get("host"),
                 "server_port": cfg.get("server_port"),
                 "client_port": cfg.get("client_port", 5088),
-                "timeout": cfg.get("timeout", 0.1)
+                "timeout": cfg.get("timeout", 0.1),
+                "drain_timeout": cfg.get("drain_timeout", 0.05)
             }
             return UDPDriver(**udp_params)
         elif type_ == "adb":

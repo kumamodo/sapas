@@ -16,8 +16,10 @@ NOISE_SENSOR_BAUDRATE: 9600
 # [Optional] Station execution time limit in seconds (0 = unlimited)
 STATION_TIMEOUT: 0
 
-# [Optional] Station-specific connection override example (e.g. PC NIC Source IP)
+# [Optional] Station-specific connection override example (e.g. PC NIC Source IP or UDP drain_timeout)
 # LINK:
 #   main_dut:
 #     source_ip: "192.168.1.100"
+#   main_mcu:
+#     drain_timeout: 0.1
 

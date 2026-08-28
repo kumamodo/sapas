@@ -80,6 +80,7 @@ LINK:
     host: "192.168.1.111"
     server_port: 5088
     client_port: 5088
+    drain_timeout: 0.05    # [可選] 後續 UDP 封包排空超時（秒），預設 0.05 (50ms)，防止多封包截斷
 ```
 
 ### 程式碼範例：

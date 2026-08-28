@@ -3,11 +3,12 @@ import select
 from sapas.modules.log import log
 
 class UDPDriver:
-    def __init__(self, host, server_port, client_port=5088, timeout=0.1):
+    def __init__(self, host, server_port, client_port=5088, timeout=0.1, drain_timeout=0.05):
         self.host = host
         self.server_port = int(server_port)
         self.client_port = int(client_port)
-        self.timeout = timeout
+        self.timeout = float(timeout)
+        self.drain_timeout = float(drain_timeout)
         self.sock = None
         self._connected = False
 
@@ -25,11 +26,12 @@ class UDPDriver:
                 self._connected = False
                 raise
 
-    def exec(self, command, timeout=None, **kwargs):
+    def exec(self, command, timeout=None, drain_timeout=None, **kwargs):
         if not self._connected:
             self.connect()
 
-        current_timeout = timeout or self.timeout
+        current_timeout = float(timeout) if timeout is not None else self.timeout
+        current_drain_timeout = float(drain_timeout) if drain_timeout is not None else self.drain_timeout
         
         # Automatically handle both string and bytes inputs.
         data = command.encode('utf-8') if isinstance(command, str) else command
@@ -56,10 +58,10 @@ class UDPDriver:
                 chunk, addr = self.sock.recvfrom(4096)
                 response += chunk.decode('utf-8', 'ignore')
                 
-                # Subsequent packets: use a very short timeout (0.01s)
-                # to quickly drain any remaining buffered data.
+                # Subsequent packets: use current_drain_timeout (default 0.05s)
+                # to quickly drain any remaining buffered data across packet intervals.
                 while True:
-                    more_ready = select.select([self.sock], [], [], 0.01)[0]
+                    more_ready = select.select([self.sock], [], [], current_drain_timeout)[0]
                     if not more_ready:
                         # No more data available; exit immediately to avoid wasting production time.
                         break
