@@ -1,6 +1,6 @@
 import socket
 import select
-from sapas.modules.log import log
+from sapas.modules.log import info, error
 
 class UDPDriver:
     def __init__(self, host, server_port, client_port=5088, timeout=0.1, drain_timeout=0.05):
@@ -14,7 +14,7 @@ class UDPDriver:
 
     def connect(self):
         if self.sock is None:
-            log('UDP', f"Initializing UDP link -> {self.host}:{self.server_port} (Bind Local: {self.client_port})")
+            info(f"Initializing UDP link -> {self.host}:{self.server_port} (Bind Local: {self.client_port})", tag='UDP')
             self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
             self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
             self.sock.settimeout(self.timeout)
@@ -22,7 +22,7 @@ class UDPDriver:
                 self.sock.bind(('', self.client_port))
                 self._connected = True
             except Exception as e:
-                log('UDP', f"Failed to bind UDP port {self.client_port}: {e}")
+                error(f"Failed to bind UDP port {self.client_port}: {e}", tag='UDP')
                 self._connected = False
                 raise
 
@@ -37,7 +37,7 @@ class UDPDriver:
         data = command.encode('utf-8') if isinstance(command, str) else command
         cmd_text = command if isinstance(command, str) else command.decode('utf-8', 'ignore')
         
-        log('UDP', f"EXEC -> {cmd_text}")
+        info(f"EXEC -> {cmd_text}", tag='UDP')
         
         try:
             # Flush the receive buffer to remove stale data from previous test runs.
@@ -70,7 +70,7 @@ class UDPDriver:
                     
             return response
         except Exception as e:
-            log('UDP', f"UDP communication error: {e}")
+            error(f"UDP communication error: {e}", tag='UDP')
             return ""
 
     def is_alive(self):
@@ -78,7 +78,7 @@ class UDPDriver:
 
     def close(self):
         if self.sock:
-            log('UDP', f"Closing UDP socket on port {self.client_port}")
+            info(f"Closing UDP socket on port {self.client_port}", tag='UDP')
             try:
                 self.sock.close()
             except Exception:

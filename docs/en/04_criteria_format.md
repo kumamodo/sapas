@@ -14,7 +14,7 @@ Taking `get_os_name_criteria.csv` used by the `Function` station as an example:
 ### Judgment Rules:
 - **Numerical Comparison**: If `LSL` and `USL` are numbers, the system checks if the measured value is within range.
 - **String Comparison**: If `LSL == USL` and they are strings, an exact match is performed.
-- **RECORD**: Regardless of the measured value, the result is PASS; used only for data recording.
+- **RECORD**: Record-only mode. Successfully returned values default to PASS; however, if the measured value is `Exception`, `NA`, or failure keywords (`FAIL`, `ERROR`, `NG`, `FAILED`, case-insensitive), it is automatically evaluated as FAIL.
 - **ErrCode**: Error code generated upon failure. Supports `CodeLow:CodeHigh` format.
 
 ## Measurement & Validation Flow

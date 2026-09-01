@@ -14,7 +14,7 @@
 ### 判定規則：
 - **數值比對**: 若 `LSL` 與 `USL` 為數字，系統會檢查測量值是否在範圍內。
 - **字串比對**: 若 `LSL == USL` 且為字串，則進行精確匹配。
-- **RECORD**: 不論測量值為何，結果皆為 PASS，僅作數據紀錄。
+- **RECORD**: 純數據紀錄模式。預設回傳數據即判定為 PASS；但若測量值為 `Exception`、`NA` 或失敗關鍵字（`FAIL`、`ERROR`、`NG`、`FAILED`，不分大小寫），則會自動判定為 FAIL。
 - **ErrCode**: 失敗時產生的錯誤碼。支援 `CodeLow:CodeHigh` 格式。
 
 ## 測量與判定流程 (Measurement & Validation Flow)

@@ -64,6 +64,41 @@ class MyOsTest(sapas.TestItem):
         
         sapas.info(f"Extracted OS name: {extracted_name}")
 ```
+
+### Custom `__init__` & Instance Variables
+
+If you need to declare instance variables (e.g. `self.retry_count` or `self.readings_history`) that are shared across methods within your test class:
+
+1. **Accept Arguments**: `__init__` must accept `(self, args, **kwargs)`.
+2. **Call Super**: You must call `super().__init__(args, **kwargs)` as the very first line to complete Sapas framework initialization.
+
+```python
+import sapas
+
+class MyCustomTest(sapas.TestItem):
+    measure_file  = "my_test.txt"
+    result_file   = "my_test_result.csv"
+    criteria_file = "my_test_criteria.csv"
+    logs_folder   = "MY_TEST_LOGS"
+    logs_name     = "my_test.log"
+
+    def __init__(self, args, **kwargs):
+        # 1. Must call parent __init__ first
+        super().__init__(args, **kwargs)
+
+        # 2. Declare instance variables shared across functions
+        self.target_voltage = 12.0
+        self.max_retry = 3
+
+    def helper_check(self):
+        # Custom helper methods can freely read/write self.xxx
+        sapas.info(f"Checking target voltage: {self.target_voltage}V")
+
+    def run_test(self):
+        self.helper_check()
+        sapas.measure.VOLTAGE = 12.0
+```
+
 ---
 
 ## 3. ActionItem Development Specifications

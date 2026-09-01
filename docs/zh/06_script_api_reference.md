@@ -64,6 +64,41 @@ class MyOsTest(sapas.TestItem):
         
         sapas.info(f"提取的系統名稱為: {extracted_name}")
 ```
+
+### 自訂 `__init__` 與類別變數共享
+
+若需要在腳本類別 (Class) 內部宣告跨 Function 共用的變數（如 `self.retry_count` 或 `self.readings_history`）：
+
+1. **接收參數**：`__init__` 必須宣告接收 `(self, args, **kwargs)`。
+2. **呼叫父類**：必須在第一行呼叫 `super().__init__(args, **kwargs)` 完成 Sapas 框架初始化。
+
+```python
+import sapas
+
+class MyCustomTest(sapas.TestItem):
+    measure_file  = "my_test.txt"
+    result_file   = "my_test_result.csv"
+    criteria_file = "my_test_criteria.csv"
+    logs_folder   = "MY_TEST_LOGS"
+    logs_name     = "my_test.log"
+
+    def __init__(self, args, **kwargs):
+        # 1. 必須先呼叫父類 __init__
+        super().__init__(args, **kwargs)
+
+        # 2. 定義跨 function 共用的屬性變數
+        self.target_voltage = 12.0
+        self.max_retry = 3
+
+    def helper_check(self):
+        # 自訂的 Helper Function 可以自由讀寫 self.xxx
+        sapas.info(f"Checking target voltage: {self.target_voltage}V")
+
+    def run_test(self):
+        self.helper_check()
+        sapas.measure.VOLTAGE = 12.0
+```
+
 ---
 
 ## 3. ActionItem 開發規範

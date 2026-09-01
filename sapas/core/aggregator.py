@@ -149,7 +149,9 @@ class ResultManager:
             if c_min == val == c_max:
                 return 'PASS', 'None'
             
-            if c_min == 'RECORD' and c_max == 'RECORD' and val != 'Exception' and val != 'NA':
+            if c_min == 'RECORD' and c_max == 'RECORD':
+                if val in ('Exception', 'NA') or str(val).upper() in ('FAIL', 'ERROR', 'NG', 'FAILED'):
+                    return 'FAIL', err_codes[0]
                 return 'PASS', 'None'
             
             # String evaluation failed.
