@@ -9,9 +9,22 @@ class StepsTable(DataTable):
 
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
-        self.cursor_type = "none"
+        self.cursor_type = "row"
         self.zebra_stripes = True
         self.fixed_columns = 2
+        self.step_skip_reasons: dict[str, str] = {}
+
+    def set_skip_reason(self, row_key: str, reason: str) -> None:
+        """Associates a specific condition or explanation with a skipped step row."""
+        self.step_skip_reasons[row_key] = reason or "Condition evaluated to False"
+
+    def get_skip_reason(self, row_key: str) -> str | None:
+        """Retrieves cached skip explanation for a row if available."""
+        return self.step_skip_reasons.get(row_key)
+
+    def clear_skip_reasons(self) -> None:
+        """Clears cached skip explanations across test cycles."""
+        self.step_skip_reasons.clear()
 
     def on_mount(self) -> None:
         self.add_column("ID", key="id")

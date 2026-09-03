@@ -82,8 +82,10 @@ class LogInterceptor:
             return
 
         # Match granular skipped test items within conditional blocks
-        skip_match = re.search(r"\[Item Skip\]:\s+(.+)$", message)
+        skip_match = re.search(r"\[Item Skip\]:\s+(.+?)(?:\s+\|\s+condition:\s+(.+))?$", message)
         if skip_match:
             if self.on_step_skip:
-                self.on_step_skip(skip_match.group(1).strip())
+                item_name = skip_match.group(1).strip()
+                condition = (skip_match.group(2) or "").strip()
+                self.on_step_skip(item_name, condition)
             return

@@ -359,6 +359,7 @@ class Runner():
                                 continue
                             else:
                                 # Condition not met: enter "find END_IF" mode.
+                                cond_desc = f"{var_key} == {expected_val} (Actual: '{actual_val}')"
                                 info(f"[Condition]: Not match. Skipping block...", tag='RUNNER')
                                 skip_depth = 1
                                 while skip_depth > 0:
@@ -380,7 +381,7 @@ class Runner():
                                         skip_depth -= 1
                                     elif next_cmd_upper not in ('CYCLE',):
                                         # Executable step skipped inside condition block
-                                        info(f"[Item Skip]: {next_item}", tag='RUNNER')
+                                        info(f"[Item Skip]: {next_item} | condition: {cond_desc}", tag='RUNNER')
                                 # Skip the final END_IF.
                                 self.item_index += 1
                                 continue

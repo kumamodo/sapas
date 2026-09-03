@@ -13,7 +13,7 @@ from textual.app import App, ComposeResult
 from textual.containers import Container
 from textual.events import Resize
 from textual.theme import Theme
-from textual.widgets import Button, Input, Static, Footer, Header
+from textual.widgets import Button, DataTable, Input, Static, Footer, Header
 
 from sapas.cli import setup_context
 from sapas.core.flow_loader import FlowLoader
@@ -135,10 +135,57 @@ class SapasDashboard(App[None]):
             self.set_step_status(self.running_step_key, "PASS")
             self.running_step_key = None
 
-    def _handle_step_skip(self, item_name: str) -> None:
+    def _handle_step_skip(self, item_name: str, condition: str = "") -> None:
         row_key = self.pop_next_pending_step(item_name)
         if row_key:
             self.set_step_status(row_key, "SKIP")
+            try:
+                table = self.query_one("#items-table", StepsTable)
+                table.set_skip_reason(row_key, condition)
+                self._update_step_detail_bar(row_key)
+            except Exception:
+                pass
+
+    def _update_step_detail_bar(self, row_key: str) -> None:
+        """Updates the persistent detail bar at the bottom of the items panel with step info."""
+        try:
+            step = next((s for s in self.test_steps if s.item_id == row_key), None)
+            if not step:
+                return
+
+            status = self.step_status.get(row_key, "PENDING")
+            table = self.query_one("#items-table", StepsTable)
+            skip_reason = table.get_skip_reason(row_key)
+
+            text = Text()
+            text.append(f"[{step.item_id}] {step.item_label} ", style="bold")
+            if status == "SKIP":
+                text.append("[- SKIP]\n", style="bold yellow")
+                text.append(f"IF {skip_reason or 'Condition False'}", style="yellow")
+            elif status == "RUNNING":
+                text.append("[RUNNING]", style="bold cyan")
+            elif status == "PASS":
+                text.append("[PASS]", style="bold green")
+            elif status == "FAIL":
+                text.append("[FAIL]", style="bold red")
+            else:
+                text.append("[PENDING]", style="dim")
+
+            self.query_one("#step-detail-bar", Static).update(text)
+        except Exception:
+            pass
+
+    @on(DataTable.RowHighlighted, "#items-table")
+    def on_step_row_highlighted(self, event: DataTable.RowHighlighted) -> None:
+        """Fired when operator clicks or navigates to a table row."""
+        if event.row_key and event.row_key.value:
+            self._update_step_detail_bar(event.row_key.value)
+
+    @on(DataTable.RowSelected, "#items-table")
+    def on_step_row_selected(self, event: DataTable.RowSelected) -> None:
+        """Fired when operator double clicks or presses Enter on a table row."""
+        if event.row_key and event.row_key.value:
+            self._update_step_detail_bar(event.row_key.value)
 
     def compose(self) -> ComposeResult:
         """Constructs the TUI visual tree hierarchy layout."""
@@ -148,6 +195,7 @@ class SapasDashboard(App[None]):
             Container(
                 Container(
                     StepsTable(id="items-table"),
+                    Static("Select a step to view details", id="step-detail-bar"),
                     id="items-panel"
                 ),
                 Container(
@@ -398,6 +446,11 @@ class SapasDashboard(App[None]):
         self.stop_requested = False
         self.rebuild_step_indexes()
         self.step_status = {step.item_id: "PENDING" for step in self.test_steps}
+        try:
+            self.query_one("#items-table", StepsTable).clear_skip_reasons()
+            self.query_one("#step-detail-bar", Static).update("Select a step to view details")
+        except Exception:
+            pass
         self.render_items_list()
 
         if clear_log:
@@ -485,6 +538,11 @@ class SapasDashboard(App[None]):
         self.running_step_key = None
         self.rebuild_step_indexes()
         self.step_status = {step.item_id: "PENDING" for step in self.test_steps}
+        try:
+            self.query_one("#items-table", StepsTable).clear_skip_reasons()
+            self.query_one("#step-detail-bar", Static).update("Select a step to view details")
+        except Exception:
+            pass
         self.render_items_list()
 
         # Reset error code and banner for the new cycle

@@ -68,7 +68,7 @@ Footer > .footer--description {
     height: 6;
     layout: grid;
     grid-size: 4;
-    grid-columns: 44 1fr 1fr 2fr; 
+    grid-columns: 55 1fr 1fr 2fr; 
     grid-gutter: 1;
     /* Reduce bottom padding to 0 to minimize visual gap with the main body */
     padding: 1 1 0 1; 
@@ -184,7 +184,7 @@ Footer > .footer--description {
     height: 1fr;
     layout: grid;
     grid-size: 2;
-    grid-columns: 44 1fr;
+    grid-columns: 55 1fr;
     grid-gutter: 1;
     padding: 1;
 }
@@ -221,6 +221,21 @@ Footer > .footer--description {
     background: $secondary;
     color: $foreground;
     text-style: bold;
+}
+
+#items-table > .datatable--cursor {
+    background: $primary;
+    color: $accent;
+    text-style: bold;
+}
+
+#step-detail-bar {
+    height: 3;
+    background: $panel;
+    border-top: solid $secondary;
+    padding: 0 1;
+    color: $foreground;
+    content-align: left middle;
 }
 
 /* --- Right Column: Live Diagnostic Logs & Banners --- */
