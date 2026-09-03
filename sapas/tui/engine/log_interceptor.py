@@ -12,6 +12,7 @@ class LogInterceptor:
         on_step_result=None,
         on_delay_finish=None,
         on_block_skip=None,
+        on_step_skip=None,
         on_prompt_start=None,
         on_prompt_finish=None,
     ) -> None:
@@ -21,6 +22,7 @@ class LogInterceptor:
         self.on_step_result = on_step_result
         self.on_delay_finish = on_delay_finish
         self.on_block_skip = on_block_skip
+        self.on_step_skip = on_step_skip
         self.on_prompt_start = on_prompt_start
         self.on_prompt_finish = on_prompt_finish
 
@@ -77,4 +79,11 @@ class LogInterceptor:
         if "Skipping block..." in message:
             if self.on_block_skip:
                 self.on_block_skip()
+            return
+
+        # Match granular skipped test items within conditional blocks
+        skip_match = re.search(r"\[Item Skip\]:\s+(.+)$", message)
+        if skip_match:
+            if self.on_step_skip:
+                self.on_step_skip(skip_match.group(1).strip())
             return

@@ -37,9 +37,12 @@ start function
         # [Demonstrating Nested Logic]
         if FACTORY_LOCATION == Chiayi                       # Regional logic check for Chiayi site
             action sleep.py --sec 2                         # Execution delay for specific production line
+            action sleep.py --sec 1                         # Execution delay for specific production line
             
             if FACTORY_LOCATION == Changhua                 # Nested check for Changhua site (Example)
                 action sleep.py --sec 3                     # Extended wait time for secondary location
+                action sleep.py --sec 1                     # Extended wait time for secondary location
+                action sleep.py --sec 2                     # Extended wait time for secondary location
             end_if
         end_if
 

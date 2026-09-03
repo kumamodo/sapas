@@ -87,7 +87,7 @@ class SapasDashboard(App[None]):
             on_delay_start=self._handle_delay_start,
             on_step_result=self._handle_step_result,
             on_delay_finish=self._handle_delay_finish,
-            on_block_skip=self._handle_block_skip,
+            on_step_skip=self._handle_step_skip,
             on_prompt_start=self._handle_prompt_start,
             on_prompt_finish=self._handle_prompt_finish,
         )
@@ -135,11 +135,10 @@ class SapasDashboard(App[None]):
             self.set_step_status(self.running_step_key, "PASS")
             self.running_step_key = None
 
-    def _handle_block_skip(self) -> None:
-        for step in self.test_steps:
-            if self.step_status.get(step.item_id) == "PENDING":
-                self.set_step_status(step.item_id, "SKIP")
-                break
+    def _handle_step_skip(self, item_name: str) -> None:
+        row_key = self.pop_next_pending_step(item_name)
+        if row_key:
+            self.set_step_status(row_key, "SKIP")
 
     def compose(self) -> ComposeResult:
         """Constructs the TUI visual tree hierarchy layout."""

@@ -368,13 +368,19 @@ class Runner():
                                         self.critical_error = True
                                         break
                                     
-                                    next_item_prefix = self.test_item_list[self.item_index][0].strip().upper()
-                                    if next_item_prefix == 'IF':
+                                    next_cmd = self.test_item_list[self.item_index][0].strip()
+                                    next_item = self.test_item_list[self.item_index][1].strip()
+                                    next_cmd_upper = next_cmd.upper()
+                                    
+                                    if next_cmd_upper == 'IF':
                                         # Encounter a nested IF.
                                         skip_depth += 1
-                                    elif next_item_prefix == 'END_IF':
+                                    elif next_cmd_upper == 'END_IF':
                                         # Encounter the corresponding end marker.
                                         skip_depth -= 1
+                                    elif next_cmd_upper not in ('CYCLE',):
+                                        # Executable step skipped inside condition block
+                                        info(f"[Item Skip]: {next_item}", tag='RUNNER')
                                 # Skip the final END_IF.
                                 self.item_index += 1
                                 continue
