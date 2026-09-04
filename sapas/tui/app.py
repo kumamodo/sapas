@@ -10,6 +10,7 @@ from pathlib import Path
 from rich.text import Text
 from textual import events, on
 from textual.app import App, ComposeResult
+from textual.binding import Binding
 from textual.containers import Container
 from textual.events import Resize
 from textual.theme import Theme
@@ -28,7 +29,7 @@ from sapas.tui.screens.network_manager import NetworkManagerScreen
 from sapas.tui.utils.constants import PASS_SYMBOL, FAIL_SYMBOL, SKIP_FLOW_COMMANDS
 from sapas.tui.utils.data_types import TestStep
 from sapas.tui.engine.log_interceptor import LogInterceptor
-from sapas.tui.engine.runner_worker import run_flow_in_daemon_thread
+from sapas.tui.engine.runner_worker import run_flow_in_daemon_thread, run_single_step_in_daemon_thread
 
 
 sapas_classic_theme = Theme(
@@ -58,6 +59,8 @@ class SapasDashboard(App[None]):
         ("f3", "cycle_theme", "Theme"),
         ("f4", "toggle_device_manager", "Device Manager"),
         ("f6", "toggle_network_manager", "Network Adapters"),
+        ("f7", "toggle_debug_mode", "Debug Mode"),
+        Binding("r", "debug_retest_step", "Re-test Step", show=False),
     ]
 
     def __init__(self, context=None, cli_args=None) -> None:
@@ -71,6 +74,8 @@ class SapasDashboard(App[None]):
         self.running_step_key: str | None = None
         self.started_at: datetime | None = None
         self.is_testing = False
+        self.is_debug_mode = False
+        self.is_retesting = False
         self.stop_requested = False
         self.current_cycle = 1
         self.total_cycles = 1
@@ -228,6 +233,8 @@ class SapasDashboard(App[None]):
 
     def toggle_sf_blink(self) -> None:
         """Toggles the blink class on the app root if Shopfloor is disabled using a 4-second cycle (3s on, 1s off)."""
+        if self.is_debug_mode:
+            return
         app_root = self.query_one("#app-root")
         if not app_root.has_class("sf-disabled"):
             app_root.remove_class("blink")
@@ -305,15 +312,16 @@ class SapasDashboard(App[None]):
         
         # Apply visual indicator to app root
         app_root = self.query_one("#app-root")
-        app_root.remove_class("sf-enabled", "sf-disabled")
-        if sf_enabled:
-            app_root.add_class("sf-enabled")
-            app_root.border_subtitle = " SHOPFLOOR ONLINE "
-            app_root.border_title = ""
-        else:
-            app_root.add_class("sf-disabled")
-            app_root.border_subtitle = " SHOPFLOOR OFFLINE "
-            app_root.border_title = ""
+        if not self.is_debug_mode:
+            app_root.remove_class("sf-enabled", "sf-disabled")
+            if sf_enabled:
+                app_root.add_class("sf-enabled")
+                app_root.border_subtitle = " SHOPFLOOR ONLINE "
+                app_root.border_title = ""
+            else:
+                app_root.add_class("sf-disabled")
+                app_root.border_subtitle = " SHOPFLOOR OFFLINE "
+                app_root.border_title = ""
 
         # 5. Construct metadata text string using left-aligned factory guidelines
         info_text = (
@@ -325,11 +333,12 @@ class SapasDashboard(App[None]):
         
         # 5. Update header title and sub_title with colors and symbols
         self.title = Text.assemble(("Sapas TUI ", "bold cyan"), ("Tester", "bold"))
-        self.sub_title = Text.assemble(
-            ("❱❱ ", "bold yellow"),
-            (f"Cycle {self.current_cycle}/{self.total_cycles}", "bold yellow"),
-            (" ❰❰", "bold yellow")
-        )
+        if not self.is_debug_mode:
+            self.sub_title = Text.assemble(
+                ("❱❱ ", "bold yellow"),
+                (f"Cycle {self.current_cycle}/{self.total_cycles}", "bold yellow"),
+                (" ❰❰", "bold yellow")
+            )
 
     def load_station_steps(self) -> tuple[list[TestStep], int]:
         """Loads and filters valid steps from target flow configurations via FlowLoader."""
@@ -414,6 +423,119 @@ class SapasDashboard(App[None]):
                 self.pop_screen()
                 return
         self.push_screen(NetworkManagerScreen())
+
+    def action_toggle_debug_mode(self) -> None:
+        """Toggle TE Debug Mode on or off."""
+        if self.is_testing:
+            self.write_terminal_log("[WARN] Cannot toggle Debug Mode while test is running.", "bold yellow")
+            return
+        if self.is_retesting:
+            self.write_terminal_log("[WARN] Cannot toggle Debug Mode while re-test is in progress.", "bold yellow")
+            return
+
+        if not self.is_debug_mode:
+            self.enter_debug_mode()
+        else:
+            self.exit_debug_mode()
+
+    def enter_debug_mode(self) -> None:
+        """Enables TE Debug Mode with strong visual warning and re-test keybinding."""
+        self.is_debug_mode = True
+        app_root = self.query_one("#app-root")
+        app_root.remove_class("blink")
+        app_root.add_class("debug-mode")
+        app_root.border_subtitle = " [!] TE DEBUG MODE - PRESS F7 TO EXIT [!] "
+
+        self.sub_title = Text.assemble(
+            ("[! TE DEBUG MODE !] ", "bold bright_yellow"),
+            ("Press 'r' to Re-test, F7 to Exit", "bold yellow")
+        )
+
+        self.write_terminal_log("=" * 60, "bold bright_yellow")
+        self.write_terminal_log(">>> ENTERED TE DEBUG MODE <<<", "bold bright_yellow")
+        self.write_terminal_log("Select any PASS or FAIL step and press 'r' to re-test.", "yellow")
+        self.write_terminal_log("(Diagnostic run only - DUT test results and Shopfloor will NOT be modified)", "dim")
+        self.write_terminal_log("=" * 60, "bold bright_yellow")
+
+        try:
+            self.query_one("#items-table", StepsTable).focus()
+        except Exception:
+            pass
+
+    def exit_debug_mode(self, reason: str = "") -> None:
+        """Exits TE Debug Mode and restores standard production layout."""
+        self.is_debug_mode = False
+        self._sf_blink_counter = 2
+        app_root = self.query_one("#app-root")
+        app_root.remove_class("debug-mode")
+
+        self.update_info_display()
+
+        if reason:
+            self.write_terminal_log(f"[INFO] Exited TE Debug Mode ({reason}).", "bold cyan")
+        else:
+            self.write_terminal_log("[INFO] Exited TE Debug Mode.", "bold cyan")
+
+        self.call_after_refresh(self.focus_serial_input)
+
+    def action_debug_retest_step(self) -> None:
+        """Triggered by pressing 'r' in TE Debug Mode to re-test the selected step."""
+        if not self.is_debug_mode:
+            return
+        if self.is_retesting or self.is_testing:
+            self.write_terminal_log("[WARN] A test or re-test is already running.", "bold yellow")
+            return
+
+        table = self.query_one("#items-table", StepsTable)
+        cursor_row = table.cursor_row
+        if cursor_row is None or not (0 <= cursor_row < len(table.ordered_rows)):
+            self.write_terminal_log("[WARN] Please select a step from the list first.", "bold yellow")
+            return
+
+        row_key = table.ordered_rows[cursor_row].key.value
+        step = next((s for s in self.test_steps if s.item_id == row_key), None)
+        if not step:
+            self.write_terminal_log(f"[WARN] Step not found for row {row_key}.", "bold yellow")
+            return
+
+        status = self.step_status.get(row_key, "PENDING")
+        if status not in ("PASS", "FAIL"):
+            self.write_terminal_log(
+                f"[WARN] Step [{step.item_id}] status is '{status}'. Only PASS or FAIL items can be re-tested.",
+                "bold yellow"
+            )
+            return
+
+        asyncio.create_task(self.run_debug_single_step(step))
+
+    async def run_debug_single_step(self, step: TestStep) -> None:
+        """Executes a single test step in background for TE diagnosis without altering DUT status."""
+        self.is_retesting = True
+        self.write_terminal_log("=" * 60, "bold cyan")
+        self.write_terminal_log(f"[TE DEBUG RUN] Step [{step.item_id}] {step.item_label}", "bold cyan")
+        self.write_terminal_log("(Diagnostic run only - DUT test results and state will NOT be modified)", "dim cyan")
+        self.write_terminal_log("=" * 60, "bold cyan")
+
+        return_code = -1
+        try:
+            return_code = await run_single_step_in_daemon_thread(
+                context=self.context,
+                cli_args=self.args,
+                step=step,
+                emit_line_cb=self.emit_from_worker,
+                call_from_thread_fn=self.call_from_thread,
+            )
+        except Exception as e:
+            self.write_terminal_log(f"[ERROR] Exception during debug re-test: {e}", "bold red")
+            return_code = -1
+        finally:
+            self.is_retesting = False
+
+        status_str = "PASS" if return_code == 0 else f"FAIL (code={return_code})"
+        style_str = "bold green" if return_code == 0 else "bold red"
+        self.write_terminal_log("=" * 60, style_str)
+        self.write_terminal_log(f"[TE DEBUG FINISHED] Step [{step.item_id}] Result: {status_str}", style_str)
+        self.write_terminal_log("=" * 60, style_str)
 
     def handle_quit_confirmation(self, confirmed: bool) -> None:
         """Handle operator confirmation result from the quit dialog."""
@@ -641,6 +763,8 @@ class SapasDashboard(App[None]):
         if self.is_testing or not serial_number:
             self.focus_serial_input()
             return
+        if self.is_debug_mode:
+            self.exit_debug_mode(reason="automatic exit on test start")
         self._abort_ui = False
         self._cycle_task = asyncio.create_task(self.run_station_cycle(serial_number))
 

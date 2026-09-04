@@ -36,6 +36,14 @@ Screen, Widget {
     border-subtitle-align: center;
 }
 
+#app-root.debug-mode,
+#app-root.sf-disabled.debug-mode,
+#app-root.sf-disabled.blink.debug-mode {
+    border: heavy $warning;
+    border-subtitle-align: center;
+    border-subtitle-style: bold;
+}
+
 /* ==========================================================================
    Standard TUI Component Overrides (Header & Footer)
    ========================================================================== */
