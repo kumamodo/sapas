@@ -129,3 +129,107 @@ async def run_flow_in_daemon_thread(
     thread = threading.Thread(target=worker, name="SapasRunnerThread", daemon=True)
     thread.start()
     return await future
+
+
+def execute_single_step_debug(
+    context,
+    cli_args,
+    step,
+    emit_line_cb,
+) -> int:
+    """Synchronously executes a single test step in TE debug mode with isolated outputs."""
+    from datetime import datetime
+    from sapas.modules.message import Message
+
+    serial_number = getattr(cli_args, "serialNumber", "sapas999999999") or "sapas999999999"
+
+    runner = Runner(context)
+    runner.serialNumber = serial_number
+    # Isolate all step logs and results to output/<serialNumber>/debug
+    runner.timeStamp = "debug"
+    runner.critical_error = False
+    runner.stop_test_file_path = runner.workspace_root / "output" / runner.serialNumber / "stop.test"
+
+    # Write debug runner logs to output/<serialNumber>/debug/debug.log
+    debug_dir = runner.workspace_root / "output" / runner.serialNumber / "debug"
+    debug_dir.mkdir(parents=True, exist_ok=True)
+    debug_log_path = debug_dir / "debug.log"
+
+    msg_wrapper = Message(str(debug_log_path), "RUNNER_DEBUG")
+    runner.logger = msg_wrapper.logger
+
+    # Preserve and restore original RUNNER_LOGGER in context
+    original_runner_logger = context.get("RUNNER_LOGGER") if context else None
+    if context:
+        context.set("RUNNER_LOGGER", runner.logger)
+
+    tui_handler = TUILogHandler(lambda line: emit_line_cb(line, ""))
+    tui_handler.setFormatter(logging.Formatter("%(message)s"))
+    root_logger = logging.getLogger()
+    root_logger.addHandler(tui_handler)
+
+    stderr_capture = LineCapture(lambda line: emit_line_cb(line, "bold red"), "STDERR")
+    return_code = -1
+    try:
+        with contextlib.redirect_stderr(stderr_capture):
+            command = (step.command or "").strip().lower()
+            if command == "delay":
+                runner._cmd_delay(step.flow_item)
+                return_code = 0
+            elif command == "prompt":
+                runner._cmd_prompt(step.flow_item)
+                return_code = 0
+            else:
+                return_code = runner._run_test_script(step.flow_item)
+    except Exception as e:
+        emit_line_cb(f"[ERROR] Exception during debug re-test: {e}", "bold red")
+        return_code = -1
+    finally:
+        stderr_capture.flush()
+        root_logger.removeHandler(tui_handler)
+        if context and original_runner_logger is not None:
+            context.set("RUNNER_LOGGER", original_runner_logger)
+        # Explicitly close file handlers to release Windows file locks
+        msg_wrapper.close()
+
+    return return_code
+
+
+async def run_single_step_in_daemon_thread(
+    context,
+    cli_args,
+    step,
+    emit_line_cb,
+    call_from_thread_fn=None,
+) -> int:
+    """Runs a single test step in a daemon thread without blocking the TUI loop."""
+    loop = asyncio.get_running_loop()
+    future = loop.create_future()
+
+    def finish(result=None, error: BaseException | None = None) -> None:
+        if future.done():
+            return
+        if error is not None:
+            future.set_exception(error)
+        else:
+            future.set_result(result)
+
+    def worker() -> None:
+        try:
+            rc = execute_single_step_debug(
+                context=context,
+                cli_args=cli_args,
+                step=step,
+                emit_line_cb=emit_line_cb,
+            )
+        except BaseException as exc:
+            with contextlib.suppress(Exception):
+                call_from_thread_fn(finish, None, exc)
+        else:
+            with contextlib.suppress(Exception):
+                call_from_thread_fn(finish, rc, None)
+
+    thread = threading.Thread(target=worker, name="SapasDebugStepThread", daemon=True)
+    thread.start()
+    return await future
+
