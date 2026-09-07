@@ -36,37 +36,17 @@ class ADBDriver:
         return devices
 
     def connect(self):
-        """Attempts to connect to the device, prioritizing USB then Network."""
+        """
+        Connects strictly based on configuration without silent fallback:
+        - If network_host is specified: connects strictly via Network ADB (TCP/IP).
+        - Otherwise (usb_serial specified or default): connects strictly via Physical USB.
+        """
         if self.is_alive():
             return
 
-        # Priority 1: Physical USB (Explicit or Auto-Discovery)
-        target_usb = self.usb_serial
-        
-        # If no specific serial is provided, try to auto-discover
-        if not target_usb:
-            available = self._get_available_devices()
-            # Filter out network devices (those with ':' in their name) to find true USB devices
-            usb_devices = [d for d in available if ':' not in d]
-            
-            if usb_devices:
-                target_usb = usb_devices[0]
-                if len(usb_devices) > 1:
-                    warn(f"Multiple USB devices found {usb_devices}. Auto-selecting the first one: {target_usb}", tag='ADB')
-            else:
-                info("No USB devices found via auto-discovery.", tag='ADB')
-
-        if target_usb:
-            if self._check_device(target_usb):
-                self.current_serial = target_usb
-                self._connected = True
-                info(f"Connected to ADB device via USB [{target_usb}]", tag='ADB')
-                return
-
-        # Priority 2: Network (Fallback)
+        # Mode A: Strict Network (LAN/TCP-IP) ADB
         if self.network_host:
-            info(f"USB device not found/specified. Attempting Network connection to [{self.network_host}]", tag='ADB')
-            # Try to connect via TCP/IP
+            info(f"Attempting Strict Network ADB connection to [{self.network_host}]", tag='ADB')
             try:
                 connect_result = self._run_adb(['connect', self.network_host])
                 if "connected to" in connect_result.stdout.lower() or self._check_device(self.network_host):
@@ -75,11 +55,35 @@ class ADBDriver:
                     info(f"Connected to ADB device via Network [{self.network_host}]", tag='ADB')
                     return
             except Exception as e:
-                error(f"Network connection attempt failed: {e}", tag='ADB')
+                error(f"Network ADB connection attempt failed: {e}", tag='ADB')
+
+            self._connected = False
+            self.current_serial = None
+            err_msg = f"Failed to connect to Network ADB device [{self.network_host}]"
+            error(err_msg, tag='ADB')
+            raise ConnectionError(err_msg)
+
+        # Mode B: Strict Physical USB ADB
+        target_usb = self.usb_serial
+        if not target_usb:
+            available = self._get_available_devices()
+            usb_devices = [d for d in available if ':' not in d]
+            if usb_devices:
+                target_usb = usb_devices[0]
+                if len(usb_devices) > 1:
+                    warn(f"Multiple USB devices found {usb_devices}. Auto-selecting the first one: {target_usb}", tag='ADB')
+            else:
+                info("No physical USB ADB devices found via auto-discovery.", tag='ADB')
+
+        if target_usb and self._check_device(target_usb):
+            self.current_serial = target_usb
+            self._connected = True
+            info(f"Connected to ADB device via Physical USB [{target_usb}]", tag='ADB')
+            return
 
         self._connected = False
         self.current_serial = None
-        err_msg = f"Failed to connect to ADB device (USB: {self.usb_serial or 'AUTO'}, Network: {self.network_host})"
+        err_msg = f"Failed to connect to physical USB ADB device (Serial: {self.usb_serial or 'AUTO'}). Ensure physical USB cable is connected."
         error(err_msg, tag='ADB')
         raise ConnectionError(err_msg)
 

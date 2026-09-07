@@ -49,22 +49,36 @@ print(result)
 
 ## ADB Driver (ADBDriver)
 
-Supports Android devices with "Smart Dual-Mode" (USB priority with Network fallback) and "Auto-Discovery".
+Supports Android devices with strict "Physical USB (`adb_usb`)" and "Network TCP/IP (`adb_network`)" dedicated connection targets without silent fallback, ensuring 100% accurate factory hardware interface testing.
+
+> [!WARNING]
+> The `adb_device` target is deprecated. Please migrate to `adb_usb` or `adb_network`.
+
+### Configuration Example:
+```yaml
+LINK:
+  # Physical USB ADB Target
+  adb_usb:
+    type: adb
+    usb_serial: ""                     # Optional. Auto-discovers physical USB device if empty.
+
+  # Network TCP/IP ADB Target
+  adb_network:
+    type: adb
+    network_host: "192.168.1.110:5555" # Dedicated Network ADB Target
+```
 
 ### Code Example:
 ```python
 import sapas
-from sapas.runtime.runtime import ctx
 
-# Method A: Universal Access
-device = sapas.link.get('adb_device')
+# Physical USB ADB (Fails immediately if USB is disconnected, validating physical USB port)
+usb_dev = sapas.link.get('adb_usb')
+model = usb_dev.exec('getprop ro.product.model')
 
-# Method B: Dedicated Access
-device = ctx.adb.get('adb_device')
-
-# Execute shell command
-model = device.exec('getprop ro.product.model')
-print(model)
+# Network ADB (Dedicated TCP/IP connection)
+net_dev = sapas.link.get('adb_network')
+wifi_ip = net_dev.exec('ifconfig wlan0')
 ```
 
 ## UDP Driver (UDPDriver)

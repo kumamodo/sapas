@@ -49,22 +49,36 @@ print(result)
 
 ## ADB 驅動 (ADBDriver)
 
-支援 Android 裝置，具備「智慧雙模」 (USB 優先並自動備援網路) 與「自動偵測」功能。
+支援 Android 裝置，具備「嚴格實體 USB (`adb_usb`)」與「網路 TCP/IP (`adb_network`)」雙專用連線模式，無隱式自動備援，確保產線硬體介面測試 100% 精準不誤判。
+
+> [!WARNING]
+> `adb_device` 舊標籤已廢棄 (Deprecated)，請遷移至 `adb_usb` 或 `adb_network`。
+
+### 配置範例：
+```yaml
+LINK:
+  # 實體 USB ADB 標籤
+  adb_usb:
+    type: adb
+    usb_serial: ""                     # 可選，留空則自動偵測實體 USB 裝置
+
+  # 網路 TCP/IP ADB 標籤
+  adb_network:
+    type: adb
+    network_host: "192.168.1.110:5555" # 專走 Network ADB
+```
 
 ### 程式碼範例：
 ```python
 import sapas
-from sapas.runtime.runtime import ctx
 
-# 方法 A：通用存取方式
-device = sapas.link.get('adb_device')
+# 實體 USB ADB（若 USB 斷線立馬報錯，精確驗證 USB Port）
+usb_dev = sapas.link.get('adb_usb')
+model = usb_dev.exec('getprop ro.product.model')
 
-# 方法 B：專用存取方式
-device = ctx.adb.get('adb_device')
-
-# 執行 shell 指令
-model = device.exec('getprop ro.product.model')
-print(model)
+# 網路 Network ADB（專走 TCP/IP 網路）
+net_dev = sapas.link.get('adb_network')
+wifi_ip = net_dev.exec('ifconfig wlan0')
 ```
 
 

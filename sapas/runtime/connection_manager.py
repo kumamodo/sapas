@@ -1,6 +1,7 @@
 from sapas.drivers.ssh import SSHDriver
 from sapas.drivers.adb import ADBDriver
 from sapas.drivers.serial import SerialDriver
+from sapas.modules.log import warn
 
 class ConnectionManager:
     def __init__(self, config):
@@ -8,6 +9,11 @@ class ConnectionManager:
         self._connections = {}
 
     def get(self, name, new=False):
+        if name == "adb_device":
+            warn("[DEPRECATION] Link target 'adb_device' is deprecated and will be removed in future versions. Please migrate to 'adb_usb' or 'adb_network'.", tag='LINK')
+            if name not in self._config and "adb_usb" in self._config:
+                name = "adb_usb"
+
         if name not in self._config:
             raise ValueError(f"Unknown connection: {name}")
 
