@@ -4,19 +4,19 @@ Sapas 採用多層級的 YAML 配置系統，讓開發者能彈性管理全域�
 
 ## 1. 配置層級與優先權
 
-當系統啟動時，會按以下順序載入並合併設定檔。**後者會覆蓋前者的同名變數**，這意味著最細節的「工位設定」擁有最高優先權：
+當系統啟動時，會按以下順序載入並遞迴合併（Deep Merge）設定檔。**後者會覆蓋前者的同名變數**：
 
-1.  **`site_infra.yaml`** (全域/環境層級)
-2.  **`configs/project.yaml`** (專案層級)
-3.  **`stations/{STATION}/station.yaml`** (工位層級)
+1.  **`configs/project.yaml`** (專案層級預設值 - 最低)
+2.  **`stations/{STATION}/station.yaml`** (工位層級標配 - 進 Git)
+3.  **`site_infra.yaml`** (本機機台環境設定 - 不進 Git，最高優先覆蓋)
 
-**優先權範例**：
-`stations/Function/station.yaml` > `configs/project.yaml` > `site_infra.yaml`
+**優先權關係**：
+`site_infra.yaml` (本地最高覆蓋) > `stations/{STATION}/station.yaml` (工位標配) > `configs/project.yaml` (專案預設)
 
-**應用場景**：
-假設在 `site_infra.yaml` 中定義了 `FACTORY_LOCATION: Chiayi`。
-*   在 `function.flow` 中，你可以直接使用這個變數進行邏輯判斷。
-*   在 Python 腳本中，也可以透過 API 存取。
+**設計哲學**：
+*   **`station.yaml`** 屬於專案版控（進 Git），用來定義工位的**標準出廠規格**（例如 SMT 站標配固緯、FA 站標配 ITECH）。
+*   **`site_infra.yaml`** 屬於實體機台本地配置（不上 Git），用來管理現場 IT 環境（Shopfloor IP）以及**個別機台硬體的本地覆蓋**（例如該實體機台 COM Port 差異、或 RD 本地開發除錯設定）。
+*   **RD 開發零污染**：RD 在本機座位開發時，若手邊接線不同，只需在本地 `site_infra.yaml` 覆蓋 `LINK` 設定，Git 始終保持純淨，不會影響產線代碼。
 
 ---
 
@@ -34,20 +34,20 @@ Sapas 採用多層級的 YAML 配置系統，讓開發者能彈性管理全域�
 
 ## 3. 各設定檔存在的意義
 
-### site_infra.yaml (環境基礎設施)
-*   **位置**：通常放在工作區根目錄（如 `example/`）。
-*   **用途**：跨專案共享的資訊。例如，同一工廠內所有工位都連到同一個 Shopfloor 系統。
-*   **典型參數**：`FACTORY_LOCATION`, `ENABLE_SHOPFLOOR`, `SMB_SERVER_IP`, `TEST_FLOW`（鎖定目前工位實體電腦應執行的流程檔名稱）。
+### site_infra.yaml (本機機台與現場環境)
+*   **位置**：通常放在工作區根目錄（如 `example/site_infra.yaml`，建議加入 `.gitignore`）。
+*   **用途**：現場環境專屬設定與本地機台硬體覆蓋。包含 MES/Shopfloor 伺服器、全廠設定，以及當前電腦要跑的 `PROJECT_NAME` 與 `STATION_NAME`。
+*   **典型參數**：`PROJECT_NAME`, `STATION_NAME`, `FACTORY_LOCATION`, `ENABLE_SHOPFLOOR`, `SMB_SERVER_IP`, `LINK`（本機硬體連線覆蓋）。
 
 ### project.yaml (專案定義)
 *   **位置**：`{Project}/configs/project.yaml`。
-*   **用途**：定義該專案的所有工位都會用到的邏輯。例如：韌體預期版本、共用的超時時間。
-*   **典型參數**：`EXPECTED_FW_VER`, `TIMEOUT_RETRY`。
+*   **用途**：定義該專案的所有工位都會用到的邏輯與連線基礎。例如：DUT 通用連線、韌體預期版本、共用的超時時間。
+*   **典型參數**：`EXPECTED_FW_VER`, `TIMEOUT_RETRY`, `LINK`。
 
-### station.yaml (工位硬體)
+### station.yaml (工位標配)
 *   **位置**：`{Project}/stations/{StationName}/station.yaml`。
-*   **用途**：定義「這一台機器」特有的資訊。即便是同一個專案，不同工位的 IP 或 COM Port 通常不同。
-*   **典型參數**：`link` (連線驅動配置), `STATION_ID`。
+*   **用途**：定義該工位的標準出廠標配硬體與測試規格（進 Git）。
+*   **典型參數**：`LINK` (工位專屬儀器如電源供應器、治具 PLC), `STATION_ID`。
 
 ---
 

@@ -34,6 +34,9 @@ start function
         # Uncomment the line below to test connectivity if you have a device connected via USB-to-UART
         # action test_via_uart.py                           # Demonstrates UART driver connectivity and command execution
         
+        # Uncomment the line below to control the Power Supply (supports --state on, off, or cycle)
+        # action psu_controller.py --state cycle --voltage 12.0 --current 2.0
+        
         # [Demonstrating Nested Logic]
         if FACTORY_LOCATION == Chiayi                       # Regional logic check for Chiayi site
             action sleep.py --sec 2                         # Execution delay for specific production line

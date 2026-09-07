@@ -5,6 +5,7 @@ from sapas.drivers.ssh import SSHDriver
 from sapas.drivers.adb import ADBDriver
 from sapas.drivers.udp.driver import UDPDriver
 from sapas.drivers.serial import SerialDriver
+from sapas.instruments.power_supply.base import BasePowerSupply
 
 _DEPRECATION_WARNING_SHOWN = False
 
@@ -78,12 +79,13 @@ class ExecutionContext:
         self.adb = _BaseTypedManager(self.link, ADBDriver)
         self.udp = _BaseTypedManager(self.link, UDPDriver)
         self.uart = _BaseTypedManager(self.link, SerialDriver)
+        self.psu = _BaseTypedManager(self.link, BasePowerSupply)
 
     def _merge_config(self):
         # Merge configuration layers with deep merge:
-        # site_infra.yaml (env) <- project.yaml (project) <- station.yaml (station - highest priority)
-        merged = deep_merge(self.env, self.project)
-        self.config = deep_merge(merged, self.station)
+        # project.yaml (project) <- station.yaml (station) <- site_infra.yaml (env - highest priority override)
+        base = deep_merge(self.project, self.station)
+        self.config = deep_merge(base, self.env)
 
     def inject_sf(self, sf_data: dict):
         self.external.update(sf_data)

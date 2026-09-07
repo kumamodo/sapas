@@ -14,9 +14,12 @@ if TYPE_CHECKING:
     from .runtime.connection_manager import ConnectionManager
     from .runtime.runtime import VarProxy
     from .core.measure_proxy import MeasureProxy
+    from .instruments.power_supply.base import BasePowerSupply
+    from .instruments.base import BaseInstrument
     link: ConnectionManager
     var: VarProxy
     measure: MeasureProxy
+    psu: Any
 
 def arg(*args, **kwargs):
     """
@@ -39,6 +42,8 @@ def __getattr__(name):
         return ctx.link
     if name == "var":
         return ctx.var
+    if name == "psu":
+        return ctx.psu
     if name == "measure":
         active_item = ctx.get("ACTIVE_ITEM")
         if active_item is None:
@@ -47,10 +52,17 @@ def __getattr__(name):
         if measure is None:
             raise RuntimeError("The active item does not have a measure proxy. Only TestItem supports measurements.")
         return measure
+    if name == "BasePowerSupply":
+        from .instruments.power_supply.base import BasePowerSupply
+        return BasePowerSupply
+    if name == "BaseInstrument":
+        from .instruments.base import BaseInstrument
+        return BaseInstrument
     raise AttributeError(f"module '{__name__}' has no attribute '{name}'")
 
 __all__ = [
-    "ctx", "link", "var", "measure", "arg",
+    "ctx", "link", "var", "measure", "psu", "arg",
     "TestItem", "ActionItem", "BaseItem", "Message",
+    "BasePowerSupply", "BaseInstrument",
     "info", "warn", "error", "sleep"
 ]
