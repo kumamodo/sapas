@@ -62,13 +62,6 @@ class BasePowerSupply(BaseInstrument):
         """Set current limit in Amperes."""
         pass
 
-    def set_vol_curr(self, voltage: float | None = None, current: float | None = None, channel: int = 1) -> None:
-        """Set both voltage and current limit."""
-        if voltage is not None:
-            self.set_voltage(voltage, channel=channel)
-        if current is not None:
-            self.set_current(current, channel=channel)
-
     @abstractmethod
     def output_on(self, voltage: float | None = None, current: float | None = None, channel: int = 1) -> None:
         """
@@ -90,10 +83,3 @@ class BasePowerSupply(BaseInstrument):
     def measure_current(self, channel: int = 1) -> float:
         """Measure real-time output current in Amperes."""
         pass
-
-    # Aliases for backward compatibility with common script conventions
-    def get_voltage(self, channel: int = 1) -> float:
-        return self.measure_voltage(channel=channel)
-
-    def get_current(self, channel: int = 1) -> float:
-        return self.measure_current(channel=channel)
