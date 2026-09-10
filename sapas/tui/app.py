@@ -14,7 +14,7 @@ from textual.binding import Binding
 from textual.containers import Container
 from textual.events import Resize
 from textual.theme import Theme
-from textual.widgets import Button, DataTable, Input, Static, Footer, Header
+from textual.widgets import Button, DataTable, Digits, Input, Static, Footer, Header
 
 from sapas.cli import setup_context
 from sapas.core.flow_loader import FlowLoader
@@ -224,7 +224,7 @@ class SapasDashboard(App[None]):
         
         self.setup_dashboard_flow()       
         self.reset_station_view(clear_log=True)
-        self.set_interval(0.2, self.update_elapsed)
+        self.set_interval(0.5, self.update_elapsed)
         self.set_interval(0.1, self.check_signal_quit_request)
         self.set_interval(1, self.toggle_sf_blink)
         self.apply_responsive_layout(self.screen.size.width)
@@ -581,7 +581,7 @@ class SapasDashboard(App[None]):
 
         self.query_one("#error-code", Static).remove_class("fail", "running", "pass", "check")
         self.query_one("#error-code", Static).update("")
-        self.query_one("#elapsed-time", Static).update("00:00:00.00")
+        self.query_one("#elapsed-time", Digits).update("00:00:00")
         self.set_result_banner("")
 
     def set_error_code(self, value: str, state: str = "") -> None:
@@ -636,7 +636,7 @@ class SapasDashboard(App[None]):
         elapsed = (datetime.now() - self.started_at).total_seconds()
         hours, remainder = divmod(elapsed, 3600)
         minutes, seconds = divmod(remainder, 60)
-        self.query_one("#elapsed-time", Static).update(f"{int(hours):02d}:{int(minutes):02d}:{seconds:05.2f}")
+        self.query_one("#elapsed-time", Digits).update(f"{int(hours):02d}:{int(minutes):02d}:{int(seconds):02d}")
 
     def write_log(self, message: str, style: str = "") -> None:
         """Applies advanced regular expression highlight parsing to live engine output lines."""
@@ -817,7 +817,7 @@ class SapasDashboard(App[None]):
         # Guarantee precision updates for terminal clock views upon completion
         hours, remainder = divmod(exact_elapsed, 3600)
         minutes, seconds = divmod(remainder, 60)
-        self.query_one("#elapsed-time", Static).update(f"{int(hours):02d}:{int(minutes):02d}:{seconds:05.2f}")
+        self.query_one("#elapsed-time", Digits).update(f"{int(hours):02d}:{int(minutes):02d}:{int(seconds):02d}")
 
         self.context = context
 

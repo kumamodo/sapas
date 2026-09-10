@@ -1,6 +1,6 @@
 from textual.app import ComposeResult
 from textual.containers import Container
-from textual.widgets import Button, Input, Static
+from textual.widgets import Button, Digits, Input, Static
 
 
 class InfoPanel(Container):
@@ -18,7 +18,7 @@ class InfoPanel(Container):
             id="error-box",
         )
         elapsed_box = Container(
-            Static("00:00:00.00", id="elapsed-time", classes="box-value"),
+            Digits("00:00:00", id="elapsed-time"),
             classes="top-box",
             id="elapsed-box",
         )
