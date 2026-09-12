@@ -725,7 +725,11 @@ class SapasDashboard(App[None]):
         if self.is_testing:
             self.request_test_stop()
             return
-        self.start_cycle(self.query_one("#serial-input", Input).value.strip())
+        sn = self.query_one("#serial-input", Input).value.strip()
+        if not sn:
+            self.focus_serial_input()
+            return
+        self.start_cycle(sn)
 
     @on(events.Enter, "#start-button")
     def on_start_button_enter(self) -> None:
@@ -760,13 +764,14 @@ class SapasDashboard(App[None]):
 
     def start_cycle(self, serial_number: str) -> None:
         """Validates current state constraints before spawning execution cycles."""
-        if self.is_testing or not serial_number:
+        clean_sn = serial_number.strip() if serial_number else ""
+        if self.is_testing or not clean_sn:
             self.focus_serial_input()
             return
         if self.is_debug_mode:
             self.exit_debug_mode(reason="automatic exit on test start")
         self._abort_ui = False
-        self._cycle_task = asyncio.create_task(self.run_station_cycle(serial_number))
+        self._cycle_task = asyncio.create_task(self.run_station_cycle(clean_sn))
 
     async def run_station_cycle(self, serial_number: str) -> None:
         """Core Orchestrator Loop: Executes a full automated production-line cycle flow safely."""
@@ -812,7 +817,6 @@ class SapasDashboard(App[None]):
 
         end_time = datetime.now()
         exact_elapsed = (end_time - self.started_at).total_seconds()
-        self.is_testing = False
         
         # Guarantee precision updates for terminal clock views upon completion
         hours, remainder = divmod(exact_elapsed, 3600)
@@ -837,7 +841,7 @@ class SapasDashboard(App[None]):
             self.set_error_code(error_code, "fail")
             self.set_result_banner("FAIL")
 
-        # Keep the final status banner visible before unlocking input for the next scan
+        # Keep the final status banner visible and UI locked before unlocking input for the next scan
         await asyncio.sleep(1.8)
 
         serial_input.value = ""
@@ -845,6 +849,7 @@ class SapasDashboard(App[None]):
         start_button.disabled = False
         start_button.label = "Start"
         start_button.can_focus = True
+        self.is_testing = False
         self.call_after_refresh(self.focus_serial_input)
 
 
