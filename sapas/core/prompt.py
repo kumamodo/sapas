@@ -56,7 +56,7 @@ def show_operator_prompt(image_path: Path | None = None, text_content: str | Non
         FG_COLOR = "#d9e1e7"       # Light slate grey/white
         ACCENT_COLOR = "#f2c94c"   # Warm gold/yellow
         PANEL_BG = "#0B1C28"       # Dark blue-grey panel
-        BORDER_COLOR = "#0E4C70"   # Muted ocean blue border
+        BORDER_COLOR = "#f2c94c"   # Warm gold/yellow accent border (matching TUI dialogs)
         BTN_BG = "#0E4C70"         # Ocean blue
         BTN_FG = "#d9e1e7"
         BTN_ACTIVE_BG = "#f2c94c"
@@ -65,7 +65,12 @@ def show_operator_prompt(image_path: Path | None = None, text_content: str | Non
 
         # Enable borderless custom window decoration
         root.overrideredirect(True)
-        root.configure(bg=BG_COLOR, highlightthickness=2, highlightbackground=BORDER_COLOR)
+        root.configure(
+            bg=BG_COLOR,
+            highlightthickness=2,
+            highlightbackground=BORDER_COLOR,
+            highlightcolor=BORDER_COLOR
+        )
 
         # 1. Custom Title Bar Frame
         title_bar = tk.Frame(root, bg=PANEL_BG, height=35)

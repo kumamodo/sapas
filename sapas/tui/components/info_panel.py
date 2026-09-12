@@ -30,7 +30,7 @@ class InfoPanel(Container):
         )
 
         info_box.border_title = "Information"
-        error_box.border_title = "Error Code"
+        error_box.border_title = "Status"
         elapsed_box.border_title = "Elapsed Time"
         serial_box.border_title = "Serial Number"
 

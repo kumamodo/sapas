@@ -590,7 +590,22 @@ class SapasDashboard(App[None]):
         error_widget.remove_class("fail", "running", "pass", "check")
         if state:
             error_widget.add_class(state)
-        error_widget.update(value)
+        
+        # Convert ASCII alphanumeric characters to full-width (2-cell width) for wider visual presence
+        val_str = str(value or "")
+        if val_str:
+            fullwidth_chars = []
+            for ch in val_str:
+                code = ord(ch)
+                if 0x21 <= code <= 0x7E:
+                    fullwidth_chars.append(chr(code + 0xFEE0))
+                else:
+                    fullwidth_chars.append(ch)
+            display_val = "".join(fullwidth_chars)
+        else:
+            display_val = ""
+
+        error_widget.update(Text(display_val, style="bold"))
 
     def render_items_list(self) -> None:
         """Renders out clean alphanumeric step identifiers within the diagnostic item view panel."""
@@ -668,10 +683,7 @@ class SapasDashboard(App[None]):
         self.render_items_list()
 
         # Reset error code and banner for the new cycle
-        error_widget = self.query_one("#error-code", Static)
-        error_widget.remove_class("fail", "running", "pass", "check")
-        error_widget.update("RUNNING")
-        error_widget.add_class("running")
+        self.set_error_code("RUNNING", "running")
         self.set_result_banner("")
 
     def set_result_banner(self, result: str) -> None:
