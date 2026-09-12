@@ -39,7 +39,7 @@ class SSHExecutor:
         self._is_closed = False
         
         # Centralized default stop_chars
-        self.default_stop_chars = ["#", ":~#", "$ ", "> "]
+        self.default_stop_chars = ["# ", ":~# ", "$ ", "> "]
         if stop_chars is None:
             self.stop_chars = self.default_stop_chars
         elif isinstance(stop_chars, str):
@@ -207,6 +207,13 @@ class SSHExecutor:
         info(f'[CMD]: {command}', tag='SSH')
         cmd_to_send = command if command.endswith('\n') else command + '\n'
         
+        # Flush any stale/unread data from previous commands before sending new command
+        try:
+            while self.channel and self.channel.recv_ready():
+                self.channel.recv(self.bufsize)
+        except Exception:
+            pass
+
         # Double check channel after potential reconnection
         try:
             self.channel.send(cmd_to_send)
