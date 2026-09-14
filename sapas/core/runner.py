@@ -307,6 +307,9 @@ class Runner():
                 info(f'  {idx:02d}. {item}', tag='RUNNER')
 
             while current_cycle <= self.cycle and not self._should_abort_critical() and not is_cycle_fail and not stop_test_flag:
+                if self._is_stop_requested():
+                    break
+
                 # At the start of each new iteration, reset the state for the current cycle.
                 info(f"Starting Test Cycle {current_cycle} / {self.cycle}", tag='RUNNER')
                 self.critical_error = False
@@ -323,8 +326,6 @@ class Runner():
                     self.timeStamp = datetime.now().strftime('%Y%m%d_%H%M%S')
                     self.time_stamp_folder = self.main_log_path / self.timeStamp
                 self.item_index = 0
-                if self._is_stop_requested():
-                    break
                 
                 while self.item_index < len(self.test_item_list):
                     stop_test_flag = False
@@ -445,7 +446,15 @@ class Runner():
                             stop_test_flag = True
                         log_banner('Execute items in the FAIL block.')
                         for on_fail_item in self.on_fail_list:
-                            return_code = self._run_test_script(on_fail_item[1].strip())
+                            fail_prefix = on_fail_item[0].strip().lower()
+                            fail_content = on_fail_item[1].strip()
+
+                            if fail_prefix == "delay":
+                                self._cmd_delay(fail_content)
+                            elif fail_prefix == "prompt":
+                                self._cmd_prompt(fail_content)
+                            else:
+                                return_code = self._run_test_script(fail_content)
 
                         if self.critical_error:
                             error('Got a critical error!', tag='RUNNER')

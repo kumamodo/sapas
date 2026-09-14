@@ -142,7 +142,8 @@ class ExecutionContext:
             'STATION_NAME',
             'RUNNER_LOGGER',
             'IS_FAIL_STOP',
-            'IS_EXCEPTION_STOP'
+            'IS_EXCEPTION_STOP',
+            'STOP_REQUESTED'
         }
 
         # Reset runtime context, preserving only the protected system variables.

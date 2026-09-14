@@ -82,6 +82,7 @@ class SapasDashboard(App[None]):
         self._abort_ui = False
         self._cycle_task: asyncio.Task | None = None
         self._previous_sigint_handler = None
+        self.is_in_fail_block = False
         self._sigint_pending = False
         self._sf_blink_counter = 2
 
@@ -95,50 +96,77 @@ class SapasDashboard(App[None]):
             on_step_skip=self._handle_step_skip,
             on_prompt_start=self._handle_prompt_start,
             on_prompt_finish=self._handle_prompt_finish,
+            on_fail_start=self._handle_fail_start,
         )
 
     def _handle_context_created(self, context) -> None:
         self.context = context
 
     def _handle_cycle_start(self, current_cycle: int, total_cycles: int) -> None:
+        self.is_in_fail_block = False
         self.current_cycle = current_cycle
         self.total_cycles = total_cycles
         self.update_info_display()
         self.reset_cycle_view()
 
+    def _handle_fail_start(self) -> None:
+        self.is_in_fail_block = True
+        self.running_step_key = None
+
     def _handle_step_start(self, item_name: str) -> None:
+        if self.is_in_fail_block:
+            return
         row_key = self.pop_next_pending_step(item_name)
         if row_key:
             self.running_step_key = row_key
             self.set_step_status(row_key, "RUNNING")
 
     def _handle_delay_start(self, delay_item: str) -> None:
+        if self.is_in_fail_block:
+            return
         row_key = self.pop_next_pending_step(delay_item)
         if row_key:
             self.running_step_key = row_key
             self.set_step_status(row_key, "RUNNING")
 
     def _handle_prompt_start(self, prompt_item: str) -> None:
-        row_key = self.pop_next_pending_step(prompt_item)
-        if row_key:
-            self.running_step_key = row_key
-            self.set_step_status(row_key, "RUNNING")
+        if not self.is_in_fail_block:
+            row_key = self.pop_next_pending_step(prompt_item)
+            if row_key:
+                self.running_step_key = row_key
+                self.set_step_status(row_key, "RUNNING")
+        try:
+            start_button = self.query_one("#start-button", Button)
+            start_button.disabled = True
+        except Exception:
+            pass
 
     def _handle_step_result(self, item: str, return_code: int) -> None:
+        if self.is_in_fail_block:
+            return
         row_key = self.running_step_key or self.pop_next_pending_step(item)
         if row_key:
             self.set_step_status(row_key, "PASS" if return_code == 0 else "FAIL")
             self.running_step_key = None
 
     def _handle_delay_finish(self) -> None:
+        if self.is_in_fail_block:
+            return
         if self.running_step_key:
             self.set_step_status(self.running_step_key, "PASS")
             self.running_step_key = None
 
     def _handle_prompt_finish(self) -> None:
-        if self.running_step_key:
-            self.set_step_status(self.running_step_key, "PASS")
-            self.running_step_key = None
+        if not self.is_in_fail_block:
+            if self.running_step_key:
+                self.set_step_status(self.running_step_key, "PASS")
+                self.running_step_key = None
+        try:
+            start_button = self.query_one("#start-button", Button)
+            if self.is_testing:
+                start_button.disabled = False
+        except Exception:
+            pass
 
     def _handle_step_skip(self, item_name: str, condition: str = "") -> None:
         row_key = self.pop_next_pending_step(item_name)

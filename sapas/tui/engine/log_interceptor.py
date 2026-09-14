@@ -15,6 +15,7 @@ class LogInterceptor:
         on_step_skip=None,
         on_prompt_start=None,
         on_prompt_finish=None,
+        on_fail_start=None,
     ) -> None:
         self.on_cycle_start = on_cycle_start
         self.on_step_start = on_step_start
@@ -25,9 +26,16 @@ class LogInterceptor:
         self.on_step_skip = on_step_skip
         self.on_prompt_start = on_prompt_start
         self.on_prompt_finish = on_prompt_finish
+        self.on_fail_start = on_fail_start
 
     def feed_line(self, message: str) -> None:
         """Parses a log line and fires appropriate callbacks if matches are found."""
+        # Detect failure cleanup block start
+        if "Execute items in the FAIL block." in message or "Going to FAIL block!" in message:
+            if self.on_fail_start:
+                self.on_fail_start()
+            return
+
         # Detect starting test cycle to reset item status
         cycle_match = re.search(r"Starting Test Cycle (\d+) / (\d+)", message)
         if cycle_match:
