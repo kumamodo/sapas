@@ -245,6 +245,14 @@ class TestItem(BaseItem, ABC):
         ctx.set("ACTIVE_ITEM", self)
         try:
             self.run_test()
+        except SystemExit as e:
+            code = 0 if (e.code is None or e.code == 0) else (e.code if isinstance(e.code, int) else 1)
+            if code != 0:
+                self._exception = True
+                self._exception_message = f"sys.exit({e.code})"
+                sys.stderr.write("\033[91m")
+                self.logger.error(f"Test item exited via sys.exit({e.code})")
+                sys.stderr.write("\033[0m")
         except Exception as err:
             self._exception = True
             self._exception_message = str(err)

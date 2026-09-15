@@ -129,6 +129,16 @@ class ScriptExecutor:
             rc = test_instance._main_process()
             if rc is not None:
                 return_code = rc
+        except SystemExit as e:
+            code = 0 if (e.code is None or e.code == 0) else (e.code if isinstance(e.code, int) else 1)
+            return_code = code
+            if code != 0:
+                stderr_output = f"Script exited via sys.exit({e.code})"
+                if logger:
+                    logger.error(stderr_output)
+            else:
+                if logger:
+                    logger.info("Script completed via sys.exit(0)")
         except Exception:
             return_code = 1
             stderr_output = traceback.format_exc()

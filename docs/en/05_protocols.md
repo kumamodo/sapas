@@ -27,9 +27,9 @@ Sapas provides two ways to retrieve connection instances in your scripts:
 
 ---
 
-## SSH Driver (SSHDriver)
+## SSH / SFTP Driver (SSHDriver)
 
-Integrates command execution over SSH.
+Integrates remote command execution over SSH and file transfers over SFTP.
 
 ### Code Example:
 ```python
@@ -42,9 +42,23 @@ ssh = sapas.link.get('main_dut')
 # Method B: Dedicated Access
 ssh = ctx.ssh.get('main_dut')
 
-# Execute command
+# 1. Execute remote shell command
 result = ssh.exec('uname -a')
 print(result)
+
+# 2. SFTP File Transfers
+# Upload single file (remote parent directories are created automatically if missing)
+ssh.upload("local/config.txt", "/data/config.txt")
+
+# Download single file (local parent directories are created automatically if missing)
+ssh.download("/data/log.txt", "local/logs/log.txt")
+
+# Recursively upload directory (target can be parent directory or full path)
+ssh.upload_dir("tools/my_app", "/data")        # Uploads to /data/my_app
+ssh.upload_dir("tools/my_app", "/data/my_app") # Also uploads to /data/my_app
+
+# Recursively download directory
+ssh.download_dir("/data/output_logs", "local/output_logs")
 ```
 
 ## ADB Driver (ADBDriver)

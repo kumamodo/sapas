@@ -10,14 +10,15 @@ logging.getLogger("paramiko").setLevel(logging.ERROR)
 
 class SSHDriver:
 
-    def __init__(self, host, user, password, stop_chars=None, source_ip=None):
+    def __init__(self, host, user, password, port=22, stop_chars=None, source_ip=None):
         self.host = host
         self.user = user
         self.password = password
+        self.port = port
         self.stop_chars = stop_chars
         self.source_ip = source_ip
 
-        self._ssh = SSHExecutor(host, user, password, stop_chars=stop_chars, source_ip=source_ip)
+        self._ssh = SSHExecutor(host, user, password, port=port, stop_chars=stop_chars, source_ip=source_ip)
         # Lazy initialization of SFTP connection (initialized only when needed).
         self._sftp = None
         self._connected = False
@@ -68,7 +69,7 @@ class SSHDriver:
     # SFTP functionality (lazy initialization).
     def connect_sftp(self):
         if self._sftp is None:
-            self._sftp = SFTPClient(self.host, self.user, self.password)
+            self._sftp = SFTPClient(self.host, self.user, self.password, port=self.port)
         if not self._sftp_connected:
             self._sftp.connect()
             self._sftp_connected = True
@@ -76,29 +77,29 @@ class SSHDriver:
     def upload(self, local_path, remote_path):
         self.connect_sftp()
         info(f"[UPLOAD]: {local_path} -> {remote_path}", tag='SSH')
-        return self._sftp.putFile(local_path, remote_path)
+        return self._sftp.put_file(local_path, remote_path)
 
     def download(self, remote_path, local_path):
         self.connect_sftp()
         info(f"[DOWNLOAD]: {remote_path} -> {local_path}", tag='SSH')
-        return self._sftp.getFile(remote_path, local_path)
+        return self._sftp.get_file(remote_path, local_path)
 
     def upload_dir(self, local_dir, remote_dir):
         self.connect_sftp()
         info(f"[UPLOAD_DIR]: {local_dir} -> {remote_dir}", tag='SSH')
-        return self._sftp.putFolder(local_dir, remote_dir)
+        return self._sftp.put_folder(local_dir, remote_dir)
 
     def download_dir(self, remote_dir, local_dir):
         self.connect_sftp()
         info(f"[DOWNLOAD_DIR]: {remote_dir} -> {local_dir}", tag='SSH')
-        return self._sftp.getFolder(remote_dir, local_dir)
+        return self._sftp.get_folder(remote_dir, local_dir)
 
     def close(self):
-        if not self._connected:
+        if not self._connected and not self._sftp_connected:
             return 
        
         # Call the close method of the Executor above.
-        if self._ssh:
+        if self._ssh and self._connected:
             self._ssh.close()
         
         if self._sftp and self._sftp_connected:

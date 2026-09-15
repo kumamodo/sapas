@@ -27,9 +27,9 @@ Sapas 在腳本中提供了兩種獲取連線實例的方式：
 
 ---
 
-## SSH 驅動 (SSHDriver)
+## SSH / SFTP 驅動 (SSHDriver)
 
-整合了 SSH 遠端命令執行。
+整合了 SSH 遠端命令執行與 SFTP 檔案傳輸功能。
 
 ### 程式碼範例：
 ```python
@@ -42,9 +42,23 @@ ssh = sapas.link.get('main_dut')
 # 方法 B：專用存取方式
 ssh = ctx.ssh.get('main_dut')
 
-# 執行指令
+# 1. 執行遠端 Shell 指令
 result = ssh.exec('uname -a')
 print(result)
+
+# 2. SFTP 檔案傳輸
+# 上傳單一檔案 (目標目錄若不存在會自動遞迴建立)
+ssh.upload("local/config.txt", "/data/config.txt")
+
+# 下載單一檔案 (本地接收目錄若不存在會自動建立)
+ssh.download("/data/log.txt", "local/logs/log.txt")
+
+# 遞迴上傳整個資料夾 (目的地可指定上層目錄或完整路徑)
+ssh.upload_dir("tools/my_app", "/data")        # 傳輸至 /data/my_app
+ssh.upload_dir("tools/my_app", "/data/my_app") # 同樣傳輸至 /data/my_app
+
+# 遞迴下載整個資料夾
+ssh.download_dir("/data/output_logs", "local/output_logs")
 ```
 
 ## ADB 驅動 (ADBDriver)

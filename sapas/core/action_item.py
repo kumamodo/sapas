@@ -66,6 +66,17 @@ class ActionItem(BaseItem, ABC):
             self.run_action()
             ctx.set('ERROR_CODE', 'PASS')
             return 0
+        except SystemExit as e:
+            code = 0 if (e.code is None or e.code == 0) else (e.code if isinstance(e.code, int) else 1)
+            if code == 0:
+                ctx.set('ERROR_CODE', 'PASS')
+                return 0
+            else:
+                msg = f"sys.exit({e.code})"
+                self.error(msg)
+                ctx.set('ERROR_CODE', 'CRITICAL')
+                ctx.set('ERROR_DESCRIPTION', msg)
+                return 1
         except Exception as e:
             self.error(str(e))
             ctx.set('ERROR_CODE', 'CRITICAL')
