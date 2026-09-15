@@ -68,8 +68,10 @@ class SapasDashboard(App[None]):
         self.args = cli_args or Namespace(project=None, station=None, test_flow=None, serialNumber="", timeStamp="")
         self.context = context
         self.test_steps: list[TestStep] = []
+        self.on_fail_steps: list[TestStep] = []
         self.step_index_by_runner_index: dict[str, str] = {}
         self.pending_step_ids_by_item: dict[str, list[str]] = {}
+        self.pending_on_fail_ids_by_item: dict[str, list[str]] = {}
         self.step_status: dict[str, str] = {}
         self.running_step_key: str | None = None
         self.started_at: datetime | None = None
@@ -112,29 +114,39 @@ class SapasDashboard(App[None]):
     def _handle_fail_start(self) -> None:
         self.is_in_fail_block = True
         self.running_step_key = None
+        self.rebuild_on_fail_indexes()
+        try:
+            table = self.query_one("#items-table", StepsTable)
+            table.add_on_fail_section(self.on_fail_steps, self.step_status)
+        except Exception:
+            pass
 
     def _handle_step_start(self, item_name: str) -> None:
         if self.is_in_fail_block:
-            return
-        row_key = self.pop_next_pending_step(item_name)
+            row_key = self.pop_next_pending_on_fail_step(item_name)
+        else:
+            row_key = self.pop_next_pending_step(item_name)
         if row_key:
             self.running_step_key = row_key
             self.set_step_status(row_key, "RUNNING")
 
     def _handle_delay_start(self, delay_item: str) -> None:
         if self.is_in_fail_block:
-            return
-        row_key = self.pop_next_pending_step(delay_item)
+            row_key = self.pop_next_pending_on_fail_step(delay_item)
+        else:
+            row_key = self.pop_next_pending_step(delay_item)
         if row_key:
             self.running_step_key = row_key
             self.set_step_status(row_key, "RUNNING")
 
     def _handle_prompt_start(self, prompt_item: str) -> None:
-        if not self.is_in_fail_block:
+        if self.is_in_fail_block:
+            row_key = self.pop_next_pending_on_fail_step(prompt_item)
+        else:
             row_key = self.pop_next_pending_step(prompt_item)
-            if row_key:
-                self.running_step_key = row_key
-                self.set_step_status(row_key, "RUNNING")
+        if row_key:
+            self.running_step_key = row_key
+            self.set_step_status(row_key, "RUNNING")
         try:
             start_button = self.query_one("#start-button", Button)
             start_button.disabled = True
@@ -143,24 +155,22 @@ class SapasDashboard(App[None]):
 
     def _handle_step_result(self, item: str, return_code: int) -> None:
         if self.is_in_fail_block:
-            return
-        row_key = self.running_step_key or self.pop_next_pending_step(item)
+            row_key = self.running_step_key or self.pop_next_pending_on_fail_step(item)
+        else:
+            row_key = self.running_step_key or self.pop_next_pending_step(item)
         if row_key:
             self.set_step_status(row_key, "PASS" if return_code == 0 else "FAIL")
             self.running_step_key = None
 
     def _handle_delay_finish(self) -> None:
-        if self.is_in_fail_block:
-            return
         if self.running_step_key:
             self.set_step_status(self.running_step_key, "PASS")
             self.running_step_key = None
 
     def _handle_prompt_finish(self) -> None:
-        if not self.is_in_fail_block:
-            if self.running_step_key:
-                self.set_step_status(self.running_step_key, "PASS")
-                self.running_step_key = None
+        if self.running_step_key:
+            self.set_step_status(self.running_step_key, "PASS")
+            self.running_step_key = None
         try:
             start_button = self.query_one("#start-button", Button)
             if self.is_testing:
@@ -182,7 +192,7 @@ class SapasDashboard(App[None]):
     def _update_step_detail_bar(self, row_key: str) -> None:
         """Updates the persistent detail bar at the bottom of the items panel with step info."""
         try:
-            step = next((s for s in self.test_steps if s.item_id == row_key), None)
+            step = next((s for s in self.test_steps + self.on_fail_steps if s.item_id == row_key), None)
             if not step:
                 return
 
@@ -212,12 +222,14 @@ class SapasDashboard(App[None]):
     def on_step_row_highlighted(self, event: DataTable.RowHighlighted) -> None:
         """Fired when operator clicks or navigates to a table row."""
         if event.row_key and event.row_key.value:
+            self.currently_highlighted_row_key = event.row_key.value
             self._update_step_detail_bar(event.row_key.value)
 
     @on(DataTable.RowSelected, "#items-table")
     def on_step_row_selected(self, event: DataTable.RowSelected) -> None:
         """Fired when operator double clicks or presses Enter on a table row."""
         if event.row_key and event.row_key.value:
+            self.currently_highlighted_row_key = event.row_key.value
             self._update_step_detail_bar(event.row_key.value)
 
     def compose(self) -> ComposeResult:
@@ -305,7 +317,7 @@ class SapasDashboard(App[None]):
             return
 
         # Extract and map executable step identifiers
-        self.test_steps, self.total_cycles = self.load_station_steps()
+        self.test_steps, self.total_cycles, self.on_fail_steps = self.load_station_steps()
         self.current_cycle = 1
         
         self.update_info_display()
@@ -368,10 +380,10 @@ class SapasDashboard(App[None]):
                 (" ❰❰", "bold yellow")
             )
 
-    def load_station_steps(self) -> tuple[list[TestStep], int]:
+    def load_station_steps(self) -> tuple[list[TestStep], int, list[TestStep]]:
         """Loads and filters valid steps from target flow configurations via FlowLoader."""
         if self.context is None:
-            return [], 1
+            return [], 1, []
 
         workspace_root = Path(self.context.get("WORKSPACE_ROOT", Path.cwd()))
         project_name = self.context.get("PROJECT_NAME")
@@ -385,25 +397,43 @@ class SapasDashboard(App[None]):
             if matches:
                 flow_path = matches[0]
 
-        cycle_count, flow_items, _ = FlowLoader().load_flow(str(flow_path))
+        cycle_count, flow_items, failure_cleanup_items = FlowLoader().load_flow(str(flow_path))
         steps: list[TestStep] = []
         for runner_index, (command, item) in enumerate(flow_items):
             command = command.strip().lower()
             item = item.strip()
             if command in SKIP_FLOW_COMMANDS:
                 continue
-            item_id = f"{len(steps) + 1:02d}"
+            item_id = f"{len(steps) + 1:03d}"
             label = f"{command} {item}".strip() if command in ("delay", "prompt") else item
             steps.append(
                 TestStep(
                     item_id=item_id,
-                    runner_index=f"{runner_index:02d}",
+                    runner_index=f"{runner_index:03d}",
                     item_label=label,
                     flow_item=item,
                     command=command,
                 )
             )
-        return steps, cycle_count
+
+        on_fail_steps: list[TestStep] = []
+        for runner_index, (command, item) in enumerate(failure_cleanup_items):
+            command = command.strip().lower()
+            item = item.strip()
+            if command in SKIP_FLOW_COMMANDS:
+                continue
+            item_id = f"F{len(on_fail_steps) + 1:02d}"
+            label = f"{command} {item}".strip() if command in ("delay", "prompt") else item
+            on_fail_steps.append(
+                TestStep(
+                    item_id=item_id,
+                    runner_index=f"F{runner_index:02d}",
+                    item_label=label,
+                    flow_item=item,
+                    command=command,
+                )
+            )
+        return steps, cycle_count, on_fail_steps
 
     def on_resize(self, event: Resize) -> None:
         """Handles screen resizing callbacks dynamically."""
@@ -642,6 +672,8 @@ class SapasDashboard(App[None]):
     def set_step_status(self, row_key: str, status: str) -> None:
         """Updates internal dictionary keys and triggers state re-renders for test list cells."""
         self.query_one("#items-table", StepsTable).update_step_status(row_key, status, self.test_steps, self.step_status)
+        if getattr(self, "currently_highlighted_row_key", None) == row_key:
+            self._update_step_detail_bar(row_key)
 
     def item_lookup_keys(self, item: str) -> list[str]:
         """Returns stable lookup aliases for flow items whose log text may be normalized."""
@@ -662,10 +694,27 @@ class SapasDashboard(App[None]):
             for key in self.item_lookup_keys(step.flow_item):
                 self.pending_step_ids_by_item.setdefault(key, []).append(step.item_id)
 
+    def rebuild_on_fail_indexes(self) -> None:
+        """Build lookup maps for the on_fail cleanup steps."""
+        self.pending_on_fail_ids_by_item = {}
+        for step in self.on_fail_steps:
+            for key in self.item_lookup_keys(step.flow_item):
+                self.pending_on_fail_ids_by_item.setdefault(key, []).append(step.item_id)
+
     def pop_next_pending_step(self, item: str) -> str | None:
         """Returns the next pending row for repeated flow items while preserving execution order."""
         for key in self.item_lookup_keys(item):
             candidates = self.pending_step_ids_by_item.get(key, [])
+            while candidates:
+                row_key = candidates.pop(0)
+                if self.step_status.get(row_key) == "PENDING":
+                    return row_key
+        return None
+
+    def pop_next_pending_on_fail_step(self, item: str) -> str | None:
+        """Returns the next pending row for on_fail cleanup steps while preserving execution order."""
+        for key in self.item_lookup_keys(item):
+            candidates = self.pending_on_fail_ids_by_item.get(key, [])
             while candidates:
                 row_key = candidates.pop(0)
                 if self.step_status.get(row_key) == "PENDING":

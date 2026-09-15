@@ -38,6 +38,25 @@ class StepsTable(DataTable):
             status = step_status.get(step.item_id, "PENDING")
             self.add_row(step.item_id, format_status(status), label, key=step.item_id)
 
+    def add_on_fail_section(self, on_fail_steps: list[TestStep], step_status: dict[str, str]) -> None:
+        """Dynamically appends a recovery section header and on_fail steps to the table."""
+        if not on_fail_steps:
+            return
+        if "on_fail_separator" in self.rows:
+            return
+
+        from rich.text import Text
+        sep_id = Text("───", style="bold red")
+        sep_status = Text("──", style="bold red")
+        sep_label = Text("─── ON-FAIL DIAGNOSTICS ───", style="bold red")
+        self.add_row(sep_id, sep_status, sep_label, key="on_fail_separator")
+
+        for step in on_fail_steps:
+            label = step.item_label
+            status = "PENDING"
+            step_status[step.item_id] = status
+            self.add_row(step.item_id, format_status(status), label, key=step.item_id)
+
     def update_step_status(self, row_key: str, status: str, test_steps: list[TestStep], step_status: dict[str, str]) -> None:
         """Updates internal dictionary keys and triggers state re-renders for test list cells."""
         step_status[row_key] = status
