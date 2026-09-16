@@ -8,6 +8,7 @@ from sapas.modules.log import _log, info, error
 from rich.table import Table
 from rich.box import ASCII2
 from rich.console import Console
+from rich.text import Text
 
 
 class ResultManager:
@@ -167,34 +168,38 @@ class ResultManager:
             box=ASCII2, 
             header_style="bold cyan",
             title_justify="left",
-            # Reduce spacing pressure.
-            collapse_padding=True
+            padding=(0, 1),
         )
 
-        # Set no_wrap=True for all columns,
-        # and apply max_width limits to columns that are prone to overflow.
-        table.add_column(self.HEADER_LABELS[0], justify="center", style="white", no_wrap=True)
-        table.add_column(self.HEADER_LABELS[1], justify="center", max_width=12, no_wrap=True)
-        table.add_column(self.HEADER_LABELS[2], justify="center", max_width=12, no_wrap=True)
+        # Calculate dynamic max width for Measured and Description to avoid truncation while remaining terminal-friendly
+        meas_lengths = [len(str(test_value.get(row[self.COL_ITEM], "Exception"))) for row in criteria[1:]] if len(criteria) > 1 else [10]
+        max_meas_len = max(meas_lengths + [len(self.HEADER_LABELS[3])])
+        max_meas_width = max(15, min(max_meas_len + 2, 60))
+
+        desc_lengths = [len(str(row[self.COL_DESC])) for row in criteria[1:]] if len(criteria) > 1 else [10]
+        max_desc_len = max(desc_lengths + [len(self.HEADER_LABELS[5])])
+        max_desc_width = max(30, min(max_desc_len + 2, 70))
+
+        table.add_column(Text(self.HEADER_LABELS[0], justify="center"), justify="left", style="white", no_wrap=True)
+        table.add_column(Text(self.HEADER_LABELS[1], justify="center"), justify="left", max_width=15, no_wrap=True)
+        table.add_column(Text(self.HEADER_LABELS[2], justify="center"), justify="left", max_width=15, no_wrap=True)
         table.add_column(
-            self.HEADER_LABELS[3],
-            justify="center",
+            Text(self.HEADER_LABELS[3], justify="center"),
+            justify="left",
             style="magenta",
-            overflow="ellipsis",
-            max_width=25,
-            no_wrap=True
+            no_wrap=False,
+            max_width=max_meas_width
         )
-        table.add_column(self.HEADER_LABELS[4], justify="center", no_wrap=True)
+        table.add_column(Text(self.HEADER_LABELS[4], justify="center"), justify="center", no_wrap=True)
         table.add_column(
-            self.HEADER_LABELS[5], 
-            justify="center", 
+            Text(self.HEADER_LABELS[5], justify="center"), 
+            justify="left", 
             style="dim", 
-            no_wrap=True, 
-            overflow="ellipsis", 
-            max_width=30
+            no_wrap=False, 
+            max_width=max_desc_width
         )
 
-        table.add_column(self.HEADER_LABELS[6], justify="center", no_wrap=True)
+        table.add_column(Text(self.HEADER_LABELS[6], justify="center"), justify="center", no_wrap=True)
 
         for i in range(1, len(criteria)):
             row = criteria[i]
