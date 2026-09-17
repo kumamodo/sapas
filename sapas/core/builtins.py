@@ -117,14 +117,14 @@ def ping(
         if log_output:
             mode_str = " (TCP)" if check_port else ""
             if success:
-                info(f"[PING] {target} ({host}) is ONLINE{mode_str}", tag='PING')
+                info(f"{target} ({host}) is ONLINE{mode_str}", tag='PING')
             else:
-                warn(f"[PING] {target} ({host}) is OFFLINE{mode_str}", tag='PING')
+                warn(f"{target} ({host}) is OFFLINE{mode_str}", tag='PING')
         return success
 
     # Polling mode (timeout > 1.0)
     if log_output:
-        info(f"[PING] Waiting for {target} to come online [Timeout: {timeout:g}s]...", tag='PING')
+        info(f"Waiting for {target} to come online [Timeout: {timeout:g}s]...", tag='PING')
 
     start_time = time.time()
     last_logged_sec = -1
@@ -137,7 +137,7 @@ def ping(
 
         current_sec = int(math.ceil(remaining))
         if log_output and current_sec != last_logged_sec and current_sec >= 1:
-            info(f"[PING] Waiting for {target}... ({current_sec}s remaining)", tag='PING')
+            info(f"Waiting for {target}... ({current_sec}s remaining)", tag='PING')
             last_logged_sec = current_sec
 
         step_start = time.time()
@@ -145,7 +145,7 @@ def ping(
         if _single_ping_execute(host, count, single_timeout, check_port):
             total_elapsed = time.time() - start_time
             if log_output:
-                info(f"[PING] {target} is now ONLINE! (took {total_elapsed:.1f}s)", tag='PING')
+                info(f"{target} is now ONLINE! (took {total_elapsed:.1f}s)", tag='PING')
             return True
 
         step_duration = time.time() - step_start
@@ -156,5 +156,5 @@ def ping(
         time.sleep(min(sleep_needed, remaining_after_step))
 
     if log_output:
-        error(f"[PING] Timeout waiting for {target} to come online after {timeout:g}s", tag='PING')
+        error(f"Timeout waiting for {target} to come online after {timeout:g}s", tag='PING')
     return False

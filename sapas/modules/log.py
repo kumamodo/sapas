@@ -75,8 +75,8 @@ def warn(msg, *args, tag='WARN'):
 def error(msg, *args, tag='ERROR'):
     _log(tag, msg, *args)
 
-def log_banner(title):
-    line_width = 60
+def log_banner(title: str):
+    line_width = max(60, len(title) + 4)
     separator = "=" * line_width
 
     inner_content = f"={title.center(line_width - 2)}="
