@@ -6,7 +6,7 @@ from sapas.core.base_item import BaseItem
 from sapas.modules.message import Message
 from sapas.modules.log import info, warn, error
 from sapas.runtime.runtime import ctx
-from sapas.core.builtins import sleep
+from sapas.core.builtins import sleep, ping
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -64,5 +64,5 @@ __all__ = [
     "ctx", "link", "var", "measure", "psu", "arg",
     "TestItem", "ActionItem", "BaseItem", "Message",
     "BasePowerSupply", "BaseInstrument",
-    "info", "warn", "error", "sleep"
+    "info", "warn", "error", "sleep", "ping"
 ]

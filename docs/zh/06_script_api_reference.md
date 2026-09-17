@@ -236,7 +236,40 @@ class SleepDemo(sapas.ActionItem):
 
 ---
 
-## 9. 自定義參數 (@sapas.arg)
+## 9. 網路檢查與等待 (`sapas.ping`)
+
+Sapas 提供了內建的跨平台 `sapas.ping` 檢測與等待上線功能：
+
+- **`sapas.ping(target, count=1, timeout=1.0, port=None, interval=1.0)`**: 檢測裝置或 IP 是否在線（傳回 `True` / `False`）。支援直接傳入 IP 地址（如 `"192.168.1.110"`）或在 `station.yaml` 中定義的 `LINK` 名稱（如 `"main_dut"`）。
+  - **單次檢測 (即時)**: 當 `timeout <= 1.0` 時，執行單次快速連線檢查。
+  - **輪詢等待 (重啟恢復)**: 當 `timeout > 1.0` 時（例如 `timeout=60`），自動開啟輪詢與倒數計時 Log，等待裝置重啟完成上線。
+
+```python
+import sapas
+
+class PingDemo(sapas.ActionItem):
+    def run_action(self):
+        # 1. 單次快速 Ping 指定 IP
+        if sapas.ping("192.168.1.110", timeout=1):
+            sapas.info("IP 192.168.1.110 在線")
+
+        # 2. Ping station.yaml 中設定的 LINK 目標 (如 main_dut)
+        if sapas.ping("main_dut"):
+            sapas.info("main_dut 在線")
+
+        # 3. 觸發 Reboot 後，輪詢等待 DUT 重新開機上線 (最長等待 60 秒倒數)
+        ssh = sapas.link.get("main_dut")
+        ssh.exec("reboot")
+        
+        if sapas.ping("main_dut", timeout=60):
+            sapas.info("DUT 已順利開機上線，繼續執行測試")
+        else:
+            sapas.error("DUT 開機超時！")
+```
+
+---
+
+## 10. 自定義參數 (@sapas.arg)
 
 如果您需要從 `.flow` 傳遞參數給腳本，可以使用 `@sapas.arg` 裝飾器。
 

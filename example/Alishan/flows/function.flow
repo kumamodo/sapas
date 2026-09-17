@@ -17,6 +17,7 @@
 
 start function
     cycle 1                                                 # Start of test loop (runs once)
+        # action ping_device.py --target 192.168.1.110 --timeout 60
         verify get_os_name.py                               # Verify OS type and system environment
         verify verify_voltage.py --sapas-tag FIRST          # Measure voltage at Standby phase (Tag demo)
         prompt --text "Please adjust the fixture power supply voltage to 12V, then click OK to continue."

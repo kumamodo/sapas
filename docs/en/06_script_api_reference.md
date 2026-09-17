@@ -236,7 +236,40 @@ Running this script outputs the following logs dynamically:
 
 ---
 
-## 9. Custom Arguments (@sapas.arg)
+## 9. Network Checking & Reachability (`sapas.ping`)
+
+Sapas provides cross-platform ping reachability checking and online waiting helpers in a single unified API:
+
+- **`sapas.ping(target, count=1, timeout=1.0, port=None, interval=1.0)`**: Checks if a target IP or host is online (returns `True` / `False`). Supports IP addresses (e.g. `"192.168.1.110"`) or configured `LINK` target names from `station.yaml` (e.g. `"main_dut"`).
+  - **Instant Check**: When `timeout <= 1.0`, performs a single fast status check.
+  - **Polling Wait Mode**: When `timeout > 1.0` (e.g. `timeout=60`), polls up to `timeout` seconds with live countdown logging until the target comes online.
+
+```python
+import sapas
+
+class PingDemo(sapas.ActionItem):
+    def run_action(self):
+        # 1. Single instant check of specific IP address
+        if sapas.ping("192.168.1.110", timeout=1):
+            sapas.info("IP 192.168.1.110 is ONLINE")
+
+        # 2. Ping configured LINK target name from station.yaml (e.g. main_dut)
+        if sapas.ping("main_dut"):
+            sapas.info("main_dut is ONLINE")
+
+        # 3. Trigger Reboot and wait for DUT to come back online (up to 60s with live countdown)
+        ssh = sapas.link.get("main_dut")
+        ssh.exec("reboot")
+        
+        if sapas.ping("main_dut", timeout=60):
+            sapas.info("DUT came back online! Continuing test...")
+        else:
+            sapas.error("DUT reboot timeout!")
+```
+
+---
+
+## 10. Custom Arguments (@sapas.arg)
 
 If you need to pass arguments from a `.flow` to a script, you can use the `@sapas.arg` decorator.
 
