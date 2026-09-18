@@ -48,12 +48,13 @@ def run_user_script(script_name: str, cli_args=None, user_args=None):
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
 
-    # Only select non-abstract, non-base subclasses.
+    # Only select non-abstract, non-base subclasses defined in this script file.
     cls_list = [
         obj for name, obj in inspect.getmembers(module)
         if inspect.isclass(obj)
         and issubclass(obj, BaseItem)
         and obj not in (BaseItem, ActionItem, TestItem)
+        and getattr(obj, '__module__', None) == module.__name__
     ]
 
     if not cls_list:

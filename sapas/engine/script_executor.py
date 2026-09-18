@@ -1,16 +1,64 @@
+import io
+import sys
 import time
 import uuid
+import threading
 import importlib.util
 import inspect
 import argparse
 import traceback
 import warnings
+from pathlib import Path
 from dataclasses import dataclass
 from typing import Optional
 
 from sapas.core.base_item import BaseItem
 from sapas.core.action_item import ActionItem
 from sapas.core.test_item import TestItem
+from sapas.modules.log import _thread_local
+
+
+class StdoutRedirector(io.TextIOBase):
+    """
+    Redirects standard stdout (print statements) to Sapas logger with [ PRINT ] tag.
+    Uses a thread-local recursion guard to prevent infinite logging loops.
+    """
+    def __init__(self, original_stdout, log_func):
+        self.original_stdout = original_stdout
+        self.log_func = log_func
+        self._buffer = ""
+
+    def write(self, s):
+        if not s:
+            return 0
+
+        # Anti-recursion guard: If logger itself is outputting, pass directly to original_stdout
+        if getattr(_thread_local, 'is_logging', False):
+            return self.original_stdout.write(s)
+
+        self._buffer += s
+        while "\n" in self._buffer:
+            line, self._buffer = self._buffer.split("\n", 1)
+            line_str = line.rstrip("\r")
+            if line_str:
+                _thread_local.is_logging = True
+                try:
+                    self.log_func("PRINT", line_str)
+                finally:
+                    _thread_local.is_logging = False
+        return len(s)
+
+    def flush(self):
+        if getattr(_thread_local, 'is_logging', False):
+            return self.original_stdout.flush()
+
+        if self._buffer.rstrip("\r"):
+            _thread_local.is_logging = True
+            try:
+                self.log_func("PRINT", self._buffer.rstrip("\r"))
+            finally:
+                _thread_local.is_logging = False
+            self._buffer = ""
 
 
 @dataclass
@@ -57,11 +105,18 @@ class ScriptExecutor:
                     i += 1
                 script_args = new_args
 
-            from sapas.runtime.runtime import ctx
-            ctx.set("CURRENT_SAPAS_TAG", sapas_tag)
+            try:
+                from sapas.runtime.runtime import ctx
+                ctx.set("CURRENT_SAPAS_TAG", sapas_tag)
+            except Exception:
+                pass
+
+            from sapas.core.utils import setup_sapas_sys_path
+            script_path_obj = Path(script_path).resolve()
+            setup_sapas_sys_path(script_path_obj)
 
             module_name = f"test_module_{uuid.uuid4().hex}"
-            spec = importlib.util.spec_from_file_location(module_name, script_path)
+            spec = importlib.util.spec_from_file_location(module_name, str(script_path_obj))
             if spec is None or spec.loader is None:
                 raise RuntimeError(f"Cannot load script: {script_path}")
 
@@ -73,6 +128,7 @@ class ScriptExecutor:
                 if inspect.isclass(obj)
                 and issubclass(obj, BaseItem)
                 and obj not in (BaseItem, ActionItem, TestItem)
+                and getattr(obj, '__module__', None) == module.__name__
             ]
 
             if not cls_list:
@@ -126,9 +182,17 @@ class ScriptExecutor:
                 # TestItem
                 test_instance = item_cls(framework_args)
 
-            rc = test_instance._main_process()
-            if rc is not None:
-                return_code = rc
+            old_stdout = sys.stdout
+            from sapas.modules.log import _log
+            redirector = StdoutRedirector(old_stdout, _log)
+            sys.stdout = redirector
+            try:
+                rc = test_instance._main_process()
+                if rc is not None:
+                    return_code = rc
+            finally:
+                redirector.flush()
+                sys.stdout = old_stdout
         except SystemExit as e:
             code = 0 if (e.code is None or e.code == 0) else (e.code if isinstance(e.code, int) else 1)
             return_code = code

@@ -1,5 +1,8 @@
+import threading
 from sapas.runtime.runtime import ctx
 from rich.console import Console
+
+_thread_local = threading.local()
 
 # Create a "color-blind" console to convert
 # Rich objects into plain text with proper alignment.
@@ -8,6 +11,13 @@ _plain_console = Console(width=200, color_system=None, force_terminal=False)
 _log_deprecated_shown = False
 
 def _log(tag, *args):
+    _thread_local.is_logging = True
+    try:
+        _log_impl(tag, *args)
+    finally:
+        _thread_local.is_logging = False
+
+def _log_impl(tag, *args):
     # Smart Detection: Priority 1: Current active item logger, Priority 2: Global runner logger
     logger = None
     active_item = None
