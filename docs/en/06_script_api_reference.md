@@ -333,3 +333,33 @@ sapas <script_name>
 ```
 
 This ensures the system automatically loads the corresponding YAML configurations and connection information, simulating the most realistic execution environment.
+
+---
+
+## 12. Dynamic External Data Injection (`sapas.ctx.inject_yaml`)
+
+Sapas provides `sapas.ctx.inject_yaml()` to dynamically inject external data (such as barcode scanner data, upstream MES/Shopfloor metadata, or external YAML config files) into global `sapas.var` / `sapas.ctx.external`:
+
+- **`sapas.ctx.inject_yaml(source)`**: Accepts a dictionary (`dict`), YAML file path (`str` / `Path`), or raw YAML string.
+
+> [!NOTE]
+> The legacy `sapas.ctx.inject_sf()` method has been replaced by `inject_yaml()`. The old name is deprecated but retained for backward compatibility.
+
+```python
+import sapas
+
+class ShopfloorInit(sapas.ActionItem):
+    def run_action(self):
+        # 1. Inject external YAML file directly
+        sapas.ctx.inject_yaml("D:/output/sf_data.yaml")
+
+        # 2. Or inject dictionary data directly
+        sapas.ctx.inject_yaml({
+            "MAC_ADDRESS": "AA:BB:CC:DD:EE:FF",
+            "WORK_ORDER": "WO-20260918"
+        })
+
+        # 3. Access injected data via sapas.var in subsequent steps
+        mac = sapas.var.get("MAC_ADDRESS")
+        sapas.info(f"Loaded MAC: {mac}")
+```

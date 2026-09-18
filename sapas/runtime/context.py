@@ -1,3 +1,6 @@
+import yaml
+from pathlib import Path
+from typing import Union
 from datetime import datetime
 
 from sapas.runtime.connection_manager import ConnectionManager
@@ -87,8 +90,39 @@ class ExecutionContext:
         base = deep_merge(self.project, self.station)
         self.config = deep_merge(base, self.env)
 
+    def inject_yaml(self, source: Union[dict, str, Path]):
+        """
+        Injects external dynamic data into context.external.
+        
+        Supports:
+        - dict: Direct key-value mapping (e.g. {"SN": "123456"})
+        - str / Path: Path to a YAML file or raw YAML string.
+        """
+        if isinstance(source, (str, Path)):
+            path = Path(source)
+            if path.is_file():
+                with open(path, 'r', encoding='utf-8') as f:
+                    data = yaml.safe_load(f) or {}
+            else:
+                data = yaml.safe_load(str(source)) or {}
+        elif isinstance(source, dict):
+            data = source
+        else:
+            raise TypeError(f"Expected dict, str, or Path, got {type(source).__name__}")
+
+        if not isinstance(data, dict):
+            raise ValueError(f"Parsed YAML content must be a dictionary, got {type(data).__name__}")
+
+        self.external.update(data)
+
     def inject_sf(self, sf_data: dict):
-        self.external.update(sf_data)
+        """
+        [DEPRECATED] Deprecated method for injecting shopfloor data.
+        Please use inject_yaml() instead.
+        """
+        from sapas.modules.log import warn
+        warn("[DEPRECATION] inject_sf() is deprecated and will be removed in future versions. Please use inject_yaml() instead.", tag='CONTEXT')
+        self.inject_yaml(sf_data)
 
     def set(self, key, value):
         if key == 'ERROR_CODE' and value == 'PASS':

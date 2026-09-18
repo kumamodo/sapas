@@ -334,3 +334,33 @@ sapas <腳本名稱>
 
 這樣系統會自動加載對應的 YAML 設定與連線資訊，模擬最真實的執行環境。
 
+---
+
+## 12. 動態外部數據注入 (`sapas.ctx.inject_yaml`)
+
+Sapas 提供了 `sapas.ctx.inject_yaml()` 函式，用於在測試執行期間動態將外部數據（例如條碼槍掃碼資訊、上游 MES/Shopfloor 數據或外部 YAML 配置文件）注入到全域 `sapas.var` / `sapas.ctx.external` 數據中：
+
+- **`sapas.ctx.inject_yaml(source)`**: 支援傳入字典 (`dict`)、YAML 檔案路徑 (`str` / `Path`) 或 YAML 內容字串。
+
+> [!NOTE]
+> 舊有的 `sapas.ctx.inject_sf()` 函式已被 `inject_yaml()` 取代，舊名稱目前已棄用（Deprecated）但維持向下相容。
+
+```python
+import sapas
+
+class ShopfloorInit(sapas.ActionItem):
+    def run_action(self):
+        # 1. 直接讀取並注入外部 YAML 檔案內容
+        sapas.ctx.inject_yaml("D:/output/sf_data.yaml")
+
+        # 2. 或直接注入字典格式數據
+        sapas.ctx.inject_yaml({
+            "MAC_ADDRESS": "AA:BB:CC:DD:EE:FF",
+            "WORK_ORDER": "WO-20260918"
+        })
+
+        # 3. 在隨後的步驟中透過 sapas.var 讀取
+        mac = sapas.var.get("MAC_ADDRESS")
+        sapas.info(f"Loaded MAC: {mac}")
+```
+
