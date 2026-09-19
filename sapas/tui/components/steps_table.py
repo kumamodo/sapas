@@ -35,8 +35,9 @@ class StepsTable(DataTable):
         self.clear()
         for step in test_steps:
             label = step.item_label
-            status = step_status.get(step.item_id, "PENDING")
-            self.add_row(step.item_id, format_status(status), label, key=step.item_id)
+            default_status = "END_IF" if step.command == "end_if" else ("IF" if step.is_condition else "PENDING")
+            status = step_status.get(step.row_key, default_status)
+            self.add_row(step.item_id, format_status(status), label, key=step.row_key)
 
     def add_on_fail_section(self, on_fail_steps: list[TestStep], step_status: dict[str, str]) -> None:
         """Dynamically appends a recovery section header and on_fail steps to the table."""
@@ -53,9 +54,9 @@ class StepsTable(DataTable):
 
         for step in on_fail_steps:
             label = step.item_label
-            status = "PENDING"
-            step_status[step.item_id] = status
-            self.add_row(step.item_id, format_status(status), label, key=step.item_id)
+            status = "END_IF" if step.command == "end_if" else ("IF" if step.is_condition else "PENDING")
+            step_status[step.row_key] = status
+            self.add_row(step.item_id, format_status(status), label, key=step.row_key)
 
     def update_step_status(self, row_key: str, status: str, test_steps: list[TestStep], step_status: dict[str, str]) -> None:
         """Updates internal dictionary keys and triggers state re-renders for test list cells."""

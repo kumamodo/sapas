@@ -16,6 +16,8 @@ def format_status(status: str) -> Text:
         "PASS": (f"{PASS_SYMBOL} PASS", "bold green"),
         "FAIL": (f"{FAIL_SYMBOL} FAIL", "bold red"),
         "SKIP": ("- SKIP", "cyan"),
+        "IF": ("", ""),
+        "END_IF": ("", ""),
     }
-    value, style = cells[status]
+    value, style = cells.get(status, (status, "dim"))
     return Text(value, style=style, no_wrap=True)

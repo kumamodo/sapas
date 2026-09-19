@@ -27,7 +27,7 @@ from sapas.tui.screens.quit_confirm import QuitConfirmScreen
 from sapas.tui.screens.device_manager import DeviceManagerScreen
 from sapas.tui.screens.network_manager import NetworkManagerScreen
 from sapas.tui.utils.constants import PASS_SYMBOL, FAIL_SYMBOL, SKIP_FLOW_COMMANDS
-from sapas.tui.utils.data_types import TestStep
+from sapas.tui.utils.data_types import TestStep, parse_flow_tree
 from sapas.tui.engine.log_interceptor import LogInterceptor
 from sapas.tui.engine.runner_worker import run_flow_in_daemon_thread, run_single_step_in_daemon_thread
 
@@ -192,8 +192,19 @@ class SapasDashboard(App[None]):
     def _update_step_detail_bar(self, row_key: str) -> None:
         """Updates the persistent detail bar at the bottom of the items panel with step info."""
         try:
-            step = next((s for s in self.test_steps + self.on_fail_steps if s.item_id == row_key), None)
+            step = next((s for s in self.test_steps + self.on_fail_steps if s.row_key == row_key), None)
             if not step:
+                return
+
+            if step.is_condition:
+                text = Text()
+                text.append("[CONDITION] ", style="bold yellow")
+                if step.command == "end_if":
+                    cond_info = f" ({step.condition})" if step.condition else ""
+                    text.append(f"END OF IF{cond_info}", style="bold white")
+                else:
+                    text.append(f"IF {step.condition}", style="bold white")
+                self.query_one("#step-detail-bar", Static).update(text)
                 return
 
             status = self.step_status.get(row_key, "PENDING")
@@ -201,7 +212,7 @@ class SapasDashboard(App[None]):
             skip_reason = table.get_skip_reason(row_key)
 
             text = Text()
-            text.append(f"[{step.item_id}] {step.item_label} ", style="bold")
+            text.append(f"[{step.item_id}] {step.flow_item} ", style="bold")
             if status == "SKIP":
                 text.append("[- SKIP]\n", style="bold yellow")
                 text.append(f"IF {skip_reason or 'Condition False'}", style="yellow")
@@ -397,41 +408,8 @@ class SapasDashboard(App[None]):
                 flow_path = matches[0]
 
         cycle_count, flow_items, failure_cleanup_items = FlowLoader().load_flow(str(flow_path))
-        steps: list[TestStep] = []
-        for runner_index, (command, item) in enumerate(flow_items):
-            command = command.strip().lower()
-            item = item.strip()
-            if command in SKIP_FLOW_COMMANDS:
-                continue
-            item_id = f"{len(steps) + 1:03d}"
-            label = f"{command} {item}".strip() if command in ("delay", "prompt") else item
-            steps.append(
-                TestStep(
-                    item_id=item_id,
-                    runner_index=f"{runner_index:03d}",
-                    item_label=label,
-                    flow_item=item,
-                    command=command,
-                )
-            )
-
-        on_fail_steps: list[TestStep] = []
-        for runner_index, (command, item) in enumerate(failure_cleanup_items):
-            command = command.strip().lower()
-            item = item.strip()
-            if command in SKIP_FLOW_COMMANDS:
-                continue
-            item_id = f"F{len(on_fail_steps) + 1:02d}"
-            label = f"{command} {item}".strip() if command in ("delay", "prompt") else item
-            on_fail_steps.append(
-                TestStep(
-                    item_id=item_id,
-                    runner_index=f"F{runner_index:02d}",
-                    item_label=label,
-                    flow_item=item,
-                    command=command,
-                )
-            )
+        steps = parse_flow_tree(flow_items, is_on_fail=False)
+        on_fail_steps = parse_flow_tree(failure_cleanup_items, is_on_fail=True)
         return steps, cycle_count, on_fail_steps
 
     def on_resize(self, event: Resize) -> None:
@@ -482,7 +460,7 @@ class SapasDashboard(App[None]):
         self.push_screen(NetworkManagerScreen())
 
     def action_toggle_debug_mode(self) -> None:
-        """Toggle TE Debug Mode on or off."""
+        """Toggle Debug Mode on or off."""
         if self.is_testing:
             self.write_terminal_log("[WARN] Cannot toggle Debug Mode while test is running.", "bold yellow")
             return
@@ -496,20 +474,20 @@ class SapasDashboard(App[None]):
             self.exit_debug_mode()
 
     def enter_debug_mode(self) -> None:
-        """Enables TE Debug Mode with strong visual warning and re-test keybinding."""
+        """Enables Debug Mode with strong visual warning and re-test keybinding."""
         self.is_debug_mode = True
         app_root = self.query_one("#app-root")
         app_root.remove_class("blink")
         app_root.add_class("debug-mode")
-        app_root.border_subtitle = " [!] TE DEBUG MODE - PRESS F7 TO EXIT [!] "
+        app_root.border_subtitle = " [!] DEBUG MODE - PRESS F7 TO EXIT [!] "
 
         self.sub_title = Text.assemble(
-            ("[! TE DEBUG MODE !] ", "bold bright_yellow"),
+            ("[! DEBUG MODE !] ", "bold bright_yellow"),
             ("Press 'r' to Re-test, F7 to Exit", "bold yellow")
         )
 
         self.write_terminal_log("=" * 60, "bold bright_yellow")
-        self.write_terminal_log(">>> ENTERED TE DEBUG MODE <<<", "bold bright_yellow")
+        self.write_terminal_log(">>> ENTERED DEBUG MODE <<<", "bold bright_yellow")
         self.write_terminal_log("Select any PASS or FAIL step and press 'r' to re-test.", "yellow")
         self.write_terminal_log("(Diagnostic run only - DUT test results and Shopfloor will NOT be modified)", "dim")
         self.write_terminal_log("=" * 60, "bold bright_yellow")
@@ -520,7 +498,7 @@ class SapasDashboard(App[None]):
             pass
 
     def exit_debug_mode(self, reason: str = "") -> None:
-        """Exits TE Debug Mode and restores standard production layout."""
+        """Exits Debug Mode and restores standard production layout."""
         self.is_debug_mode = False
         self._sf_blink_counter = 2
         app_root = self.query_one("#app-root")
@@ -529,14 +507,14 @@ class SapasDashboard(App[None]):
         self.update_info_display()
 
         if reason:
-            self.write_terminal_log(f"[INFO] Exited TE Debug Mode ({reason}).", "bold cyan")
+            self.write_terminal_log(f"[INFO] Exited Debug Mode ({reason}).", "bold cyan")
         else:
-            self.write_terminal_log("[INFO] Exited TE Debug Mode.", "bold cyan")
+            self.write_terminal_log("[INFO] Exited Debug Mode.", "bold cyan")
 
         self.call_after_refresh(self.focus_serial_input)
 
     def action_debug_retest_step(self) -> None:
-        """Triggered by pressing 'r' in TE Debug Mode to re-test the selected step."""
+        """Triggered by pressing 'r' in Debug Mode to re-test the selected step."""
         if not self.is_debug_mode:
             return
         if self.is_retesting or self.is_testing:
@@ -550,9 +528,13 @@ class SapasDashboard(App[None]):
             return
 
         row_key = table.ordered_rows[cursor_row].key.value
-        step = next((s for s in self.test_steps if s.item_id == row_key), None)
+        step = next((s for s in self.test_steps if s.row_key == row_key), None)
         if not step:
             self.write_terminal_log(f"[WARN] Step not found for row {row_key}.", "bold yellow")
+            return
+
+        if step.is_condition:
+            self.write_terminal_log("[WARN] Condition headers cannot be re-tested.", "bold yellow")
             return
 
         status = self.step_status.get(row_key, "PENDING")
@@ -566,10 +548,10 @@ class SapasDashboard(App[None]):
         asyncio.create_task(self.run_debug_single_step(step))
 
     async def run_debug_single_step(self, step: TestStep) -> None:
-        """Executes a single test step in background for TE diagnosis without altering DUT status."""
+        """Executes a single test step in background for diagnosis without altering DUT status."""
         self.is_retesting = True
         self.write_terminal_log("=" * 60, "bold cyan")
-        self.write_terminal_log(f"[TE DEBUG RUN] Step [{step.item_id}] {step.item_label}", "bold cyan")
+        self.write_terminal_log(f"[DEBUG RUN] Step [{step.item_id}] {step.item_label}", "bold cyan")
         self.write_terminal_log("(Diagnostic run only - DUT test results and state will NOT be modified)", "dim cyan")
         self.write_terminal_log("=" * 60, "bold cyan")
 
@@ -591,7 +573,7 @@ class SapasDashboard(App[None]):
         status_str = "PASS" if return_code == 0 else f"FAIL (code={return_code})"
         style_str = "bold green" if return_code == 0 else "bold red"
         self.write_terminal_log("=" * 60, style_str)
-        self.write_terminal_log(f"[TE DEBUG FINISHED] Step [{step.item_id}] Result: {status_str}", style_str)
+        self.write_terminal_log(f"[DEBUG FINISHED] Step [{step.item_id}] Result: {status_str}", style_str)
         self.write_terminal_log("=" * 60, style_str)
 
     def handle_quit_confirmation(self, confirmed: bool) -> None:
@@ -624,7 +606,10 @@ class SapasDashboard(App[None]):
         self.running_step_key = None
         self.stop_requested = False
         self.rebuild_step_indexes()
-        self.step_status = {step.item_id: "PENDING" for step in self.test_steps}
+        self.step_status = {
+            step.row_key: ("END_IF" if step.command == "end_if" else ("IF" if step.command == "if" else "PENDING"))
+            for step in self.test_steps
+        }
         try:
             self.query_one("#items-table", StepsTable).clear_skip_reasons()
             self.query_one("#step-detail-bar", Static).update("Select a step to view details")
@@ -689,6 +674,8 @@ class SapasDashboard(App[None]):
         self.step_index_by_runner_index = {}
         self.pending_step_ids_by_item = {}
         for step in self.test_steps:
+            if step.is_condition:
+                continue
             self.step_index_by_runner_index[step.runner_index] = step.item_id
             for key in self.item_lookup_keys(step.flow_item):
                 self.pending_step_ids_by_item.setdefault(key, []).append(step.item_id)
@@ -697,6 +684,8 @@ class SapasDashboard(App[None]):
         """Build lookup maps for the on_fail cleanup steps."""
         self.pending_on_fail_ids_by_item = {}
         for step in self.on_fail_steps:
+            if step.is_condition:
+                continue
             for key in self.item_lookup_keys(step.flow_item):
                 self.pending_on_fail_ids_by_item.setdefault(key, []).append(step.item_id)
 
@@ -750,7 +739,10 @@ class SapasDashboard(App[None]):
         """Resets the UI state for a new cycle within the same test session."""
         self.running_step_key = None
         self.rebuild_step_indexes()
-        self.step_status = {step.item_id: "PENDING" for step in self.test_steps}
+        self.step_status = {
+            step.row_key: ("END_IF" if step.command == "end_if" else ("IF" if step.command == "if" else "PENDING"))
+            for step in self.test_steps
+        }
         try:
             self.query_one("#items-table", StepsTable).clear_skip_reasons()
             self.query_one("#step-detail-bar", Static).update("Select a step to view details")
