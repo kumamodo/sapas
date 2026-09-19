@@ -355,12 +355,11 @@ class SapasDashboard(App[None]):
         if not self.is_debug_mode:
             app_root.remove_class("sf-enabled", "sf-disabled")
             if sf_enabled:
-                app_root.add_class("sf-enabled")
-                app_root.border_subtitle = " SHOPFLOOR ONLINE "
+                app_root.border_subtitle = ""
                 app_root.border_title = ""
             else:
                 app_root.add_class("sf-disabled")
-                app_root.border_subtitle = " SHOPFLOOR OFFLINE "
+                app_root.border_subtitle = " SHOPFLOOR DISABLED "
                 app_root.border_title = ""
 
         # 5. Construct metadata text string using left-aligned factory guidelines

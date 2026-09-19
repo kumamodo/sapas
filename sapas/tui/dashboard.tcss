@@ -31,11 +31,6 @@ Screen, Widget {
     border: heavy $panel;
 }
 
-#app-root.sf-enabled {
-    border: heavy $success;
-    border-subtitle-align: center;
-}
-
 #app-root.debug-mode,
 #app-root.sf-disabled.debug-mode,
 #app-root.sf-disabled.blink.debug-mode {
