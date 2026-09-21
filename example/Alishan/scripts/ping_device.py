@@ -1,5 +1,3 @@
-import sys
-
 import sapas
 from sapas import ActionItem
 
@@ -25,7 +23,5 @@ class PingDevice(ActionItem):
 
         if is_online:
             sapas.info(f"Target [{target}] is ONLINE and reachable.")
-            sys.exit(0)
         else:
-            sapas.error(f"Target [{target}] is OFFLINE or unreachable after {timeout:g}s timeout.")
-            sys.exit(1)
+            sapas.fail(f"Target [{target}] is OFFLINE or unreachable after {timeout:g}s timeout.")

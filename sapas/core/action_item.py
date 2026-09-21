@@ -58,6 +58,15 @@ class ActionItem(BaseItem, ABC):
         """Logs an error message."""
         self._log_impl(message, *args, tag="ERROR")
 
+    def fail(self, message: str) -> None:
+        """
+        Aborts execution and marks the action item as failed (code 80, status FAIL).
+        """
+        import sys
+        self.error(message)
+        ctx.set('ERROR_DESCRIPTION', message)
+        sys.exit(80)
+
     def _main_process(self) -> int:
         """Encapsulates the standard error-handling workflow."""
         ctx.set("ACTIVE_LOGGER", self.logger)
@@ -71,12 +80,17 @@ class ActionItem(BaseItem, ABC):
             if code == 0:
                 ctx.set('ERROR_CODE', 'PASS')
                 return 0
+            elif code == 80:
+                # Code 80 represents an expected logical test failure (FAIL)
+                ctx.set('ERROR_CODE', 'FAIL')
+                return 80
             else:
-                msg = f"sys.exit({e.code})"
-                self.error(msg)
+                # Other non-zero exit codes represent unhandled system errors / script crashes (CRITICAL)
+                msg = ctx.get('ERROR_DESCRIPTION') or f"sys.exit({e.code})"
+                self.error(f"Action item exited with code {code}: {msg}")
                 ctx.set('ERROR_CODE', 'CRITICAL')
                 ctx.set('ERROR_DESCRIPTION', msg)
-                return 1
+                return code
         except Exception as e:
             self.error(str(e))
             ctx.set('ERROR_CODE', 'CRITICAL')

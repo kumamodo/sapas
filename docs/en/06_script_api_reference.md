@@ -191,6 +191,7 @@ Within a script, it is recommended to use the global log functions provided by `
 - **`sapas.info(msg)`**: Records general information. Displayed as `[  USER  ]` in `TestItem` and `[ ACTION ]` in `ActionItem`.
 - **`sapas.warn(msg)`**: Records warning information (Tag: `[  WARN  ]`).
 - **`sapas.error(msg)`**: Records error information (Tag: `[ ERROR  ]`).
+- **`sapas.fail(msg)`** / **`self.fail(msg)`**: Explicitly marks an Action test as failed and aborts execution (Exit Code `80` / Status `FAIL`). Automatically logs error message and sets `ERROR_DESCRIPTION`.
 
 ```python
 import sapas
@@ -200,6 +201,10 @@ class LogDemo(sapas.ActionItem):
         sapas.info("This is a general info log")
         sapas.warn("This is a warning log")
         sapas.error("This is an error log")
+        
+        # Abort cleanly on logical failure (no import sys needed)
+        if not is_connected:
+            sapas.fail("Device connection failed!")
 ```
 
 ---

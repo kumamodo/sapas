@@ -21,6 +21,8 @@ if TYPE_CHECKING:
     measure: MeasureProxy
     psu: Any
 
+import sys
+
 def arg(*args, **kwargs):
     """
     Decorator to register custom arguments for a TestItem or ActionItem.
@@ -36,6 +38,22 @@ def arg(*args, **kwargs):
         cls._custom_args.insert(0, (args, kwargs))
         return cls
     return decorator
+
+def fail(message: str = "Script invoked sapas.fail()"):
+    """
+    Aborts execution and marks the action item as failed (code 80, status FAIL).
+    
+    Usage in ActionItem scripts:
+        sapas.fail("Target DUT is offline after timeout")
+    """
+    active_item = ctx.get("ACTIVE_ITEM")
+    if active_item is not None and hasattr(active_item, "pResult"):
+        warn("[WARNING] sapas.fail() was invoked inside a verify (TestItem). "
+             "Consider using sapas.measure for test limit evaluation instead of forced exit.", tag="SAPAS")
+
+    error(message)
+    ctx.set('ERROR_DESCRIPTION', message)
+    sys.exit(80)
 
 def __getattr__(name):
     if name == "link":
@@ -64,5 +82,5 @@ __all__ = [
     "ctx", "link", "var", "measure", "psu", "arg",
     "TestItem", "ActionItem", "BaseItem", "Message",
     "BasePowerSupply", "BaseInstrument",
-    "info", "warn", "error", "sleep", "ping"
+    "info", "warn", "error", "fail", "sleep", "ping"
 ]

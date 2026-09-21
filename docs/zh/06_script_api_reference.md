@@ -191,6 +191,7 @@ def run_test(self):
 - **`sapas.info(msg)`**: 紀錄一般資訊。在 `TestItem` 中顯示標籤為 `[  USER  ]`；在 `ActionItem` 中顯示標籤為 `[ ACTION ]`。
 - **`sapas.warn(msg)`**: 紀錄警告資訊 (Tag: `[  WARN  ]`)。
 - **`sapas.error(msg)`**: 紀錄錯誤資訊 (Tag: `[ ERROR  ]`)。
+- **`sapas.fail(msg)`** / **`self.fail(msg)`**: 主動宣告 Action 測試失敗並中斷執行 (Exit Code `80` / Status `FAIL`)。自動記錄 Error 日誌並將原因寫入全域 `ERROR_DESCRIPTION`。
 
 ```python
 import sapas
@@ -200,6 +201,10 @@ class LogDemo(sapas.ActionItem):
         sapas.info("這是一條一般資訊日誌")
         sapas.warn("這是一條警告日誌")
         sapas.error("這是一條錯誤日誌")
+        
+        # 邏輯失敗時優雅退出 (無需 import sys)
+        if not is_connected:
+            sapas.fail("裝置連線失敗！")
 ```
 
 ---

@@ -317,9 +317,9 @@ class Runner():
                 # Reset the context to clear all per-cycle runtime variables.
                 self.ctx.reset()
                 
-                # Re-initialize cycle status to Fail-Safe state.
-                self.ctx.set('ERROR_CODE', 'FAIL')
-                self.ctx.set('ERROR_DESCRIPTION', 'Test initialized but not completed')
+                # Re-initialize cycle status to RUNNING state.
+                self.ctx.set('ERROR_CODE', 'RUNNING')
+                self.ctx.set('ERROR_DESCRIPTION', 'Test initialized and running')
                 
                 stop_test_flag = False
                 if current_cycle >= 2:
@@ -418,26 +418,24 @@ class Runner():
                     # Any value other than 0 (PASS) indicates an issue
                     # (e.g., a 80 failure condition or a script crash).
                     if return_code == 80:
-                        if prefix == 'verify':
-                            warn(f"Item failure detected. Aborting...", tag='RUNNER')
-                            has_item_fail = True
+                        warn(f"Item failure detected. Aborting...", tag='RUNNER')
+                        has_item_fail = True
+                        current_err = self.ctx.get('ERROR_CODE')
+                        if not current_err or current_err == 'PASS':
+                            self.ctx.set('ERROR_CODE', 'FAIL')
 
                     elif return_code != 0:
-                        # Retrieve directly from ctx, since TestItem has already
-                        # populated the most accurate ErrCode before completion.
-                        err_code = self.ctx.get('ERROR_CODE') or 'UNKNOWN_ERROR_CODE'
+                        # Any return_code != 0 and != 80 represents an unhandled script crash / exception.
+                        self.ctx.set('ERROR_CODE', 'CRITICAL')
+                        err_code = self.ctx.get('ERROR_CODE') or 'CRITICAL'
                         err_desc = self.ctx.get('ERROR_DESCRIPTION') or 'No description provided'
                         
                         error(f"[FAILED] {self.current_item} Failed!", tag='RUNNER')
                         error(f"Error Code: {err_code} | Description: {err_desc}", tag='RUNNER')
-
-                        # If it is a critical item (or of verify type),
-                        # determine whether to abort the test.
-                        if prefix == 'verify':
-                            error(f"Critical failure detected. Aborting...", tag='RUNNER')
-                            self.ctx.set('ERROR_CODE', 'CRITICAL')
-                            has_item_fail = True
-                            self.critical_error = True
+                        error(f"Critical failure detected. Aborting...", tag='RUNNER')
+                        
+                        has_item_fail = True
+                        self.critical_error = True
 
                     if has_item_fail or self.critical_error:
                         warn(f'Got test item fail, Going to FAIL block!', tag='RUNNER')
@@ -482,6 +480,9 @@ class Runner():
             elif self._is_stop_requested():
                 warn('User stop test!', tag='RUNNER')
                 self.ctx.set('ERROR_CODE', 'STOP')
+            elif not has_item_fail and not self.critical_error:
+                self.ctx.set('ERROR_CODE', 'PASS')
+                self.ctx.set('ERROR_DESCRIPTION', '')
             elif not self.is_fail_stop:
                 self.ctx.set('ERROR_CODE', 'CHECK')
 

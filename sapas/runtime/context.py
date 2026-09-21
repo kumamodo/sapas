@@ -127,7 +127,9 @@ class ExecutionContext:
     def set(self, key, value):
         if key == 'ERROR_CODE' and value == 'PASS':
             current = self.runtime.get(key)
-            if current not in (None, 'PASS', 'FAIL'):
+            # Once ERROR_CODE is set to a failure status (FAIL, CRITICAL, STOP, etc.),
+            # block subsequent attempts to overwrite it back to PASS.
+            if current not in (None, 'PASS', 'RUNNING'):
                 return
         self.runtime[key] = value
 
