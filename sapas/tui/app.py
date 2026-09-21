@@ -99,6 +99,7 @@ class SapasDashboard(App[None]):
             on_prompt_start=self._handle_prompt_start,
             on_prompt_finish=self._handle_prompt_finish,
             on_fail_start=self._handle_fail_start,
+            on_fail_finish=self._handle_fail_finish,
         )
 
     def _handle_context_created(self, context) -> None:
@@ -118,12 +119,22 @@ class SapasDashboard(App[None]):
         try:
             table = self.query_one("#items-table", StepsTable)
             table.add_on_fail_section(self.on_fail_steps, self.step_status)
+            for step in self.on_fail_steps:
+                status = "END_IF" if step.command == "end_if" else ("IF" if step.is_condition else "PENDING")
+                self.set_step_status(step.row_key, status)
         except Exception:
             pass
+
+    def _handle_fail_finish(self) -> None:
+        self.is_in_fail_block = False
+        self.running_step_key = None
 
     def _handle_step_start(self, item_name: str) -> None:
         if self.is_in_fail_block:
             row_key = self.pop_next_pending_on_fail_step(item_name)
+            if not row_key:
+                self.is_in_fail_block = False
+                row_key = self.pop_next_pending_step(item_name)
         else:
             row_key = self.pop_next_pending_step(item_name)
         if row_key:
@@ -133,6 +144,9 @@ class SapasDashboard(App[None]):
     def _handle_delay_start(self, delay_item: str) -> None:
         if self.is_in_fail_block:
             row_key = self.pop_next_pending_on_fail_step(delay_item)
+            if not row_key:
+                self.is_in_fail_block = False
+                row_key = self.pop_next_pending_step(delay_item)
         else:
             row_key = self.pop_next_pending_step(delay_item)
         if row_key:
@@ -142,6 +156,9 @@ class SapasDashboard(App[None]):
     def _handle_prompt_start(self, prompt_item: str) -> None:
         if self.is_in_fail_block:
             row_key = self.pop_next_pending_on_fail_step(prompt_item)
+            if not row_key:
+                self.is_in_fail_block = False
+                row_key = self.pop_next_pending_step(prompt_item)
         else:
             row_key = self.pop_next_pending_step(prompt_item)
         if row_key:
@@ -156,6 +173,9 @@ class SapasDashboard(App[None]):
     def _handle_step_result(self, item: str, return_code: int) -> None:
         if self.is_in_fail_block:
             row_key = self.running_step_key or self.pop_next_pending_on_fail_step(item)
+            if not row_key:
+                self.is_in_fail_block = False
+                row_key = self.running_step_key or self.pop_next_pending_step(item)
         else:
             row_key = self.running_step_key or self.pop_next_pending_step(item)
         if row_key:

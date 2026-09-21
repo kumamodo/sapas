@@ -287,6 +287,7 @@ class Runner():
             is_cycle_fail = False
             has_item_fail = False
             stop_test_flag = False
+            session_has_fail = False
             self.item_index = 0
             flow = FlowLoader()
             self.cycle, self.test_item_list, self.on_fail_list = flow.load_flow(flow_file_path=station_flow_file_path)
@@ -438,6 +439,7 @@ class Runner():
                         self.critical_error = True
 
                     if has_item_fail or self.critical_error:
+                        session_has_fail = True
                         warn(f'Got test item fail, Going to FAIL block!', tag='RUNNER')
                         if self.is_fail_stop:
                             is_cycle_fail = True
@@ -453,6 +455,8 @@ class Runner():
                                 self._cmd_prompt(fail_content)
                             else:
                                 return_code = self._run_test_script(fail_content)
+
+                        info('FAIL block finished.', tag='RUNNER')
 
                         if self.critical_error:
                             error('Got a critical error!', tag='RUNNER')
@@ -480,7 +484,7 @@ class Runner():
             elif self._is_stop_requested():
                 warn('User stop test!', tag='RUNNER')
                 self.ctx.set('ERROR_CODE', 'STOP')
-            elif not has_item_fail and not self.critical_error:
+            elif not session_has_fail and not self.critical_error:
                 self.ctx.set('ERROR_CODE', 'PASS')
                 self.ctx.set('ERROR_DESCRIPTION', '')
             elif not self.is_fail_stop:
