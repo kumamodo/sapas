@@ -69,6 +69,9 @@ def execute_real_flow(
     tui_handler = TUILogHandler(lambda line: emit_line_cb(line, ""))
     tui_handler.setFormatter(logging.Formatter("%(message)s"))
     root_logger = logging.getLogger()
+    for h in list(root_logger.handlers):
+        if h.__class__.__name__ == "RichHandler":
+            root_logger.removeHandler(h)
     root_logger.addHandler(tui_handler)
 
     stderr_capture = LineCapture(lambda line: emit_line_cb(line, "bold red"), "STDERR")
@@ -166,6 +169,9 @@ def execute_single_step_debug(
     tui_handler = TUILogHandler(lambda line: emit_line_cb(line, ""))
     tui_handler.setFormatter(logging.Formatter("%(message)s"))
     root_logger = logging.getLogger()
+    for h in list(root_logger.handlers):
+        if h.__class__.__name__ == "RichHandler":
+            root_logger.removeHandler(h)
     root_logger.addHandler(tui_handler)
 
     stderr_capture = LineCapture(lambda line: emit_line_cb(line, "bold red"), "STDERR")

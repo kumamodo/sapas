@@ -66,10 +66,13 @@ class Message:
             if self.logger.name != "root":
                 self.logger.propagate = True
 
-        # Replace the root logger’s console output with RichHandler.
+        # Replace the root logger’s console output with RichHandler (CLI mode only).
+        # In TUI mode, TUILogHandler routes structured logs directly to the TUI log view,
+        # so RichHandler is omitted to prevent leaking background terminal writes into stdout.
         root_logger = logging.getLogger()
+        is_tui = any(h.__class__.__name__ == "TUILogHandler" for h in root_logger.handlers)
 
-        if not any(isinstance(h, RichHandler) for h in root_logger.handlers):
+        if not is_tui and not any(isinstance(h, RichHandler) for h in root_logger.handlers):
             # RichHandler automatically handles timestamps and log levels,
             # so no additional formatter is needed.
             rich_handler = RichHandler(
