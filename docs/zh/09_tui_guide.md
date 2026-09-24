@@ -190,7 +190,7 @@ sapas --tui --project Alishan --station Function --test_flow Function.flow
 | `F2` | 將輸入焦點移回 Serial Number 輸入框 |
 | `F3` | 切換 UI 佈景主題（Theme Cycle） |
 | `F4` | 開啟 / 關閉 Device Manager（裝置管理器）覆蓋視窗 |
-| `F6` | 開啟 / 關閉 Network Adapters（網路介面卡管理）覆蓋視窗 |
+| `F6` | 開啟 / 關閉 Station Environment Monitor（站別環境監控）覆蓋視窗 |
 | `Y` / `N` / `Escape` | 退出確認對話框中的快速鍵回應 |
 
 ---
@@ -225,23 +225,22 @@ sapas --tui --project Alishan --station Function --test_flow Function.flow
 
 ---
 
-### 3.6 Network Adapter Manager（網路介面管理器）
+### 3.6 Station Environment Monitor（站別環境監控）
 
-按下 `F6` 可開啟 Network Adapter Manager 覆蓋視窗，掃描並列出目前所有網路介面的狀態：
-
-![Network Adapter Manager](../images/tui_network_manager.png)
+按下 `F6` 可開啟 Station Environment Monitor 覆蓋視窗，即時輪詢監測 `station.yaml` 中所定義的環境目標（如 Gateway、治具 PLC、DUT、伺服器等）：
 
 | 欄位 | 說明 |
 |------|------|
-| `Adapter Name` | 網路介面名稱（如 Wi-Fi、Ethernet） |
-| `IP Address` | 目前取得的 IP 位址 |
-| `Link Speed` | 連線速率（如 `866.7 Mbps`） |
-| `Status` | 連線狀態（`Up` 白色 / `Disconnected` 橘色） |
+| `Target Name` | 目標設備名稱（如 Local Gateway、Fixture PLC、DUT） |
+| `Host / Address` | 目標 IP 位址或 `IP:Port` |
+| `Status` | 連線狀態（`✓ ONLINE` 綠色 / `❌ OFFLINE` 紅色） |
+| `Latency` | 網路連線延遲時間（如 `<1 ms`、`12 ms`，離線顯示 `---`） |
 
-- **Refresh (F5)**：重新掃描網路介面清單。
-- **Close (Esc)**：關閉視窗，返回主儀表板。
+- **動態倒數自動輪詢**：停留在 F6 視窗時，系統預設以 3 秒倒數（`Refreshing in 3s` ➔ `2s` ➔ `1s`）持續在背景進行並行輪詢，隨時掌握設備燈號變化，排查網路或插拔硬體時無須手動敲鍵盤。
+- **手動刷新 (F5)**：若剛接上線路不想等待倒數，可隨時按下鍵盤 `F5` 立即插隊檢測並重置倒數。
+- **Close (Esc)**：按 `Esc` 或點擊關閉按鈕退出並返回主儀表板，視窗關閉後計時器立即銷毀，背景零耗能。
 
-> 💡 **提示**：若 Shopfloor 顯示離線，可先至此確認網路介面 IP 是否正確取得。
+> 💡 **提示**：環境目標於 `station.yaml`（或本地 `site_infra.yaml`）中的 `MONITOR:` 區塊進行設定。
 
 ---
 

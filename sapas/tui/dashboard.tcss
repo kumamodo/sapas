@@ -501,3 +501,65 @@ NetworkManagerScreen {
     border: solid $accent;
 }
 
+StationMonitorScreen {
+    align: center middle;
+    background: #000000 75%;
+}
+
+#station-monitor-dialog {
+    width: 90;
+    height: 24;
+    background: $panel;
+    border: heavy $accent;
+    padding: 1 2;
+    layout: vertical;
+}
+
+#station-monitor-title {
+    content-align: center middle;
+    text-style: bold;
+    color: $accent;
+    height: 1;
+    margin-bottom: 1;
+}
+
+#station-monitor-table {
+    height: 12;
+    background: $surface;
+    color: $foreground;
+    border: none;
+    scrollbar-size-horizontal: 0;
+}
+
+#station-monitor-table > .datatable--header {
+    background: $secondary;
+    color: $foreground;
+    text-style: bold;
+}
+
+#station-monitor-status {
+    height: 1;
+    content-align: center middle;
+    color: $warning;
+    margin: 0;
+    text-style: italic;
+}
+
+#station-monitor-actions {
+    layout: horizontal;
+    height: 3;
+    align: center middle;
+    margin-top: 2;
+}
+
+#monitor-btn-close {
+    width: 24;
+    height: 3;
+    text-style: bold;
+}
+
+#monitor-btn-close:focus {
+    border: solid $accent;
+}
+
+

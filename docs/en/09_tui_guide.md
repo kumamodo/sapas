@@ -190,7 +190,7 @@ sapas --tui --project Alishan --station Function --test_flow Function.flow
 | `F2` | Focuses cursor back to the Serial Number input field |
 | `F3` | Cycle through UI color themes (Theme Cycle) |
 | `F4` | Toggle System Device Manager overlay |
-| `F6` | Toggle Network Adapter Manager overlay |
+| `F6` | Toggle Station Environment Monitor overlay |
 | `Y` / `N` / `Escape` | Quick responses in the quit confirmation dialog |
 
 ---
@@ -225,23 +225,22 @@ Press `F4` to open the System Device Manager overlay, which scans and lists all 
 
 ---
 
-### 3.6 Network Adapter Manager
+### 3.6 Station Environment Monitor
 
-Press `F6` to open the Network Adapter Manager overlay, displaying the status of all network interfaces:
-
-![Network Adapter Manager](../images/tui_network_manager.png)
+Press `F6` to open the Station Environment Monitor overlay, which continuously polls and displays real-time connectivity status for targets defined under `MONITOR:` in `station.yaml` (e.g., Local Gateway, Fixture PLC, DUT, Shopfloor Server):
 
 | Column | Description |
 |------|------|
-| `Adapter Name` | Network adapter name (e.g., Wi-Fi, Ethernet) |
-| `IP Address` | The currently assigned IP address |
-| `Link Speed` | Speed of the active network link (e.g., `866.7 Mbps`) |
-| `Status` | Connection status (`Up` in white / `Disconnected` in orange) |
+| `Target Name` | Configured device / target name (e.g., Local Gateway, Fixture PLC, DUT) |
+| `Host / Address` | Target IP address or `IP:Port` |
+| `Status` | Connectivity status (`✓ ONLINE` in green / `❌ OFFLINE` in red) |
+| `Latency` | Network round-trip latency (e.g., `<1 ms`, `12 ms`, or `---` if unreachable) |
 
-- **Refresh (F5)**: Re-scans all network interfaces.
-- **Close (Esc)**: Closes the overlay and returns to the main dashboard.
+- **Dynamic Auto-Polling with Countdown**: While staying on the F6 screen, the system automatically runs concurrent background probes every 3 seconds with a live countdown (`Refreshing in 3s` ➔ `2s` ➔ `1s`). Test Engineers can monitor link status hands-free while reconnecting cables or cycling power.
+- **Manual Refresh (F5)**: If you just reconnected hardware and don't want to wait for the countdown, press `F5` anytime to immediately trigger a check and reset the countdown timer.
+- **Close (Esc)**: Press `Esc` or click Close to exit to the main dashboard. The polling timer and background workers are immediately destroyed with zero CPU or network overhead.
 
-> 💡 **Tip**: If the Shopfloor indicator shows offline, open this manager to verify whether a valid IP address has been assigned.
+> 💡 **Tip**: Configure environment targets in `station.yaml` (or locally in `site_infra.yaml`) under the `MONITOR:` block.
 
 ---
 

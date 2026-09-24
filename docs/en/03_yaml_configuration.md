@@ -47,7 +47,7 @@ This makes `sapas.var` a powerful global data hub, facilitating the transfer of 
 ### station.yaml (Station Standard Baseline)
 *   **Location**: `{Project}/stations/{StationName}/station.yaml`.
 *   **Purpose**: Defines the standard factory equipment and test specifications for the station (tracked in Git).
-*   **Typical Parameters**: `LINK` (station-specific equipment such as power supplies, fixture PLCs), `STATION_ID`.
+*   **Typical Parameters**: `LINK` (station-specific equipment such as power supplies, fixture PLCs), `MONITOR` (station environment connectivity monitoring), `STATION_ID`.
 
 ---
 
@@ -66,7 +66,27 @@ The following are key parameters referenced or automatically generated within th
 | `ENABLE_SHOPFLOOR`| Boolean | Indicates whether the current test is connected to Shopfloor. |
 | `ENABLE_SMB` | Boolean | Whether to upload logs and data from the test process (usually `output/{Serial}`) to a server for later tracking. |
 | `LINK` | Dict | Defines connection drivers (e.g. SSH, ADB, UDP, UART, POWER_SUPPLY). Contains sub-parameters such as `type`, `host`, `user`, `password`, `source_ip` (optional local PC NIC source IP), `drain_timeout` (optional UDP packet chunk drain timeout). The lowercase `link` key is deprecated. |
+| `MONITOR` | List / Dict | Defines station environment monitoring targets (inspected live in the TUI `F6` Station Monitor), supporting ICMP Ping and TCP Port connectivity checks. Examples: Gateway, Fixture PLC, DUT, Server. |
 | `WORKSPACE_ROOT`| Path | (Auto-generated) Points to the root directory where the command is executed. |
 | `ERROR_CODE` | String | (Generated at runtime) Current test status. Common values and meanings:<br>- `PASS`: Test passed successfully.<br>- `FAIL`: Test failed (usually due to a `verify` command failure).<br>- `CRITICAL`: Critical exception (script crash, syntax error, or connection lost).<br>- `STOP`: Test stopped manually by operator.<br>- `CHECK`: Does not mean the test failed. When you want to scan all test items quickly (e.g. setting `IS_FAIL_STOP=False`), the system sets the final status to `CHECK`, prompting the engineer to manually inspect the log or TUI to judge and verify the status of each test item. |
 | `ERROR_DESCRIPTION`| String | (Generated at runtime) Detailed description when a failure occurs. |
 | `RUNNER_LOGGER` | Object | (Internal) Logger object for Python scripts to call. |
+
+---
+
+## 5. MONITOR Station Environment Configuration Example
+
+Define the `MONITOR:` target list in `station.yaml` (or locally in `site_infra.yaml`) to monitor equipment reachability in real time via TUI `F6`:
+
+```yaml
+MONITOR:
+  - name: "Local Gateway"
+    host: "192.168.1.1"        # Uses ICMP ping when port is omitted
+  - name: "Fixture PLC"
+    host: "192.168.1.50"
+    port: 5001                  # Performs TCP Port probe when port is specified
+  - name: "DUT (Device Under Test)"
+    host: "192.168.1.100"
+    port: 22                    # e.g., DUT SSH port
+```
+

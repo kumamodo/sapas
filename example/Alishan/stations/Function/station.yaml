@@ -31,4 +31,16 @@ LINK:
       max_voltage: 16.0     # 16V safety limit
       max_current: 5.0
 
+# Station Environment Monitoring Targets (TUI F6 Monitor)
+MONITOR:
+  - name: "Local Gateway"
+    host: "192.168.1.1"
+  - name: "Fixture PLC"
+    host: "192.168.1.50"
+    port: 5001
+  - name: "DUT (Device Under Test)"
+    host: "192.168.1.100"
+    port: 22
+
+
 

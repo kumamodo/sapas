@@ -47,7 +47,7 @@ Sapas 採用多層級的 YAML 配置系統，讓開發者能彈性管理全域�
 ### station.yaml (工位標配)
 *   **位置**：`{Project}/stations/{StationName}/station.yaml`。
 *   **用途**：定義該工位的標準出廠標配硬體與測試規格（進 Git）。
-*   **典型參數**：`LINK` (工位專屬儀器如電源供應器、治具 PLC), `STATION_ID`。
+*   **典型參數**：`LINK` (工位專屬儀器如電源供應器、治具 PLC), `MONITOR` (站別環境連線監控), `STATION_ID`。
 
 ---
 
@@ -66,8 +66,28 @@ Sapas 採用多層級的 YAML 配置系統，讓開發者能彈性管理全域�
 | `ENABLE_SHOPFLOOR`| Boolean | 表示當前測試是否連接 Shopfloor。 |
 | `ENABLE_SMB` | Boolean | 是否將測試過程中的 Log 與數據 (通常為 `output/{序號}`) 上傳至 Server 以供日後追蹤。 |
 | `LINK` | Dict | 定義連線驅動（如 SSH、ADB、UDP、UART）。內部包含 `type`, `host`, `user`, `password`, `source_ip` (可選，綁定 PC 本地網卡來源 IP), `drain_timeout` (可選，UDP 封包排空超時) 等子參數。小寫的 `link` 屬舊式寫法，未來將棄用。 |
+| `MONITOR` | List / Dict | 定義工位環境監控目標（供 TUI `F6` Station Monitor 即時監測），支援 ICMP Ping 或 TCP Port 檢測。例如：Gateway、治具 PLC、DUT、伺服器等。 |
 | `WORKSPACE_ROOT`| Path | (系統自動生成) 指向當前執行指令的根目錄。 |
 | `ERROR_CODE` | String | (執行時生成) 目前測試狀態。常見值與含意：<br>- `PASS`：測試成功通過。<br>- `FAIL`：測試不合格（通常為 `verify` 指令判定失敗）。<br>- `CRITICAL`：嚴重異常（腳本崩潰、語法錯誤或連線中斷）。<br>- `STOP`：操作員手動中斷測試。<br>- `CHECK`：不代表測試不通過。當希望快速掃完所有測試項目後（例如設定 `IS_FAIL_STOP=False`），系統會將最終狀態設為 `CHECK`，提示工程師需自行至 Log 或介面中判定與確認每個測試項目的實際狀況。 |
 | `ERROR_DESCRIPTION`| String | (執行時生成) 失敗時的詳細描述。 |
 | `RUNNER_LOGGER` | Object | (系統內部使用) 供 Python 腳本調用的 Logger 物件。 |
+
+---
+
+## 4. MONITOR 站別環境監控配置範例
+
+在 `station.yaml`（或本地 `site_infra.yaml`）中定義 `MONITOR:` 清單，TUI 介面按下 `F6` 時即可即時掌握各設備連通狀態：
+
+```yaml
+MONITOR:
+  - name: "Local Gateway"
+    host: "192.168.1.1"        # 未指定 port 時使用 ICMP ping
+  - name: "Fixture PLC"
+    host: "192.168.1.50"
+    port: 5001                  # 指定 port 則進行 TCP Port 連線檢測
+  - name: "DUT (Device Under Test)"
+    host: "192.168.1.100"
+    port: 22                    # 例如 DUT 的 SSH 連接埠
+```
+
 

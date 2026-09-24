@@ -25,7 +25,7 @@ from sapas.tui.components.steps_table import StepsTable
 from sapas.tui.components.log_view import LogView
 from sapas.tui.screens.quit_confirm import QuitConfirmScreen
 from sapas.tui.screens.device_manager import DeviceManagerScreen
-from sapas.tui.screens.network_manager import NetworkManagerScreen
+from sapas.tui.screens.station_monitor import StationMonitorScreen
 from sapas.tui.utils.constants import PASS_SYMBOL, FAIL_SYMBOL, SKIP_FLOW_COMMANDS
 from sapas.tui.utils.data_types import TestStep, parse_flow_tree
 from sapas.tui.engine.log_interceptor import LogInterceptor
@@ -58,7 +58,7 @@ class SapasDashboard(App[None]):
         ("f2", "focus_serial", "Serial Number"),
         ("f3", "cycle_theme", "Theme"),
         ("f4", "toggle_device_manager", "Device Manager"),
-        ("f6", "toggle_network_manager", "Network Adapters"),
+        ("f6", "toggle_station_monitor", "Monitor"),
         ("f7", "toggle_debug_mode", "Debug Mode"),
         Binding("r", "debug_retest_step", "Re-test Step", show=False),
     ]
@@ -471,13 +471,13 @@ class SapasDashboard(App[None]):
                 return
         self.push_screen(DeviceManagerScreen())
 
-    def action_toggle_network_manager(self) -> None:
-        """Toggle the Network Adapter Manager overlay screen."""
+    def action_toggle_station_monitor(self) -> None:
+        """Toggle the Station Environment Monitor overlay screen."""
         for screen in self.screen_stack:
-            if isinstance(screen, NetworkManagerScreen):
+            if isinstance(screen, StationMonitorScreen):
                 self.pop_screen()
                 return
-        self.push_screen(NetworkManagerScreen())
+        self.push_screen(StationMonitorScreen(context=self.context))
 
     def action_toggle_debug_mode(self) -> None:
         """Toggle Debug Mode on or off."""
