@@ -209,3 +209,6 @@ __marimo__/
 # sapas example output
 example/**/output/
 example/**/*.log
+
+# Sapas debug session backup files
+*.bak

@@ -1,6 +1,6 @@
 import yaml
 from pathlib import Path
-from typing import Union
+from typing import Union, Optional
 from datetime import datetime
 
 from sapas.runtime.connection_manager import ConnectionManager
@@ -89,6 +89,20 @@ class ExecutionContext:
         # project.yaml (project) <- station.yaml (station) <- site_infra.yaml (env - highest priority override)
         base = deep_merge(self.project, self.station)
         self.config = deep_merge(base, self.env)
+
+    def reload_config(self, station_cfg: Optional[dict] = None, project_cfg: Optional[dict] = None, env_cfg: Optional[dict] = None):
+        """Live hot-reloads configuration layers and updates hardware link definitions."""
+        if station_cfg is not None:
+            self.station = station_cfg
+        if project_cfg is not None:
+            self.project = project_cfg
+        if env_cfg is not None:
+            self.env = env_cfg
+        self._merge_config()
+        link_configs = self.config.get("LINK") or self.config.get("link") or {}
+        if hasattr(self, "link") and self.link is not None:
+            self.link.close_all()
+            self.link._config = link_configs
 
     def inject_yaml(self, source: Union[dict, str, Path]):
         """
