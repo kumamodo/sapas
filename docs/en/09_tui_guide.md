@@ -191,6 +191,9 @@ sapas --tui --project Alishan --station Function --test_flow Function.flow
 | `F3` | Cycle through UI color themes (Theme Cycle) |
 | `F4` | Toggle System Device Manager overlay |
 | `F6` | Toggle Station Environment Monitor overlay |
+| `F7` | Toggle Debug Mode (Diagnostic & Troubleshooting) |
+| `r` | (Debug Mode only) Single-step re-test selected step (supports PENDING, PASS, FAIL) |
+| `e` | (Debug Mode only) Open Sapas In-App Micro Editor |
 | `Y` / `N` / `Escape` | Quick responses in the quit confirmation dialog |
 
 ---
@@ -241,6 +244,44 @@ Press `F6` to open the Station Environment Monitor overlay, which continuously p
 - **Close (Esc)**: Press `Esc` or click Close to exit to the main dashboard. The polling timer and background workers are immediately destroyed with zero CPU or network overhead.
 
 > 💡 **Tip**: Configure environment targets in `station.yaml` (or locally in `site_infra.yaml`) under the `MONITOR:` block.
+
+---
+
+### 3.7 Debug Mode and In-App Micro Editor
+
+To eliminate cross-border troubleshooting latency for overseas test stations, Sapas provides an integrated diagnostic and micro-editing loop:
+
+#### 1. Entering Debug Mode (`F7`) and Safety Interlocks
+- Press `F7` to enter Debug Mode; the entire dashboard border shifts to bold yellow warning.
+- **Safety Interlock**: While in Debug Mode, the **Start button and Serial Input barcode scanner are physically locked (Disabled)**. Operators cannot accidentally trigger production runs with unvalidated code.
+
+#### 2. Single-Step Diagnostic Re-test (`r`)
+- Move the cursor to any step in the steps table (including unexecuted **`PENDING`** steps) and press `r` to **execute that step in isolation**.
+- Diagnostic output and return results are output exclusively to the right-side Live Terminal Log. **The left-side step status table remains completely frozen and immutable (FAIL stays FAIL)** to preserve 100% test record audit integrity.
+- The diagnostic run executes in an isolated environment, does not alter overall machine test results, and never uploads to Shopfloor.
+
+#### 3. In-App Micro Editor (`e`)
+Press `e` inside Debug Mode to open the Micro Editor, focusing on the 5 most critical factory files:
+1. **`[F1] Script File`**: Dynamically bound to the selected step's Python script (the tab directly displays the actual script filename, e.g. `mcu_max2008x_inttest.py`).
+2. **`[F2] Flow File`**: The active station test flow file (the tab directly displays the actual flow filename, e.g. `station_a.flow`).
+3. **`[F3] site_infra.yaml`**: Local machine environment file (`site_infra.yaml`, local COM Port/IP overrides).
+4. **`[F4] station.yaml`**: Station standard specification (`station.yaml`).
+5. **`[F5] project.yaml`**: Project-wide configuration (`project.yaml`).
+
+- **Switching Tabs**: Click tabs with the mouse or press shortcuts `F1` through `F5`.
+- **Smart Routing for Flow Directives**: If the highlighted test step is a flow directive (`IF`, `END_IF`, `DELAY`, or `PROMPT`), the Micro Editor automatically activates **`[F2]` Flow tab** and positions the cursor directly on that directive's line number.
+- **Saving & Live Hot-Reload**: Press `Ctrl+S` to save. If editing YAML configuration files, Sapas **automatically hot-reloads the changes into Context live**; if editing `.flow` files, Sapas **automatically hot-reloads the flow structure and immediately refreshes the left test items table (e.g., new `delay 3` appears instantly)** without restarting the application.
+- **Closing & Unsaved Changes Protection**: Press `Esc` to close the editor. If any buffer contains unsaved modifications, a confirmation dialog appears (`Save & Close (s)` / `Discard & Close (d)` / `Keep Editing (Esc)`) preventing accidental loss of code. If no edits were made, it exits immediately.
+
+#### 4. Exit Safety Interlock & Timestamped Backups (Rollback & Audit)
+When finished debugging, press **`Esc`** or **`F7`** to exit Debug Mode. If any files were modified during the session, a safety confirmation dialog appears:
+- **`[ Keep Changes ] (k)`**:
+  1. Automatically creates a timestamped backup of the pre-modified code: `xxx.py.YYYYMMDD_HHMMSS.bak`.
+  2. Commits new code to disk and prints audit log lines to the Terminal Log.
+  3. Unlocks the dashboard and returns to normal production mode.
+- **`[ Revert to Original ] (r)`**:
+  1. Overwrites files with the clean pre-debug snapshots, restoring factory baseline.
+  2. Logs the revert action and returns to normal production mode.
 
 ---
 

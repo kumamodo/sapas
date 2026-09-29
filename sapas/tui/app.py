@@ -61,12 +61,17 @@ class SapasDashboard(App[None]):
         ("f6", "toggle_station_monitor", "Monitor"),
         ("f7", "toggle_debug_mode", "Debug Mode"),
         Binding("r", "debug_retest_step", "Re-test Step", show=False),
+        Binding("e", "open_micro_editor", "Micro Editor", show=False),
+        Binding("escape", "handle_escape", "Exit / Cancel", show=False),
     ]
 
     def __init__(self, context=None, cli_args=None) -> None:
         super().__init__()
         self.args = cli_args or Namespace(project=None, station=None, test_flow=None, serialNumber="", timeStamp="")
         self.context = context
+        self.resolved_flow_path: Path | None = None
+        self._session_snapshots: dict[Path, str] = {}
+        self._session_modified_files: set[Path] = set()
         self.test_steps: list[TestStep] = []
         self.on_fail_steps: list[TestStep] = []
         self.step_index_by_runner_index: dict[str, str] = {}
@@ -130,6 +135,8 @@ class SapasDashboard(App[None]):
         self.running_step_key = None
 
     def _handle_step_start(self, item_name: str) -> None:
+        if self.is_debug_mode:
+            return
         if self.is_in_fail_block:
             row_key = self.pop_next_pending_on_fail_step(item_name)
             if not row_key:
@@ -142,6 +149,8 @@ class SapasDashboard(App[None]):
             self.set_step_status(row_key, "RUNNING")
 
     def _handle_delay_start(self, delay_item: str) -> None:
+        if self.is_debug_mode:
+            return
         if self.is_in_fail_block:
             row_key = self.pop_next_pending_on_fail_step(delay_item)
             if not row_key:
@@ -154,6 +163,8 @@ class SapasDashboard(App[None]):
             self.set_step_status(row_key, "RUNNING")
 
     def _handle_prompt_start(self, prompt_item: str) -> None:
+        if self.is_debug_mode:
+            return
         if self.is_in_fail_block:
             row_key = self.pop_next_pending_on_fail_step(prompt_item)
             if not row_key:
@@ -171,6 +182,8 @@ class SapasDashboard(App[None]):
             pass
 
     def _handle_step_result(self, item: str, return_code: int) -> None:
+        if self.is_debug_mode:
+            return
         if self.is_in_fail_block:
             row_key = self.running_step_key or self.pop_next_pending_on_fail_step(item)
             if not row_key:
@@ -183,11 +196,15 @@ class SapasDashboard(App[None]):
             self.running_step_key = None
 
     def _handle_delay_finish(self) -> None:
+        if self.is_debug_mode:
+            return
         if self.running_step_key:
             self.set_step_status(self.running_step_key, "PASS")
             self.running_step_key = None
 
     def _handle_prompt_finish(self) -> None:
+        if self.is_debug_mode:
+            return
         if self.running_step_key:
             self.set_step_status(self.running_step_key, "PASS")
             self.running_step_key = None
@@ -199,6 +216,8 @@ class SapasDashboard(App[None]):
             pass
 
     def _handle_step_skip(self, item_name: str, condition: str = "") -> None:
+        if self.is_debug_mode:
+            return
         row_key = self.pop_next_pending_step(item_name)
         if row_key:
             self.set_step_status(row_key, "SKIP")
@@ -428,6 +447,7 @@ class SapasDashboard(App[None]):
                 flow_path = matches[0]
 
         cycle_count, flow_items, failure_cleanup_items = FlowLoader().load_flow(str(flow_path))
+        self.resolved_flow_path = flow_path
         steps = parse_flow_tree(flow_items, is_on_fail=False)
         on_fail_steps = parse_flow_tree(failure_cleanup_items, is_on_fail=True)
         return steps, cycle_count, on_fail_steps
@@ -491,24 +511,31 @@ class SapasDashboard(App[None]):
         if not self.is_debug_mode:
             self.enter_debug_mode()
         else:
-            self.exit_debug_mode()
+            self.request_exit_debug_mode()
 
     def enter_debug_mode(self) -> None:
-        """Enables Debug Mode with strong visual warning and re-test keybinding."""
+        """Enables Debug Mode with strong visual warning, locked start/serial, and editor shortcuts."""
         self.is_debug_mode = True
         app_root = self.query_one("#app-root")
         app_root.remove_class("blink")
         app_root.add_class("debug-mode")
-        app_root.border_subtitle = " [!] DEBUG MODE - PRESS F7 TO EXIT [!] "
+        app_root.border_subtitle = " [!] DEBUG MODE - PRESS ESC OR F7 TO EXIT [!] "
+
+        # Lock Start button and Serial input to prevent accidental production runs during debug
+        try:
+            self.query_one("#start-button", Button).disabled = True
+            self.query_one("#serial-input", Input).disabled = True
+        except Exception:
+            pass
 
         self.sub_title = Text.assemble(
             ("[! DEBUG MODE !] ", "bold bright_yellow"),
-            ("Press 'r' to Re-test, F7 to Exit", "bold yellow")
+            ("Press 'r' to Re-test, 'e' for Editor, Esc/F7 to Exit", "bold yellow")
         )
 
         self.write_terminal_log("=" * 60, "bold bright_yellow")
         self.write_terminal_log(">>> ENTERED DEBUG MODE <<<", "bold bright_yellow")
-        self.write_terminal_log("Select any PASS or FAIL step and press 'r' to re-test.", "yellow")
+        self.write_terminal_log("Select any step and press 'r' to re-test, 'e' for Editor, or Esc/F7 to exit.", "yellow")
         self.write_terminal_log("(Diagnostic run only - DUT test results and Shopfloor will NOT be modified)", "dim")
         self.write_terminal_log("=" * 60, "bold bright_yellow")
 
@@ -517,12 +544,84 @@ class SapasDashboard(App[None]):
         except Exception:
             pass
 
+    def action_handle_escape(self) -> None:
+        """Handles Escape key: exits Debug Mode if active, or focuses serial input in normal mode."""
+        if self.is_debug_mode:
+            if self.is_retesting:
+                self.write_terminal_log("[WARN] Cannot exit Debug Mode while re-test is in progress.", "bold yellow")
+                return
+            self.request_exit_debug_mode()
+        else:
+            self.focus_serial_input()
+
+    def request_exit_debug_mode(self) -> None:
+        """Prompts for rollback / keep decision if any files were modified in this debug session."""
+        if self._session_modified_files:
+            from sapas.tui.screens.rollback_dialog import RollbackConfirmScreen
+
+            self.push_screen(
+                RollbackConfirmScreen(
+                    modified_files=list(self._session_modified_files),
+                    on_decision=self._handle_rollback_decision,
+                )
+            )
+        else:
+            self.exit_debug_mode()
+
+    def _handle_rollback_decision(self, keep_changes: bool) -> None:
+        """Handles user choice on keeping or reverting debug session file modifications."""
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        if keep_changes:
+            for fpath in list(self._session_modified_files):
+                if fpath in self._session_snapshots:
+                    orig_content = self._session_snapshots[fpath]
+                    bak_path = fpath.with_name(f"{fpath.name}.{timestamp}.bak")
+                    try:
+                        bak_path.write_text(orig_content, encoding="utf-8")
+                        self.write_terminal_log(
+                            f"[AUDIT] Changes kept for '{fpath.name}'. Original backed up to '{bak_path.name}'",
+                            "bold green",
+                        )
+                    except Exception as e:
+                        self.write_terminal_log(f"[ERROR] Failed to create backup for '{fpath.name}': {e}", "bold red")
+            self.write_terminal_log("[AUDIT] Debug session ended. Modifications committed.", "bold green")
+        else:
+            reloaded_yaml = False
+            for fpath in list(self._session_modified_files):
+                if fpath in self._session_snapshots:
+                    orig_content = self._session_snapshots[fpath]
+                    try:
+                        fpath.write_text(orig_content, encoding="utf-8")
+                        self.write_terminal_log(f"[AUDIT] Reverted '{fpath.name}' to clean original state.", "bold yellow")
+                        if fpath.suffix.lower() in (".yaml", ".yml"):
+                            reloaded_yaml = True
+                    except Exception as e:
+                        self.write_terminal_log(f"[ERROR] Failed to restore '{fpath.name}': {e}", "bold red")
+            if reloaded_yaml:
+                self.reload_context()
+            self.write_terminal_log("[AUDIT] Debug session ended. Modifications cleanly reverted.", "bold yellow")
+
+        self._session_modified_files.clear()
+        self._session_snapshots.clear()
+        self.exit_debug_mode()
+
     def exit_debug_mode(self, reason: str = "") -> None:
         """Exits Debug Mode and restores standard production layout."""
         self.is_debug_mode = False
         self._sf_blink_counter = 2
         app_root = self.query_one("#app-root")
         app_root.remove_class("debug-mode")
+
+        # Unlock Start button and Serial input
+        try:
+            self.query_one("#start-button", Button).disabled = False
+            self.query_one("#serial-input", Input).disabled = False
+        except Exception:
+            pass
+
+        # Reload flow and context to guarantee left table and runtime match disk
+        self.reload_context()
+        self.reload_flow()
 
         self.update_info_display()
 
@@ -534,7 +633,7 @@ class SapasDashboard(App[None]):
         self.call_after_refresh(self.focus_serial_input)
 
     def action_debug_retest_step(self) -> None:
-        """Triggered by pressing 'r' in Debug Mode to re-test the selected step."""
+        """Triggered by pressing 'r' in Debug Mode to re-test any selected step (including PENDING)."""
         if not self.is_debug_mode:
             return
         if self.is_retesting or self.is_testing:
@@ -558,14 +657,104 @@ class SapasDashboard(App[None]):
             return
 
         status = self.step_status.get(row_key, "PENDING")
-        if status not in ("PASS", "FAIL"):
+        if status not in ("PASS", "FAIL", "PENDING"):
             self.write_terminal_log(
-                f"[WARN] Step [{step.item_id}] status is '{status}'. Only PASS or FAIL items can be re-tested.",
+                f"[WARN] Step [{step.item_id}] status is '{status}'. Cannot be re-tested.",
                 "bold yellow"
             )
             return
 
+        if status == "PENDING":
+            self.write_terminal_log(
+                f"[INFO] Running PENDING step [{step.item_id}]. Ensure prior hardware prerequisites are ready.",
+                "bold cyan"
+            )
+
         asyncio.create_task(self.run_debug_single_step(step))
+
+    def action_open_micro_editor(self) -> None:
+        """Opens In-App Micro Editor for live inspection and modification in Debug Mode."""
+        if not self.is_debug_mode:
+            return
+
+        from sapas.tui.screens.micro_editor import MicroEditorScreen
+
+        table = self.query_one("#items-table", StepsTable)
+        cursor_row = table.cursor_row
+        selected_step = None
+        if cursor_row is not None and 0 <= cursor_row < len(table.ordered_rows):
+            row_key = table.ordered_rows[cursor_row].key.value
+            selected_step = next((s for s in self.test_steps if s.row_key == row_key), None)
+
+        self.push_screen(
+            MicroEditorScreen(
+                context=self.context,
+                selected_step=selected_step,
+                test_steps=self.test_steps,
+                flow_path=self.resolved_flow_path,
+                session_snapshots=self._session_snapshots,
+                session_modified_files=self._session_modified_files,
+                on_save_yaml=self.reload_context,
+                on_save_flow=self.reload_flow,
+            )
+        )
+
+    def reload_context(self) -> None:
+        """Re-reads YAML configuration files and live hot-reloads them into self.context."""
+        if not self.context:
+            return
+        try:
+            from sapas.cli import find_site_infra, load_yaml
+
+            workspace_root = Path(self.context.get("WORKSPACE_ROOT", Path.cwd()))
+            project_name = self.context.get("PROJECT_NAME")
+            station_name = self.context.get("STATION_NAME")
+
+            infra_root, env = find_site_infra(workspace_root)
+            project_dir = workspace_root / project_name
+            station_path = project_dir / "stations" / station_name / "station.yaml"
+            project_config_path = project_dir / "configs" / "project.yaml"
+
+            station_var = load_yaml(station_path) if station_path.exists() else {}
+            project_var = load_yaml(project_config_path) if project_config_path.exists() else {}
+
+            self.context.reload_config(station_cfg=station_var, project_cfg=project_var, env_cfg=env)
+            self.update_info_display()
+            self.write_terminal_log("[CONFIG] Live Hot-Reload: Updated configurations merged into context.", "bold cyan")
+        except Exception as e:
+            self.write_terminal_log(f"[CONFIG] Hot-reload error: {e}", "bold red")
+
+    def reload_flow(self) -> Optional[str]:
+        """Re-parses the active flow file from disk and live hot-reloads the test items table."""
+        try:
+            # 1. Reload flow steps from disk
+            steps, cycle_count, on_fail_steps = self.load_station_steps()
+            self.test_steps = steps
+            self.total_cycles = cycle_count
+            self.on_fail_steps = on_fail_steps
+            self.rebuild_step_indexes()
+
+            # 2. Synchronize step_status: preserve status for matching row_keys, initialize new ones
+            new_step_status = {}
+            for step in self.test_steps:
+                default_status = "END_IF" if step.command == "end_if" else ("IF" if step.is_condition else "PENDING")
+                new_step_status[step.row_key] = self.step_status.get(step.row_key, default_status)
+            self.step_status = new_step_status
+
+            # 3. Re-render table on left panel
+            table = self.query_one("#items-table", StepsTable)
+            table.render_steps(self.test_steps, self.step_status)
+            if self.on_fail_steps and any(self.step_status.get(s.row_key) for s in self.on_fail_steps):
+                table.add_on_fail_section(self.on_fail_steps, self.step_status)
+
+            # 4. Refresh info display
+            self.update_info_display()
+            self.write_terminal_log("[FLOW] Live Hot-Reload: Test flow steps reloaded and table refreshed.", "bold cyan")
+            return None
+        except Exception as e:
+            err_msg = str(e)
+            self.write_terminal_log(f"[FLOW] Error reloading flow: {err_msg}", "bold red")
+            return err_msg
 
     async def run_debug_single_step(self, step: TestStep) -> None:
         """Executes a single test step in background for diagnosis without altering DUT status."""
@@ -746,7 +935,8 @@ class SapasDashboard(App[None]):
         """Writes message logs and updates item metrics simultaneously."""
         if self._abort_ui:
             return
-        self.log_interceptor.feed_line(message)
+        if not self.is_debug_mode:
+            self.log_interceptor.feed_line(message)
         self.write_log(message, style)
 
     def emit_from_worker(self, message: str, style: str = "") -> None:
@@ -869,7 +1059,9 @@ class SapasDashboard(App[None]):
             self.focus_serial_input()
             return
         if self.is_debug_mode:
-            self.exit_debug_mode(reason="automatic exit on test start")
+            self.write_terminal_log("[WARN] Production test is locked in Debug Mode. Press F7 to exit first.", "bold yellow")
+            self.focus_serial_input()
+            return
         self._abort_ui = False
         self._cycle_task = asyncio.create_task(self.run_station_cycle(clean_sn))
 

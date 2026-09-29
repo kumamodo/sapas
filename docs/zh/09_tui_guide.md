@@ -191,6 +191,9 @@ sapas --tui --project Alishan --station Function --test_flow Function.flow
 | `F3` | 切換 UI 佈景主題（Theme Cycle） |
 | `F4` | 開啟 / 關閉 Device Manager（裝置管理器）覆蓋視窗 |
 | `F6` | 開啟 / 關閉 Station Environment Monitor（站別環境監控）覆蓋視窗 |
+| `F7` | 開啟 / 關閉 Debug Mode（除錯診斷模式） |
+| `r` | （Debug 模式專用）單步重測選定步驟（支援 PENDING、PASS、FAIL） |
+| `e` | （Debug 模式專用）開啟 Sapas 內建微型編輯器（Micro Editor） |
 | `Y` / `N` / `Escape` | 退出確認對話框中的快速鍵回應 |
 
 ---
@@ -241,6 +244,44 @@ sapas --tui --project Alishan --station Function --test_flow Function.flow
 - **Close (Esc)**：按 `Esc` 或點擊關閉按鈕退出並返回主儀表板，視窗關閉後計時器立即銷毀，背景零耗能。
 
 > 💡 **提示**：環境目標於 `station.yaml`（或本地 `site_infra.yaml`）中的 `MONITOR:` 區塊進行設定。
+
+---
+
+### 3.7 Debug Mode 與 In-App Micro Editor（微型編輯器）
+
+為解決跨國遠端排查海外機台之痛點，Sapas 提供了完整的現場除錯與程式碼微調閉環：
+
+#### 1. 進入除錯模式（F7）與產線防呆（Safety Interlock）
+- 按下 `F7` 進入 Debug Mode，全螢幕外框亮起黃色警戒邊框。
+- **產線防呆**：在 Debug Mode 期間，**Start 按鈕與條碼輸入會強制鎖定（Disabled）**，防止現場操作員誤刷板子進行量產測試。
+
+#### 2. 單步重測（`r`）
+- 游標移至步驟清單中任何一個步驟（包含未執行的 `PENDING`），按下 `r` 即可**獨立執行該步驟**進行診斷。
+- 診斷輸出與執行結果完全呈現於右側 Live Terminal Log 中，**左側步驟狀態清單（如原本的 FAIL 或 PENDING）全程凍結、絕不竄改**，確保待測物真實的不良事實紀錄 100% 完整無損。
+- 診斷過程完全獨立於本機，不會修改機台整機最終結果，亦不會上報 Shopfloor。
+
+#### 3. 內建微型編輯器（`e`）
+在 Debug Mode 下按下 `e`，即可開啟微型編輯器，收斂排查最常修改的 5 大核心檔案：
+1. **`[F1] 當前腳本檔`**：動態鎖定當前選定步驟的 Python 腳本（分頁標籤直接顯示實際檔名，如 `mcu_max2008x_inttest.py`）。
+2. **`[F2] 當前流程檔`**：當前執行的測試流程檔（分頁標籤直接顯示實際流程檔名，如 `station_a.flow`）。
+3. **`[F3] site_infra.yaml`**：本地機台環境檔（`site_infra.yaml`，覆蓋本機 COM Port、本地 IP）。
+4. **`[F4] station.yaml`**：工位標配檔（`station.yaml`）。
+5. **`[F5] project.yaml`**：專案全域檔（`project.yaml`）。
+
+- **切換分頁**：使用滑鼠點擊分頁，或按下快捷鍵 `F1` ~ `F5`。
+- **流程控制指令智慧導航（Smart Routing）**：若選中的測試步驟為 `IF`、`END_IF`、`DELAY` 或 `PROMPT` 等流程控制語法，編輯器會自動切換至 **`[F2]` 流程檔**分頁，並自動將游標定位至該指令所在的行號。
+- **存檔與熱重載**：按下 `Ctrl+S` 存檔。若修改的是 YAML 設定檔，Sapas 會**自動即時熱重載（Live Hot-Reload）進 Context**；若修改的是 `.flow` 流程檔，Sapas 會**自動即時熱重載並即刻刷新左側測試項目清單（如新增 delay 3 即刻上榜）**，免重啟程式。
+- **關閉與未存檔防呆**：按下 `Esc` 關閉編輯器。若緩衝區有未存檔修改，系統會強制彈出確認視窗（`Save & Close (s)` / `Discard & Close (d)` / `Keep Editing (Esc)`），防止誤按遺失代碼；若無任何修改則直接關閉。
+
+#### 4. 退出防呆與時間戳記備份（Rollback & Audit）
+當除錯完成按下 **`Esc`** 或 **`F7`** 準備退出 Debug Mode 時，若本次除錯有修改過檔案，系統會強制彈出確認視窗：
+- **`[ Keep Changes ] (k)`**：
+  1. 系統自動將修改前的原始代碼備份為時間戳記檔案：`xxx.py.YYYYMMDD_HHMMSS.bak`。
+  2. 正式落地新代碼，並在 Terminal 印出 Audit 審計日誌。
+  3. 解鎖並回歸量產模式。
+- **`[ Revert to Original ] (r)`**：
+  1. 系統自動將進入 Debug 前的快照寫回硬碟，乾淨還原至出廠狀態。
+  2. Terminal 印出還原日誌，解鎖並回歸量產模式。
 
 ---
 
