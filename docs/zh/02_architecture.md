@@ -34,10 +34,20 @@ stop
 on_fail
     action sleep.py --sec 4                                                # 失敗時的回退機制
 end
+
+final
+    action power_off.py                                                    # 無論測試 PASS 或 FAIL 皆保證執行的收尾動作
+end
 ```
 
-### 關鍵指令：
+### 流程區塊與關鍵指令：
 
+#### 流程區塊：
+- `start ... stop`: 主測試流程區塊。
+- `on_fail ... end`: 失敗診斷與復歸區塊。當主流程中任何 `verify` 失敗時觸發。
+- `final ... end`: 最終保證執行區塊（類似 Python 的 `try...finally`）。無論測試結果為 PASS 還是 FAIL，皆保證在測試週期末尾執行，適合放置關閉電源、設備復位或 Shopfloor 結果上傳等關鍵收尾動作（支援 `action`、`delay`、`prompt`、`if / end_if`，不允許使用 `verify`）。
+
+#### 關鍵指令：
 - `verify`: 失敗時會立即中斷並跳轉至 `on_fail`。
 - `action`: 執行任務但不強制檢查結果。
 - `delay`: 內建延遲功能，暫停執行指定秒數。

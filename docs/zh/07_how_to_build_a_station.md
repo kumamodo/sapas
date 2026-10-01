@@ -42,6 +42,10 @@
   on_fail
       action sleep.py --sec 2
   end
+
+  final
+      action power_off.py
+  end
   ```
 
 ### 第三步：準備測試腳本 (Scripts)

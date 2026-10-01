@@ -16,6 +16,7 @@ def format_status(status: str) -> Text:
         "PASS": (f"{PASS_SYMBOL} PASS", "bold green"),
         "FAIL": (f"{FAIL_SYMBOL} FAIL", "bold red"),
         "SKIP": ("- SKIP", "cyan"),
+        "STOP": ("STOP", "bold red"),
         "IF": ("", ""),
         "END_IF": ("", ""),
     }

@@ -42,6 +42,10 @@ Create a `.flow` file in the `flows/` directory. It is recommended that the file
   on_fail
       action sleep.py --sec 2
   end
+
+  final
+      action power_off.py
+  end
   ```
 
 ### Step 3: Prepare Test Scripts (Scripts)

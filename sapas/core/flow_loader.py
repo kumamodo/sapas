@@ -1,8 +1,9 @@
 from pathlib import Path
 
-VALID_BLOCK_COMMANDS = {'start', 'stop', 'on_fail', 'end'}
+VALID_BLOCK_COMMANDS = {'start', 'stop', 'on_fail', 'final', 'end'}
 VALID_MAIN_COMMANDS = {'verify', 'action', 'delay', 'prompt', 'cycle', 'if', 'end_if'}
 VALID_FAIL_COMMANDS = {'action', 'delay', 'prompt', 'if', 'end_if'}
+VALID_FINAL_COMMANDS = {'action', 'delay', 'prompt', 'if', 'end_if'}
 
 
 class FlowLoader:
@@ -12,14 +13,16 @@ class FlowLoader:
     def load_flow(self, flow_file_path: str):
         """
         Parses and performs static syntax validation on the .flow file.
-        Extracts test cycles, main flow, and failure cleanup flow.
+        Extracts test cycles, main flow, failure cleanup flow, and final cleanup flow.
         """
         main_test_list = []
         failure_cleanup_list = []
+        final_cleanup_list = []
         cycle_count = 1
 
         is_inside_main = False
         is_inside_fail = False
+        is_inside_final = False
 
         seq_path = Path(flow_file_path)
         if not seq_path.exists():
@@ -41,6 +44,7 @@ class FlowLoader:
                 if command == 'start':
                     is_inside_main = True
                     is_inside_fail = False
+                    is_inside_final = False
                     continue
                 elif command == 'stop':
                     is_inside_main = False
@@ -48,9 +52,16 @@ class FlowLoader:
                 elif command == 'on_fail':
                     is_inside_fail = True
                     is_inside_main = False
+                    is_inside_final = False
+                    continue
+                elif command == 'final':
+                    is_inside_final = True
+                    is_inside_main = False
+                    is_inside_fail = False
                     continue
                 elif command == 'end':
                     is_inside_fail = False
+                    is_inside_final = False
                     continue
 
                 if is_inside_main:
@@ -85,9 +96,25 @@ class FlowLoader:
 
                     failure_cleanup_list.append([command, ' '.join(arguments)])
 
+                elif is_inside_final:
+                    if command == 'verify':
+                        raise ValueError(
+                            f"[Flow Error] {seq_path.name} (Line {line_num}): 'verify' is not allowed inside the final block. "
+                            f"Use 'action' for teardown or cleanup steps."
+                        )
+
+                    if command not in VALID_FINAL_COMMANDS:
+                        valid_list = ', '.join(sorted(VALID_FINAL_COMMANDS))
+                        raise ValueError(
+                            f"[Flow Error] {seq_path.name} (Line {line_num}): Unknown command '{command}' in final block. "
+                            f"Supported commands in final block: {valid_list}"
+                        )
+
+                    final_cleanup_list.append([command, ' '.join(arguments)])
+
                 else:
                     raise ValueError(
-                        f"[Flow Error] {seq_path.name} (Line {line_num}): Command '{command}' is outside of 'start...stop' or 'on_fail...end' block."
+                        f"[Flow Error] {seq_path.name} (Line {line_num}): Command '{command}' is outside of 'start...stop', 'on_fail...end', or 'final...end' block."
                     )
 
-        return cycle_count, main_test_list, failure_cleanup_list
+        return cycle_count, main_test_list, failure_cleanup_list, final_cleanup_list

@@ -13,6 +13,9 @@
 #            Ideal for stress testing or stability verification.
 # - on_fail: A safety mechanism that triggers immediately if any 'verify' 
 #            step fails, ensuring proper cleanup or hardware reset.
+# - final:   A guaranteed teardown block that always executes at the end of each
+#            cycle, regardless of whether the test result is PASS or FAIL. Ideal
+#            for power-off, fixture reset, or shopfloor result reporting.
 # ==============================================================================
 
 start function
@@ -63,11 +66,15 @@ start function
         # 4. Missing Image (should show warning cleanly instead of crashing)
         prompt --show non-existent-image.png --text "Image missing, proceed anyway."
 
-        # --- Shopfloor Integration ---
-        action shopfloor_report.py                          # Aggregate context metrics and report to shopfloor/MES system
 stop                                                        # End of main test sequence
 
 # --- Error Handling ---
 on_fail                                                     # Triggered immediately if any step above fails
     action sleep.py --sec 4                                 # Cooldown/Reset period before operator intervention
+end
+
+# --- Guaranteed Final Cleanup ---
+final                                                       # Always executed at cycle end regardless of PASS or FAIL
+    action shopfloor_report.py                              # Guaranteed shopfloor/MES reporting on both PASS and FAIL
+    # action psu_controller.py --state off                  # Example: Safely power down DUT/fixture
 end

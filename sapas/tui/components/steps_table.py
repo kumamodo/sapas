@@ -31,7 +31,16 @@ class StepsTable(DataTable):
         self.add_column("Status", key="status")
         self.add_column("Items", key="item")
 
-    def render_steps(self, test_steps: list[TestStep], step_status: dict[str, str]) -> None:
+    def render_steps(
+        self,
+        test_steps: list[TestStep],
+        step_status: dict[str, str],
+        on_fail_steps: list[TestStep] | None = None,
+        final_steps: list[TestStep] | None = None,
+        is_fail_active: bool = False,
+    ) -> None:
+        from rich.text import Text
+
         self.clear()
         for step in test_steps:
             label = step.item_label
@@ -39,26 +48,57 @@ class StepsTable(DataTable):
             status = step_status.get(step.row_key, default_status)
             self.add_row(step.item_id, format_status(status), label, key=step.row_key)
 
-    def add_on_fail_section(self, on_fail_steps: list[TestStep], step_status: dict[str, str]) -> None:
-        """Dynamically appends a recovery section header and on_fail steps to the table."""
-        if not on_fail_steps:
-            return
+        if on_fail_steps:
+            sep_style = "bold red" if is_fail_active else "dim"
+            sep_id = Text("───", style=sep_style)
+            sep_status = Text("───────", style=sep_style)
+            sep_label = Text("─── ON-FAIL DIAGNOSTICS ───", style=sep_style)
+            self.add_row(sep_id, sep_status, sep_label, key="on_fail_separator")
+
+            for step in on_fail_steps:
+                label = step.item_label
+                default_status = "END_IF" if step.command == "end_if" else ("IF" if step.is_condition else "PENDING")
+                status = step_status.get(step.row_key, default_status)
+                self.add_row(step.item_id, format_status(status), label, key=step.row_key)
+
+        if final_steps:
+            sep_style = "dim"
+            sep_id = Text("───", style=sep_style)
+            sep_status = Text("───────", style=sep_style)
+            sep_label = Text("─── FINAL CLEANUP ───", style=sep_style)
+            self.add_row(sep_id, sep_status, sep_label, key="final_separator")
+
+            for step in final_steps:
+                label = step.item_label
+                default_status = "END_IF" if step.command == "end_if" else ("IF" if step.is_condition else "PENDING")
+                status = step_status.get(step.row_key, default_status)
+                self.add_row(step.item_id, format_status(status), label, key=step.row_key)
+
+    def highlight_on_fail_separator(self) -> None:
+        """Highlights the ON-FAIL header in bold red when failure block is activated."""
         if "on_fail_separator" in self.rows:
-            return
+            from rich.text import Text
+            self.update_cell("on_fail_separator", "id", Text("───", style="bold red"))
+            self.update_cell("on_fail_separator", "status", Text("───────", style="bold red"))
+            self.update_cell("on_fail_separator", "item", Text("─── ON-FAIL DIAGNOSTICS ───", style="bold red"))
 
-        from rich.text import Text
-        sep_id = Text("───", style="bold red")
-        sep_status = Text("──", style="bold red")
-        sep_label = Text("─── ON-FAIL DIAGNOSTICS ───", style="bold red")
-        self.add_row(sep_id, sep_status, sep_label, key="on_fail_separator")
+    def reset_on_fail_separator(self) -> None:
+        """Resets the ON-FAIL header to dim styling when test cycle resets."""
+        if "on_fail_separator" in self.rows:
+            from rich.text import Text
+            self.update_cell("on_fail_separator", "id", Text("───", style="dim"))
+            self.update_cell("on_fail_separator", "status", Text("───────", style="dim"))
+            self.update_cell("on_fail_separator", "item", Text("─── ON-FAIL DIAGNOSTICS ───", style="dim"))
 
-        for step in on_fail_steps:
-            label = step.item_label
-            status = "END_IF" if step.command == "end_if" else ("IF" if step.is_condition else "PENDING")
-            step_status[step.row_key] = status
-            self.add_row(step.item_id, format_status(status), label, key=step.row_key)
-
-    def update_step_status(self, row_key: str, status: str, test_steps: list[TestStep], step_status: dict[str, str]) -> None:
+    def update_step_status(
+        self,
+        row_key: str,
+        status: str,
+        test_steps: list[TestStep],
+        step_status: dict[str, str],
+        on_fail_steps: list[TestStep] | None = None,
+        final_steps: list[TestStep] | None = None,
+    ) -> None:
         """Updates internal dictionary keys and triggers state re-renders for test list cells."""
         step_status[row_key] = status
         try:
@@ -74,7 +114,7 @@ class StepsTable(DataTable):
                         pass
             else:
                 # Row not found, trigger full refresh
-                self.render_steps(test_steps, step_status)
+                self.render_steps(test_steps, step_status, on_fail_steps=on_fail_steps, final_steps=final_steps)
         except Exception:
             # Catch-all fallback to ensure the UI continues to function
-            self.render_steps(test_steps, step_status)
+            self.render_steps(test_steps, step_status, on_fail_steps=on_fail_steps, final_steps=final_steps)

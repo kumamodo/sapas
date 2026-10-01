@@ -35,10 +35,16 @@ class FlowNode:
 class FlowTreeParser:
     """Reconstructs and formats hierarchical flow trees from flat command pairs."""
 
-    def __init__(self, raw_items: list[list[str]] | list[tuple[str, str]], is_on_fail: bool = False) -> None:
+    def __init__(self, raw_items: list[list[str]] | list[tuple[str, str]], is_on_fail: bool = False, prefix_code: str = "") -> None:
         self.raw_items = raw_items
         self.is_on_fail = is_on_fail
+        self.prefix_code = prefix_code or ("F" if is_on_fail else "")
         self.runnable_count = 0
+
+    def _format_id(self, num: int) -> str:
+        if self.prefix_code:
+            return f"{self.prefix_code}{num:02d}"
+        return f"{num:03d}"
 
     def parse(self) -> list[TestStep]:
         root_nodes = self._build_ast()
@@ -72,7 +78,7 @@ class FlowTreeParser:
         for node in nodes:
             if node.kind == "if":
                 header_label = f"{prefix}IF {node.condition}"
-                idx_str = f"F{node.runner_idx:02d}" if self.is_on_fail else f"{node.runner_idx:03d}"
+                idx_str = self._format_id(node.runner_idx)
                 row_key = f"if_{idx_str}"
                 step = TestStep(
                     item_id="",
@@ -91,7 +97,7 @@ class FlowTreeParser:
 
                 # Append closing END_IF step
                 end_label = f"{prefix}END_IF"
-                end_idx_str = f"F{node.end_runner_idx:02d}" if self.is_on_fail else f"{node.end_runner_idx:03d}"
+                end_idx_str = self._format_id(node.end_runner_idx)
                 end_row_key = f"endif_{end_idx_str}"
                 end_step = TestStep(
                     item_id="",
@@ -109,8 +115,8 @@ class FlowTreeParser:
                 display_label = f"{prefix}{step_text}"
 
                 self.runnable_count += 1
-                item_id = f"F{self.runnable_count:02d}" if self.is_on_fail else f"{self.runnable_count:03d}"
-                idx_str = f"F{node.runner_idx:02d}" if self.is_on_fail else f"{node.runner_idx:03d}"
+                item_id = self._format_id(self.runnable_count)
+                idx_str = self._format_id(node.runner_idx)
                 step_obj = TestStep(
                     item_id=item_id,
                     runner_index=idx_str,
@@ -125,6 +131,8 @@ class FlowTreeParser:
         return result
 
 
-def parse_flow_tree(raw_items: list[list[str]] | list[tuple[str, str]], is_on_fail: bool = False) -> list[TestStep]:
+def parse_flow_tree(raw_items: list[list[str]] | list[tuple[str, str]], is_on_fail: bool = False, prefix_code: str = "") -> list[TestStep]:
     """Parses flat flow item pairs into hierarchical TestStep objects with tree connectors."""
-    return FlowTreeParser(raw_items, is_on_fail=is_on_fail).parse()
+    if is_on_fail and not prefix_code:
+        prefix_code = "F"
+    return FlowTreeParser(raw_items, is_on_fail=is_on_fail, prefix_code=prefix_code).parse()

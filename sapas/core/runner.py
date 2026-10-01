@@ -74,7 +74,7 @@ class Runner():
         script_name = parts[0]
         script_args = parts[1:]
 
-        script_path = resolve_user_script(script_name, self.project_name)
+        script_path = resolve_user_script(script_name, self.project_name, workspace_root=self.workspace_root)
         if script_path is None:
             error(f"Script not found: {item_str}", tag='RUNNER')
             self.critical_error = True
@@ -144,6 +144,9 @@ class Runner():
         """
         Handle the delay command natively, supporting floating-point countdown.
         """
+        if self._is_stop_requested():
+            return
+
         try:
             sec = float(seconds_str)
         except ValueError:
@@ -178,6 +181,9 @@ class Runner():
         """
         Handle the prompt command natively, displaying a custom dark-themed GUI dialog.
         """
+        if self._is_stop_requested():
+            return
+
         info(f"Start prompt: {arg_str}", tag='RUNNER')
         try:
             parser = PromptParser(add_help=False)
@@ -290,7 +296,7 @@ class Runner():
             session_has_fail = False
             self.item_index = 0
             flow = FlowLoader()
-            self.cycle, self.test_item_list, self.on_fail_list = flow.load_flow(flow_file_path=station_flow_file_path)
+            self.cycle, self.test_item_list, self.on_fail_list, self.final_list = flow.load_flow(flow_file_path=station_flow_file_path)
             
             if not self.test_item_list:
                 error('NO test items assigned, stopping...', tag='RUNNER')
@@ -306,6 +312,11 @@ class Runner():
             info('[Fail Flow:]:', tag='RUNNER')
             for idx, item in enumerate(self.on_fail_list, 1):
                 info(f'  {idx:02d}. {item}', tag='RUNNER')
+
+            if self.final_list:
+                info('[Final Flow:]:', tag='RUNNER')
+                for idx, item in enumerate(self.final_list, 1):
+                    info(f'  {idx:02d}. {item}', tag='RUNNER')
 
             while current_cycle <= self.cycle and not self._should_abort_critical() and not is_cycle_fail and not stop_test_flag:
                 if self._is_stop_requested():
@@ -472,6 +483,31 @@ class Runner():
                             warn('continue testing', tag='RUNNER')
                     # Done cruuent test item, go to next
                     self.item_index += 1
+
+                # Execute items in the FINAL block if defined (runs on both PASS and FAIL, but not if stop was requested)
+                if self.final_list and not self._is_stop_requested():
+                    log_banner('Execute items in the FINAL block.')
+                    for final_item in self.final_list:
+                        if self._is_stop_requested():
+                            warn('Stop requested, aborting FINAL block.', tag='RUNNER')
+                            break
+                        final_prefix = final_item[0].strip().lower()
+                        final_content = final_item[1].strip()
+
+                        if final_prefix == "delay":
+                            self._cmd_delay(final_content)
+                        elif final_prefix == "prompt":
+                            self._cmd_prompt(final_content)
+                        else:
+                            return_code = self._run_test_script(final_content)
+                            if return_code != 0:
+                                session_has_fail = True
+                                current_err = self.ctx.get('ERROR_CODE')
+                                if not current_err or current_err == 'PASS':
+                                    self.ctx.set('ERROR_CODE', 'FAIL')
+
+                    info('FINAL block finished.', tag='RUNNER')
+
                 # End of one cycle
                 current_cycle += 1
                 self._export_execution_snapshot()

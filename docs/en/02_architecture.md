@@ -34,10 +34,20 @@ stop
 on_fail
     action sleep.py --sec 4                                                # Rollback mechanism on failure
 end
+
+final
+    action power_off.py                                                    # Guaranteed teardown execution regardless of PASS or FAIL
+end
 ```
 
-### Key Commands:
+### Flow Blocks & Key Commands:
 
+#### Flow Blocks:
+- `start ... stop`: Main test sequence block.
+- `on_fail ... end`: Failure diagnostics and recovery block. Triggered when any `verify` step in the main flow fails.
+- `final ... end`: Guaranteed cleanup block (similar to Python's `try...finally`). Always executes at the end of each test cycle regardless of whether the station run resulted in `PASS` or `FAIL`. Ideal for power shutoff, fixture reset, or Shopfloor result reporting (supports `action`, `delay`, `prompt`, `if / end_if`; `verify` is not permitted).
+
+#### Key Commands:
 - `verify`: Immediately interrupts and jumps to `on_fail` upon failure.
 - `action`: Executes a task but does not force a result check.
 - `delay`: Built-in delay function, pauses execution for a specified number of seconds.
