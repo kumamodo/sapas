@@ -164,6 +164,22 @@ def run_test(self):
     sapas.var.set("DUT_MAC", "AA:BB:CC:DD:EE:FF")
 ```
 
+### System Built-in Variables
+The framework automatically injects the following system variables into `sapas.var` during test execution:
+- **`sapas.var.get("SERIAL_NUMBER")`**: The serial number (SN) of the current DUT.
+- **`sapas.var.get("TIME_STAMP")`**: The timestamp of the current test cycle (e.g., `20261002_215430`).
+
+```python
+import sapas
+
+class ReportDemo(sapas.ActionItem):
+    def run_action(self):
+        sn = sapas.var.get("SERIAL_NUMBER")
+        timestamp = sapas.var.get("TIME_STAMP")
+        sapas.info(f"Uploading report for SN: {sn}, Time: {timestamp}")
+```
+
+
 ---
 
 ## 6. Connection Driver (sapas.link)
@@ -274,17 +290,21 @@ class PingDemo(sapas.ActionItem):
 
 ---
 
-## 10. Custom Arguments (@sapas.arg)
+## 10. Custom Parameters and Access (@sapas.param and sapas.args)
 
-If you need to pass arguments from a `.flow` to a script, you can use the `@sapas.arg` decorator.
+If you need to pass arguments from a `.flow` to a script, using the `@sapas.param` decorator is recommended (backward-compatible alias `@sapas.arg` is also supported).
+
+When accessing arguments inside your script, using **`sapas.args`** is recommended for idiomatic Sapas syntax (the standard OOP `self.args` syntax remains fully supported):
 
 ```python
-@sapas.arg("--mode", type=str, default="normal", help="Test mode")
+import sapas
+
+@sapas.param("--mode", type=str, default="normal", help="Test mode")
 class MyTest(sapas.TestItem):
     ...
     def run_test(self):
-        # Access arguments via self.args
-        current_mode = self.args.mode
+        # Recommended: access arguments via sapas.args (self.args.mode is also supported)
+        current_mode = sapas.args.mode
         sapas.info(f"Current mode is: {current_mode}")
 ```
 
@@ -293,15 +313,27 @@ Calling method in `.flow`:
 verify my_custom_test.py --mode fast
 ```
 
+### Common Configuration Options for `@sapas.param`
+
+Under the hood, `@sapas.param` supports standard Python `argparse` options:
+
+| Option | Type | Description | Example |
+| :--- | :--- | :--- | :--- |
+| **`default`** | Any | Default value used when not supplied via Flow or CLI | `default="normal"` or `default=50.0` |
+| **`type`** | Type | Automatic type conversion (`str`, `int`, `float`, etc.) | `type=float` |
+| **`required`**| `bool` | Whether the parameter is mandatory (raises error if missing) | `required=True` |
+| **`choices`** | `list` | Restricts valid inputs to a predefined list | `choices=["on", "off", "cycle"]` |
+| **`help`** | `str` | Description text for documentation and debugging | `help="Upper threshold limit"` |
+
 ---
 
-## 10. Standard Script Template
+## 11. Standard Script Template
 
 ```python
 import sapas
 import sys
 
-@sapas.arg("--threshold", type=float, default=50.0)
+@sapas.param("--threshold", type=float, default=50.0)
 class StandardTest(sapas.TestItem):
     measure_file  = "std_measure.txt"
     result_file   = "std_result.csv"
@@ -314,7 +346,7 @@ class StandardTest(sapas.TestItem):
         
         # 1. Get connection and arguments
         ssh = sapas.link.get("main_dut")
-        limit = self.args.threshold
+        limit = sapas.args.threshold
         
         # 2. Execute action
         output = ssh.exec("cat /proc/uptime").stdout
@@ -328,7 +360,7 @@ class StandardTest(sapas.TestItem):
 ```
 ---
 
-## 11. Script Debugging Method
+## 12. Script Debugging Method
 
 To ensure scripts run correctly within the Sapas environment, it is **not recommended** to execute them directly using `python script.py`. Please use the CLI command provided by Sapas for debugging:
 

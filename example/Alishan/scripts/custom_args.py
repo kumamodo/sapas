@@ -1,15 +1,15 @@
 import sapas
 from sapas import TestItem
 
-@sapas.arg("--test", type=str, help="Custom user-defined parameter to be measured and validated against criteria.")
+@sapas.param("--test", type=str, help="Custom user-defined parameter to be measured and validated against criteria.")
 
 class ExArgs(TestItem):
     """
-    [Example] How to define and use custom CLI arguments in a Sapas TestItem.
+    [Example] How to define and use custom CLI parameters in a Sapas TestItem.
     
-    [Argument Registration]
-    Use @sapas.arg decorator to register custom arguments. 
-    Framework will automatically parse these arguments and inject them into `self.args`.
+    [Parameter Registration]
+    Use @sapas.param decorator to register custom parameters (backward-compatible with @sapas.arg). 
+    Framework will automatically parse these parameters and make them accessible via `sapas.args` (or `self.args`).
     Usage: sapas custom_args.py --test sapas001
     """
     
@@ -28,9 +28,9 @@ class ExArgs(TestItem):
         """
         
         # 2. Accessing Arguments:
-        #    After the framework parses the CLI input, the results are injected into `self.args`.
-        #    You can access the values directly via `self.args.<your_argument_name>`.
-        user_value = self.args.test
+        #    After the framework parses the CLI input, the results can be accessed directly
+        #    via `sapas.args.<your_parameter_name>` (or `self.args.<your_parameter_name>`).
+        user_value = sapas.args.test
         
         # sapas.info outputs to the terminal and automatically flushes to the log file.
         sapas.info(f"Fetched custom argument from user: {user_value}")

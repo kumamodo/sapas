@@ -20,7 +20,9 @@ class ShopfloorReport(ActionItem):
         clean_payload = sf_payload.strip().replace('\n', '\r\n')
 
         # 3. Print the formatted payload to terminal/log for full traceability
-        sapas.info(f'[Shopfloor] Preparing to report data...\n{clean_payload}')
+        sn = sapas.var.get('SERIAL_NUMBER', 'UNKNOWN')
+        ts = sapas.var.get('TIME_STAMP', 'UNKNOWN')
+        sapas.info(f'[Shopfloor] Reporting data for DUT SN: {sn} (Timestamp: {ts})...\n{clean_payload}')
         sapas.sleep(3)
 
         # TODO: Implement your shopfloor API client or socket connection here

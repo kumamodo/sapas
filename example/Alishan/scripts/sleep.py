@@ -3,13 +3,14 @@ import sapas
 from sapas import ActionItem
 
 
-@sapas.arg("--sec", type=int, required=True, help="Seconds to sleep")
+@sapas.param("--sec", type=int, required=True, help="Seconds to sleep")
 
 class Sleep(ActionItem):
     """
-    [Example] A simple sleep action using custom arguments.
+    [Example] A simple sleep action using custom parameters.
     Usage: sapas sleep.py --sec 5
     """
     def run_action(self):
-        sec = int(self.args.sec)
+        sec = int(sapas.args.sec)
         sapas.sleep(sec)
+

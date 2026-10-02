@@ -2,9 +2,9 @@ import sapas
 from sapas import ActionItem
 
 
-@sapas.arg("--state", type=str, default="cycle", choices=["on", "off", "cycle"], help="Power state: on, off, or cycle (demo)")
-@sapas.arg("--voltage", type=float, default=12.0, help="Target voltage in Volts")
-@sapas.arg("--current", type=float, default=2.0, help="Target current limit in Amperes")
+@sapas.param("--state", type=str, default="cycle", choices=["on", "off", "cycle"], help="Power state: on, off, or cycle (demo)")
+@sapas.param("--voltage", type=float, default=12.0, help="Target voltage in Volts")
+@sapas.param("--current", type=float, default=2.0, help="Target current limit in Amperes")
 class PsuController(ActionItem):
     """
     Controls DC Power Supply output state, voltage, and current limit.
@@ -16,9 +16,9 @@ class PsuController(ActionItem):
 
     def run_action(self):
         psu = sapas.link.get("main_psu")
-        state = str(self.args.state).lower()
-        voltage = float(self.args.voltage)
-        current = float(self.args.current)
+        state = str(sapas.args.state).lower()
+        voltage = float(sapas.args.voltage)
+        current = float(sapas.args.current)
 
         if state == "on":
             sapas.info(f"[PSU] Powering ON -> Voltage: {voltage} V, Current Limit: {current} A")

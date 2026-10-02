@@ -7,10 +7,11 @@ from sapas.modules.message import Message
 from sapas.modules.log import info, warn, error
 from sapas.runtime.runtime import ctx
 from sapas.core.builtins import sleep, ping
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     # Let the IDE recognize the types of sapas.link, sapas.var, and sapas.measure.
+    from argparse import Namespace
     from .runtime.connection_manager import ConnectionManager
     from .runtime.runtime import VarProxy
     from .core.measure_proxy import MeasureProxy
@@ -20,14 +21,15 @@ if TYPE_CHECKING:
     var: VarProxy
     measure: MeasureProxy
     psu: Any
+    args: Any
 
 import sys
 
-def arg(*args, **kwargs):
+def param(*args, **kwargs):
     """
-    Decorator to register custom arguments for a TestItem or ActionItem.
+    Decorator to register custom parameter for a TestItem or ActionItem.
     Usage:
-        @sapas.arg("--my-param", type=str, help="Description")
+        @sapas.param("--my-param", type=str, help="Description")
         class MyTest(TestItem):
             ...
     """
@@ -38,6 +40,10 @@ def arg(*args, **kwargs):
         cls._custom_args.insert(0, (args, kwargs))
         return cls
     return decorator
+
+# Backward compatibility alias
+arg = param
+
 
 def fail(message: str = "Script invoked sapas.fail()"):
     """
@@ -63,13 +69,24 @@ def __getattr__(name):
     if name == "psu":
         return ctx.psu
     if name == "measure":
-        active_item = ctx.get("ACTIVE_ITEM")
+        try:
+            active_item = ctx.get("ACTIVE_ITEM")
+        except Exception:
+            active_item = None
         if active_item is None:
             raise RuntimeError("No active TestItem running in execution context. Cannot access sapas.measure.")
         measure = getattr(active_item, "_measure_proxy", None)
         if measure is None:
             raise RuntimeError("The active item does not have a measure proxy. Only TestItem supports measurements.")
         return measure
+    if name == "args":
+        try:
+            active_item = ctx.get("ACTIVE_ITEM")
+        except Exception:
+            active_item = None
+        if active_item is None:
+            raise RuntimeError("No active script running in execution context. Cannot access sapas.args.")
+        return getattr(active_item, "args", None)
     if name == "BasePowerSupply":
         from .instruments.power_supply.base import BasePowerSupply
         return BasePowerSupply
@@ -79,7 +96,7 @@ def __getattr__(name):
     raise AttributeError(f"module '{__name__}' has no attribute '{name}'")
 
 __all__ = [
-    "ctx", "link", "var", "measure", "psu", "arg",
+    "ctx", "link", "var", "measure", "psu", "args", "param", "arg",
     "TestItem", "ActionItem", "BaseItem", "Message",
     "BasePowerSupply", "BaseInstrument",
     "info", "warn", "error", "fail", "sleep", "ping"

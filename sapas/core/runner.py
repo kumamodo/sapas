@@ -248,6 +248,8 @@ class Runner():
         try:
             self.logger = savelog.logger
             self.ctx.set('RUNNER_LOGGER', self.logger)
+            self.ctx.set('SERIAL_NUMBER', self.serialNumber)
+            self.ctx.set('TIME_STAMP', self.timeStamp)
 
             # Log deferred deprecation warnings
             deprecation_warnings = self.ctx.get('_DEPRECATION_WARNINGS')
@@ -332,11 +334,13 @@ class Runner():
                 # Re-initialize cycle status to RUNNING state.
                 self.ctx.set('ERROR_CODE', 'RUNNING')
                 self.ctx.set('ERROR_DESCRIPTION', 'Test initialized and running')
+                self.ctx.set('SERIAL_NUMBER', self.serialNumber)
                 
                 stop_test_flag = False
                 if current_cycle >= 2:
                     self.timeStamp = datetime.now().strftime('%Y%m%d_%H%M%S')
                     self.time_stamp_folder = self.main_log_path / self.timeStamp
+                self.ctx.set('TIME_STAMP', self.timeStamp)
                 self.item_index = 0
                 
                 while self.item_index < len(self.test_item_list):

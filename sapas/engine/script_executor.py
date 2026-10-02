@@ -139,7 +139,7 @@ class ScriptExecutor:
             if issubclass(item_cls, (ActionItem, TestItem)):
                 parser = ThrowingArgumentParser(add_help=False)
 
-                # Process Decorator-based arguments (@sapas.arg)
+                # Process Decorator-based parameters (@sapas.param)
                 if hasattr(item_cls, '_custom_args'):
                     for a, kw in item_cls._custom_args:
                         parser.add_argument(*a, **kw)
@@ -151,7 +151,7 @@ class ScriptExecutor:
                     msg = (
                         f"\n[DEPRECATION WARNING] In {script_path}:\n"
                         "build_parser() is deprecated and will be removed in a future version.\n"
-                        "Please use the @sapas.arg decorator instead for a cleaner syntax.\n"
+                        "Please use the @sapas.param decorator instead for a cleaner syntax.\n"
                     )
                     # Use print or logger to ensure visibility since DeprecationWarning 
                     # is often silenced by default Python filters.

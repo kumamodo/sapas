@@ -2,8 +2,8 @@ import sapas
 from sapas import ActionItem
 
 
-@sapas.arg("--target", type=str, default="main_dut", help="Target IP address, hostname, or LINK name to ping")
-@sapas.arg("--timeout", type=float, default=3.0, help="Ping timeout in seconds")
+@sapas.param("--target", type=str, default="main_dut", help="Target IP address, hostname, or LINK name to ping")
+@sapas.param("--timeout", type=float, default=3.0, help="Ping timeout in seconds")
 class PingDevice(ActionItem):
     """
     An ActionItem example demonstrating how to use sapas.ping to check network reachability
@@ -11,8 +11,8 @@ class PingDevice(ActionItem):
     """
 
     def run_action(self):
-        target = self.args.target
-        timeout = self.args.timeout
+        target = sapas.args.target
+        timeout = sapas.args.timeout
 
         sapas.info(f"=== Starting Network Reachability Check for [{target}] ===")
 

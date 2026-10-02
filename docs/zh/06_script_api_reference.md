@@ -164,6 +164,22 @@ def run_test(self):
     sapas.var.set("DUT_MAC", "AA:BB:CC:DD:EE:FF")
 ```
 
+### 系統內建全域變數 (System Built-in Variables)
+框架會在執行期間自動將以下系統變數寫入 `sapas.var`，供所有腳本隨時讀取：
+- **`sapas.var.get("SERIAL_NUMBER")`**: 當前測試裝置的序號 (SN)。
+- **`sapas.var.get("TIME_STAMP")`**: 當前測試循環的時間戳記 (例如 `20261002_215430`)。
+
+```python
+import sapas
+
+class ReportDemo(sapas.ActionItem):
+    def run_action(self):
+        sn = sapas.var.get("SERIAL_NUMBER")
+        timestamp = sapas.var.get("TIME_STAMP")
+        sapas.info(f"Uploading report for SN: {sn}, Time: {timestamp}")
+```
+
+
 ---
 
 ## 6. 連線驅動 (sapas.link)
@@ -274,17 +290,21 @@ class PingDemo(sapas.ActionItem):
 
 ---
 
-## 10. 自定義參數 (@sapas.arg)
+## 10. 自定義參數與存取 (@sapas.param 與 sapas.args)
 
-如果您需要從 `.flow` 傳遞參數給腳本，可以使用 `@sapas.arg` 裝飾器。
+如果您需要從 `.flow` 傳遞參數給腳本，推薦使用 `@sapas.param` 裝飾器定義參數（亦支援相容別名 `@sapas.arg`）。
+
+在腳本內存取參數時，推薦使用現代統一的 **`sapas.args`**（亦完全相容物件導向寫法 `self.args`）：
 
 ```python
-@sapas.arg("--mode", type=str, default="normal", help="測試模式")
+import sapas
+
+@sapas.param("--mode", type=str, default="normal", help="測試模式")
 class MyTest(sapas.TestItem):
     ...
     def run_test(self):
-        # 透過 self.args 存取參數
-        current_mode = self.args.mode
+        # 推薦寫法：透過 sapas.args 存取參數（亦支援 self.args.mode）
+        current_mode = sapas.args.mode
         sapas.info(f"當前模式為: {current_mode}")
 ```
 
@@ -293,15 +313,27 @@ class MyTest(sapas.TestItem):
 verify my_custom_test.py --mode fast
 ```
 
+### `@sapas.param` 常用設定選項
+
+`@sapas.param` 底層支援標準 Python `argparse` 選項，常見設定如下：
+
+| 參數 | 型態 | 說明 | 範例 |
+| :--- | :--- | :--- | :--- |
+| **`default`** | 任意 | 當 Flow 或 CLI 未帶入該參數時使用的預設值 | `default="normal"` 或 `default=50.0` |
+| **`type`** | 類別 | 自動轉換資料型態（`str`, `int`, `float` 等） | `type=float` |
+| **`required`**| `bool` | 是否為必填項。若為 `True` 且未帶入，系統會中斷並報錯 | `required=True` |
+| **`choices`** | `list` | 限制輸入的合法選項，超出範圍會自動拋出錯誤 | `choices=["on", "off", "cycle"]` |
+| **`help`** | `str` | 參數用途說明文字（供除錯與文件化） | `help="測試上限門檻值"` |
+
 ---
 
-## 10. 標準腳本模板
+## 11. 標準腳本模板
 
 ```python
 import sapas
 import sys
 
-@sapas.arg("--threshold", type=float, default=50.0)
+@sapas.param("--threshold", type=float, default=50.0)
 class StandardTest(sapas.TestItem):
     measure_file  = "std_measure.txt"
     result_file   = "std_result.csv"
@@ -314,7 +346,7 @@ class StandardTest(sapas.TestItem):
         
         # 1. 獲取連線與參數
         ssh = sapas.link.get("DUT")
-        limit = self.args.threshold
+        limit = sapas.args.threshold
         
         # 2. 執行動作
         output = ssh.exec("cat /proc/uptime").stdout
@@ -328,7 +360,7 @@ class StandardTest(sapas.TestItem):
 ```
 ---
 
-## 11. 腳本偵錯方式
+## 12. 腳本偵錯方式
 
 為了確保腳本在 Sapas 環境下正確運行，**不建議**直接使用 `python script.py` 執行。請統一使用 Sapas 提供的 CLI 指令進行偵錯：
 
