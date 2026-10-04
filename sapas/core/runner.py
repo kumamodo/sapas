@@ -35,6 +35,7 @@ class Runner():
         self.station_start_time = 0.0
         self.station_timeout = 0.0
         self._timeout_logged = False
+        self._if_branch_stack: list[dict] = []
 
     def _is_timeout(self) -> bool:
         if self.station_timeout > 0 and self.station_start_time > 0:
@@ -231,6 +232,117 @@ class Runner():
         finally:
             info("Prompt finished.", tag='RUNNER')
 
+    def _step_branch(self, item_list: list[list[str]], current_idx: int) -> tuple[int, bool]:
+        """
+        Handles IF / ELSE / END_IF branching logic.
+        Returns:
+            (next_idx, is_branch_command):
+            - If current command is 'if', 'else', or 'end_if', returns (new_index, True).
+            - Otherwise returns (current_idx, False).
+        """
+        item = item_list[current_idx]
+        prefix = item[0].strip().lower()
+        content = item[1].strip()
+
+        if prefix == 'if':
+            try:
+                var_key, expected_val = [p.strip() for p in content.split('==')]
+                actual_val = str(self.ctx.get(var_key))
+
+                info(f"[Condition]: Checking {var_key} IF ('{actual_val}' == '{expected_val}')", tag='RUNNER')
+
+                # Find matching ELSE and END_IF for this IF block
+                skip_depth = 1
+                curr = current_idx
+                matching_else = None
+                while skip_depth > 0:
+                    curr += 1
+                    if curr >= len(item_list):
+                        error("[Error]: Missing END_IF for IF condition!", tag='RUNNER')
+                        self.critical_error = True
+                        return curr, True
+                    cmd_upper = item_list[curr][0].strip().upper()
+                    if cmd_upper == 'IF':
+                        skip_depth += 1
+                    elif cmd_upper == 'END_IF':
+                        skip_depth -= 1
+                    elif cmd_upper == 'ELSE' and skip_depth == 1:
+                        matching_else = curr
+                matching_end_if = curr
+
+                if actual_val == expected_val:
+                    # Condition met: enter the IF block and record branch context
+                    self._if_branch_stack.append({
+                        "if_idx": current_idx,
+                        "matching_else": matching_else,
+                        "matching_end_if": matching_end_if,
+                        "cond_expr": f"{var_key} == {expected_val}",
+                        "actual_val": actual_val,
+                    })
+                    return current_idx + 1, True
+                else:
+                    # Condition not met: skip IF block to matching ELSE or END_IF.
+                    cond_desc = f"{var_key} == {expected_val} (Actual: '{actual_val}')"
+                    info(f"[Condition]: Not match. Skipping block...", tag='RUNNER')
+
+                    target_idx = matching_else if matching_else is not None else matching_end_if
+                    for skip_i in range(current_idx + 1, target_idx):
+                        cmd_upper = item_list[skip_i][0].strip().upper()
+                        it_name = item_list[skip_i][1].strip()
+                        if cmd_upper not in ('CYCLE', 'ELSE', 'IF', 'END_IF') and it_name:
+                            info(f"[Item Skip]: {it_name} | condition: {cond_desc}", tag='RUNNER')
+
+                    # If skipping to matching ELSE, enter the ELSE block directly (target_idx + 1)
+                    # If skipping to END_IF, proceed past END_IF (target_idx + 1)
+                    return target_idx + 1, True
+
+            except Exception as e:
+                error(f"[Error]: IF syntax error: {content} | {e}", tag='RUNNER')
+                self.critical_error = True
+                return current_idx + 1, True
+
+        elif prefix == 'else':
+            # Reached ELSE after executing IF block: find its context and skip the entire ELSE block to matching END_IF
+            matched_entry = None
+            if self._if_branch_stack and self._if_branch_stack[-1].get("matching_else") == current_idx:
+                matched_entry = self._if_branch_stack.pop()
+
+            if matched_entry:
+                matching_end_if = matched_entry["matching_end_if"]
+                cond_desc = f"ELSE (IF {matched_entry['cond_expr']} is True)"
+            else:
+                skip_depth = 1
+                curr = current_idx
+                while skip_depth > 0:
+                    curr += 1
+                    if curr >= len(item_list):
+                        error("[Error]: Missing END_IF for ELSE block!", tag='RUNNER')
+                        self.critical_error = True
+                        return curr, True
+                    cmd_upper = item_list[curr][0].strip().upper()
+                    if cmd_upper == 'IF':
+                        skip_depth += 1
+                    elif cmd_upper == 'END_IF':
+                        skip_depth -= 1
+                matching_end_if = curr
+                cond_desc = "ELSE branch skipped"
+
+            for skip_i in range(current_idx + 1, matching_end_if):
+                cmd_upper = item_list[skip_i][0].strip().upper()
+                it_name = item_list[skip_i][1].strip()
+                if cmd_upper not in ('CYCLE', 'ELSE', 'IF', 'END_IF') and it_name:
+                    info(f"[Item Skip]: {it_name} | condition: {cond_desc}", tag='RUNNER')
+
+            return matching_end_if + 1, True
+
+        elif prefix == 'end_if':
+            # Reached END_IF naturally: clean up branch stack if this END_IF belongs to top IF
+            if self._if_branch_stack and self._if_branch_stack[-1].get("matching_end_if") == current_idx:
+                self._if_branch_stack.pop()
+            return current_idx + 1, True
+
+        return current_idx, False
+
     def execute_flows(self, args):
         self.critical_error = False
         self.error_code = None
@@ -342,6 +454,7 @@ class Runner():
                     self.time_stamp_folder = self.main_log_path / self.timeStamp
                 self.ctx.set('TIME_STAMP', self.timeStamp)
                 self.item_index = 0
+                self._if_branch_stack.clear()
                 
                 while self.item_index < len(self.test_item_list):
                     stop_test_flag = False
@@ -361,57 +474,10 @@ class Runner():
                         self.item_index += 1
                         continue
 
-                    # Handle IF condition evaluation.
-                    if prefix == 'if':
-                        try:
-                            # Parsing FACTORY_LOCATION == Chiayi
-                            var_key, expected_val = [p.strip() for p in self.current_item.split('==')]
-                            actual_val = str(self.ctx.get(var_key))
-                            
-                            info(f"[Condition]: Checking {var_key} IF ('{actual_val}' == '{expected_val}')", tag='RUNNER')
-                            
-                            if actual_val == expected_val:
-                                # Condition met: do nothing and continue to the next line.
-                                self.item_index += 1
-                                continue
-                            else:
-                                # Condition not met: enter "find END_IF" mode.
-                                cond_desc = f"{var_key} == {expected_val} (Actual: '{actual_val}')"
-                                info(f"[Condition]: Not match. Skipping block...", tag='RUNNER')
-                                skip_depth = 1
-                                while skip_depth > 0:
-                                    self.item_index += 1
-                                    if self.item_index >= len(self.test_item_list):
-                                        error("[Error]: Missing END_IF for IF condition!", tag='RUNNER')
-                                        self.critical_error = True
-                                        break
-                                    
-                                    next_cmd = self.test_item_list[self.item_index][0].strip()
-                                    next_item = self.test_item_list[self.item_index][1].strip()
-                                    next_cmd_upper = next_cmd.upper()
-                                    
-                                    if next_cmd_upper == 'IF':
-                                        # Encounter a nested IF.
-                                        skip_depth += 1
-                                    elif next_cmd_upper == 'END_IF':
-                                        # Encounter the corresponding end marker.
-                                        skip_depth -= 1
-                                    elif next_cmd_upper not in ('CYCLE',):
-                                        # Executable step skipped inside condition block
-                                        info(f"[Item Skip]: {next_item} | condition: {cond_desc}", tag='RUNNER')
-                                # Skip the final END_IF.
-                                self.item_index += 1
-                                continue
-                        except Exception as e:
-                            error(f"[Error]: IF syntax error: {self.current_item} | {e}", tag='RUNNER')
-                            self.critical_error = True
-                            break
-
-                    # Handle the END_IF marker.
-                    if prefix == 'end_if':
-                        # If execution reaches here normally, 
-                        # it means the IF block has been fully processed; simply skip the marker.
-                        self.item_index += 1
+                    # Handle IF / ELSE / END_IF branching.
+                    next_idx, handled = self._step_branch(self.test_item_list, self.item_index)
+                    if handled:
+                        self.item_index = next_idx
                         continue
 
                     if self._is_stop_requested():
@@ -460,7 +526,17 @@ class Runner():
                             is_cycle_fail = True
                             stop_test_flag = True
                         log_banner('Execute items in the FAIL block.')
-                        for on_fail_item in self.on_fail_list:
+                        self._if_branch_stack.clear()
+                        on_fail_idx = 0
+                        while on_fail_idx < len(self.on_fail_list):
+                            if self._is_stop_requested():
+                                break
+                            next_idx, handled = self._step_branch(self.on_fail_list, on_fail_idx)
+                            if handled:
+                                on_fail_idx = next_idx
+                                continue
+
+                            on_fail_item = self.on_fail_list[on_fail_idx]
                             fail_prefix = on_fail_item[0].strip().lower()
                             fail_content = on_fail_item[1].strip()
 
@@ -470,6 +546,8 @@ class Runner():
                                 self._cmd_prompt(fail_content)
                             else:
                                 return_code = self._run_test_script(fail_content)
+
+                            on_fail_idx += 1
 
                         info('FAIL block finished.', tag='RUNNER')
 
@@ -491,10 +569,18 @@ class Runner():
                 # Execute items in the FINAL block if defined (runs on both PASS and FAIL, but not if stop was requested)
                 if self.final_list and not self._is_stop_requested():
                     log_banner('Execute items in the FINAL block.')
-                    for final_item in self.final_list:
+                    self._if_branch_stack.clear()
+                    final_idx = 0
+                    while final_idx < len(self.final_list):
                         if self._is_stop_requested():
                             warn('Stop requested, aborting FINAL block.', tag='RUNNER')
                             break
+                        next_idx, handled = self._step_branch(self.final_list, final_idx)
+                        if handled:
+                            final_idx = next_idx
+                            continue
+
+                        final_item = self.final_list[final_idx]
                         final_prefix = final_item[0].strip().lower()
                         final_content = final_item[1].strip()
 
@@ -509,6 +595,8 @@ class Runner():
                                 current_err = self.ctx.get('ERROR_CODE')
                                 if not current_err or current_err == 'PASS':
                                     self.ctx.set('ERROR_CODE', 'FAIL')
+
+                        final_idx += 1
 
                     info('FINAL block finished.', tag='RUNNER')
 

@@ -26,6 +26,8 @@ start function
         delay 3                                                            # 內建延遲功能
         if FACTORY_LOCATION == Chiayi
             action sleep.py --sec 2                                        # 條件判斷執行
+        else
+            action sleep.py --sec 1                                        # 條件不成立時執行
         end_if
         action demo_logs.py                                                # 執行日誌演示腳本
         prompt --show usb_disk.png --text "Insert USB"                     # 操作員提示
@@ -45,14 +47,14 @@ end
 #### 流程區塊：
 - `start ... stop`: 主測試流程區塊。
 - `on_fail ... end`: 失敗診斷與復歸區塊。當主流程中任何 `verify` 失敗時觸發。
-- `final ... end`: 最終保證執行區塊（類似 Python 的 `try...finally`）。無論測試結果為 PASS 還是 FAIL，皆保證在測試週期末尾執行，適合放置關閉電源、設備復位或 Shopfloor 結果上傳等關鍵收尾動作（支援 `action`、`delay`、`prompt`、`if / end_if`，不允許使用 `verify`）。
+- `final ... end`: 最終保證執行區塊（類似 Python 的 `try...finally`）。無論測試結果為 PASS 還是 FAIL，皆保證在測試週期末尾執行，適合放置關閉電源、設備復位或 Shopfloor 結果上傳等關鍵收尾動作（支援 `action`、`delay`、`prompt`、`if / else / end_if`，不允許使用 `verify`）。
 
 #### 關鍵指令：
 - `verify`: 失敗時會立即中斷並跳轉至 `on_fail`。
 - `action`: 執行任務但不強制檢查結果。
 - `delay`: 內建延遲功能，暫停執行指定秒數。
 - `prompt`: 內建操作員提示對話框。支援彈出扁平暗色調視窗以顯示圖片 (`--show`) 與自訂文字說明 (`--text`)，按空白鍵/Enter即可快速確認。在無 GUI 環境下會自動降級為終端機輸入模式。
-- `if / end_if`: 支援根據 `ExecutionContext` 中的變數進行分支判斷。
+- `if / else / end_if`: 支援根據 `ExecutionContext` 中的變數進行分支判斷（支援 `if ... else ... end_if` 二元分支，最多支援 2 層巢狀結構；不支援 `elif` 以保持流程檔簡明）。
 
 ## 3. ResultManager (結果管理)
 
