@@ -26,7 +26,7 @@ from sapas.tui.components.log_view import LogView
 from sapas.tui.screens.quit_confirm import QuitConfirmScreen
 from sapas.tui.screens.device_manager import DeviceManagerScreen
 from sapas.tui.screens.station_monitor import StationMonitorScreen
-from sapas.tui.utils.constants import PASS_SYMBOL, FAIL_SYMBOL, SKIP_FLOW_COMMANDS
+from sapas.tui.utils.constants import PASS_SYMBOL, FAIL_SYMBOL, SKIP_FLOW_COMMANDS, get_default_step_status
 from sapas.tui.utils.data_types import TestStep, parse_flow_tree
 from sapas.tui.engine.log_interceptor import LogInterceptor
 from sapas.tui.engine.runner_worker import run_flow_in_daemon_thread, run_single_step_in_daemon_thread
@@ -148,9 +148,15 @@ class SapasDashboard(App[None]):
         self.rebuild_final_indexes()
         # If no fail occurred in this cycle, mark unexecuted on_fail steps as SKIP!
         if not self.has_failed_in_cycle and not self.stop_requested:
+            try:
+                table = self.query_one("#items-table", StepsTable)
+            except Exception:
+                table = None
             for step in self.on_fail_steps:
                 if self.step_status.get(step.row_key) == "PENDING":
                     self.set_step_status(step.row_key, "SKIP")
+                    if table:
+                        table.set_skip_reason(step.row_key, "All tests passed (no failure occurred in main flow)")
 
     def _handle_final_finish(self) -> None:
         self.is_in_final_block = False
@@ -256,7 +262,17 @@ class SapasDashboard(App[None]):
     def _handle_step_skip(self, item_name: str, condition: str = "") -> None:
         if self.is_debug_mode:
             return
-        row_key = self.pop_next_pending_step(item_name)
+        if self.is_in_final_block:
+            row_key = self.pop_next_pending_final_step(item_name)
+            if not row_key:
+                row_key = self.pop_next_pending_step(item_name)
+        elif self.is_in_fail_block:
+            row_key = self.pop_next_pending_on_fail_step(item_name)
+            if not row_key:
+                row_key = self.pop_next_pending_step(item_name)
+        else:
+            row_key = self.pop_next_pending_step(item_name)
+
         if row_key:
             self.set_step_status(row_key, "SKIP")
             try:
@@ -279,6 +295,9 @@ class SapasDashboard(App[None]):
                 if step.command == "end_if":
                     cond_info = f" ({step.condition})" if step.condition else ""
                     text.append(f"END OF IF{cond_info}", style="bold white")
+                elif step.command == "else":
+                    cond_info = f" ({step.condition})" if step.condition else ""
+                    text.append(f"ELSE BRANCH{cond_info}", style="bold white")
                 else:
                     text.append(f"IF {step.condition}", style="bold white")
                 self.query_one("#step-detail-bar", Static).update(text)
@@ -292,7 +311,11 @@ class SapasDashboard(App[None]):
             text.append(f"[{step.item_id}] {step.flow_item} ", style="bold")
             if status == "SKIP":
                 text.append("[- SKIP]\n", style="bold yellow")
-                text.append(f"IF {skip_reason or 'Condition False'}", style="yellow")
+                reason_str = skip_reason or 'Condition False'
+                if any(reason_str.startswith(p) for p in ("ELSE", "IF", "All ", "Main ", "No ")):
+                    text.append(reason_str, style="yellow")
+                else:
+                    text.append(f"IF {reason_str}", style="yellow")
             elif status == "RUNNING":
                 text.append("[RUNNING]", style="bold cyan")
             elif status == "PASS":
@@ -777,8 +800,7 @@ class SapasDashboard(App[None]):
             # 2. Synchronize step_status: preserve status for matching row_keys, initialize new ones
             new_step_status = {}
             for step in self.test_steps + self.on_fail_steps + self.final_steps:
-                default_status = "END_IF" if step.command == "end_if" else ("IF" if step.is_condition else "PENDING")
-                new_step_status[step.row_key] = self.step_status.get(step.row_key, default_status)
+                new_step_status[step.row_key] = self.step_status.get(step.row_key, get_default_step_status(step))
             self.step_status = new_step_status
 
             # 3. Re-render table on left panel
@@ -863,7 +885,7 @@ class SapasDashboard(App[None]):
         self.has_failed_in_cycle = False
         self.rebuild_step_indexes()
         self.step_status = {
-            step.row_key: ("END_IF" if step.command == "end_if" else ("IF" if step.command == "if" else "PENDING"))
+            step.row_key: get_default_step_status(step)
             for step in self.test_steps + self.on_fail_steps + self.final_steps
         }
         try:
@@ -1036,7 +1058,7 @@ class SapasDashboard(App[None]):
         self.has_failed_in_cycle = False
         self.rebuild_step_indexes()
         self.step_status = {
-            step.row_key: ("END_IF" if step.command == "end_if" else ("IF" if step.command == "if" else "PENDING"))
+            step.row_key: get_default_step_status(step)
             for step in self.test_steps + self.on_fail_steps + self.final_steps
         }
         try:
@@ -1211,9 +1233,15 @@ class SapasDashboard(App[None]):
             self.set_error_code(str(error_code or "PASS"), "pass")
             self.set_result_banner("PASS")
             if not self.has_failed_in_cycle and not self.stop_requested:
+                try:
+                    table = self.query_one("#items-table", StepsTable)
+                except Exception:
+                    table = None
                 for step in self.on_fail_steps:
                     if self.step_status.get(step.row_key) == "PENDING":
                         self.set_step_status(step.row_key, "SKIP")
+                        if table:
+                            table.set_skip_reason(step.row_key, "All tests passed (no failure occurred in main flow)")
         elif final_status == "STOP":
             self.set_error_code(str(error_code or "STOP"), "fail")
             self.set_result_banner("FAIL")

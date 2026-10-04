@@ -248,7 +248,7 @@ Footer > .footer--description {
 }
 
 #step-detail-bar {
-    height: 3;
+    height: 4;
     background: $panel;
     border-top: solid $secondary;
     padding: 0 1;

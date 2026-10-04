@@ -29,6 +29,9 @@ class FlowNode:
         self.runner_idx = runner_idx
         self.condition = condition
         self.children: list["FlowNode"] = []
+        self.else_children: list["FlowNode"] = []
+        self.has_else: bool = False
+        self.else_runner_idx = runner_idx
         self.end_runner_idx = runner_idx
 
 
@@ -63,6 +66,14 @@ class FlowTreeParser:
                 node = FlowNode("if", "if", val, idx, condition=val)
                 stack[-1][0].append(node)
                 stack.append((node.children, node))
+            elif cmd == "else":
+                if len(stack) > 1:
+                    parent_node = stack[-1][1]
+                    if parent_node and parent_node.kind == "if":
+                        parent_node.has_else = True
+                        parent_node.else_runner_idx = idx
+                        # Redirect subsequent steps to else_children
+                        stack[-1] = (parent_node.else_children, parent_node)
             elif cmd == "end_if":
                 if len(stack) > 1:
                     _, parent_node = stack.pop()
@@ -94,6 +105,24 @@ class FlowTreeParser:
 
                 # Indent children with tree guide
                 result.extend(self._traverse(node.children, prefix + "│  "))
+
+                # Append ELSE step and children if present
+                if node.has_else:
+                    else_label = f"{prefix}ELSE"
+                    else_idx_str = self._format_id(node.else_runner_idx)
+                    else_row_key = f"else_{else_idx_str}"
+                    else_step = TestStep(
+                        item_id="",
+                        runner_index=else_idx_str,
+                        item_label=else_label,
+                        flow_item="else",
+                        command="else",
+                        is_condition=True,
+                        condition=node.condition,
+                        row_key=else_row_key,
+                    )
+                    result.append(else_step)
+                    result.extend(self._traverse(node.else_children, prefix + "│  "))
 
                 # Append closing END_IF step
                 end_label = f"{prefix}END_IF"

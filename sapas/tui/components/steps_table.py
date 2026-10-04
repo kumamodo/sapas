@@ -1,6 +1,6 @@
 from textual.widgets import DataTable
 
-from sapas.tui.utils.constants import format_status
+from sapas.tui.utils.constants import format_status, get_default_step_status
 from sapas.tui.utils.data_types import TestStep
 
 
@@ -44,8 +44,7 @@ class StepsTable(DataTable):
         self.clear()
         for step in test_steps:
             label = step.item_label
-            default_status = "END_IF" if step.command == "end_if" else ("IF" if step.is_condition else "PENDING")
-            status = step_status.get(step.row_key, default_status)
+            status = step_status.get(step.row_key, get_default_step_status(step))
             self.add_row(step.item_id, format_status(status), label, key=step.row_key)
 
         if on_fail_steps:
@@ -57,8 +56,7 @@ class StepsTable(DataTable):
 
             for step in on_fail_steps:
                 label = step.item_label
-                default_status = "END_IF" if step.command == "end_if" else ("IF" if step.is_condition else "PENDING")
-                status = step_status.get(step.row_key, default_status)
+                status = step_status.get(step.row_key, get_default_step_status(step))
                 self.add_row(step.item_id, format_status(status), label, key=step.row_key)
 
         if final_steps:
@@ -70,8 +68,7 @@ class StepsTable(DataTable):
 
             for step in final_steps:
                 label = step.item_label
-                default_status = "END_IF" if step.command == "end_if" else ("IF" if step.is_condition else "PENDING")
-                status = step_status.get(step.row_key, default_status)
+                status = step_status.get(step.row_key, get_default_step_status(step))
                 self.add_row(step.item_id, format_status(status), label, key=step.row_key)
 
     def highlight_on_fail_separator(self) -> None:

@@ -41,16 +41,18 @@ start function
         # Uncomment the line below to control the Power Supply (supports --state on, off, or cycle)
         # action psu_controller.py --state cycle --voltage 12.0 --current 2.0
         
-        # [Demonstrating Nested Logic]
-        if FACTORY_LOCATION == Chiayi                       # Regional logic check for Chiayi site
+        # [Demonstrating Nested Branching with IF / ELSE (Max 2 Levels)]
+        if FACTORY_LOCATION == Chiayi                       # Regional logic check for Chiayi site (Level 1)
             action sleep.py --sec 2                         # Execution delay for specific production line
             action sleep.py --sec 1                         # Execution delay for specific production line
             
-            if FACTORY_LOCATION == Changhua                 # Nested check for Changhua site (Example)
+            if FACTORY_LOCATION == Changhua                 # Nested check (Level 2)
                 action sleep.py --sec 3                     # Extended wait time for secondary location
-                action sleep.py --sec 1                     # Extended wait time for secondary location
-                action sleep.py --sec 2                     # Extended wait time for secondary location
+            else                                            # Fallback for other locations within Chiayi branch
+                action sleep.py --sec 1
             end_if
+        else                                                # Fallback when FACTORY_LOCATION is not Chiayi
+            action sleep.py --sec 2
         end_if
 
          # --- Logging Demo ---

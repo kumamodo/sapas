@@ -26,6 +26,8 @@ start function
         delay 3                                                            # Built-in delay function
         if FACTORY_LOCATION == Chiayi
             action sleep.py --sec 2                                        # Conditional execution
+        else
+            action sleep.py --sec 1                                        # Fallback execution
         end_if
         action demo_logs.py                                                # Execute log demonstration script
         prompt --show usb_disk.png --text "Insert USB"                     # Operator prompt
@@ -45,14 +47,14 @@ end
 #### Flow Blocks:
 - `start ... stop`: Main test sequence block.
 - `on_fail ... end`: Failure diagnostics and recovery block. Triggered when any `verify` step in the main flow fails.
-- `final ... end`: Guaranteed cleanup block (similar to Python's `try...finally`). Always executes at the end of each test cycle regardless of whether the station run resulted in `PASS` or `FAIL`. Ideal for power shutoff, fixture reset, or Shopfloor result reporting (supports `action`, `delay`, `prompt`, `if / end_if`; `verify` is not permitted).
+- `final ... end`: Guaranteed cleanup block (similar to Python's `try...finally`). Always executes at the end of each test cycle regardless of whether the station run resulted in `PASS` or `FAIL`. Ideal for power shutoff, fixture reset, or Shopfloor result reporting (supports `action`, `delay`, `prompt`, `if / else / end_if`; `verify` is not permitted).
 
 #### Key Commands:
 - `verify`: Immediately interrupts and jumps to `on_fail` upon failure.
 - `action`: Executes a task but does not force a result check.
 - `delay`: Built-in delay function, pauses execution for a specified number of seconds.
 - `prompt`: Built-in operator prompt dialog. Supports popping up a flat, dark-themed window to display images (`--show`) and custom instructions (`--text`). Operators can press Space or Enter for quick confirmation. Falls back to terminal input mode automatically in headless environments.
-- `if / end_if`: Supports branch judgment based on variables in the `ExecutionContext`.
+- `if / else / end_if`: Supports branch judgment based on variables in the `ExecutionContext` (supports `if ... else ... end_if` two-way branching, up to 2 levels of nesting; `elif` is not supported to keep Flow syntax concise).
 
 ## 3. ResultManager
 
