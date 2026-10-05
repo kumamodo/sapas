@@ -256,6 +256,7 @@ class SapasDashboard(App[None]):
             start_button = self.query_one("#start-button", Button)
             if self.is_testing:
                 start_button.disabled = False
+                start_button.can_focus = False
         except Exception:
             pass
 
@@ -1133,7 +1134,9 @@ class SapasDashboard(App[None]):
 
     @on(events.Enter, "#start-button")
     def on_start_button_enter(self) -> None:
-        """Focus the start/stop button when mouse hovers over it."""
+        """Focus the start/stop button when mouse hovers over it in standby mode."""
+        if self.is_testing:
+            return
         start_button = self.query_one("#start-button", Button)
         if not start_button.disabled:
             start_button.can_focus = True
@@ -1146,7 +1149,10 @@ class SapasDashboard(App[None]):
         if self.is_testing:
             start_button.can_focus = False
             if self.focused is start_button:
-                self.set_focus(None)
+                try:
+                    self.query_one("#items-table", StepsTable).focus()
+                except Exception:
+                    self.set_focus(None)
         else:
             if self.focused is start_button:
                 self.focus_serial_input()
@@ -1159,8 +1165,14 @@ class SapasDashboard(App[None]):
         if self.context is not None:
             self.context.set("STOP_REQUESTED", True)
         self.set_error_code("STOPPING", "running")
-        self.query_one("#start-button", Button).label = "Stopping"
+        start_button = self.query_one("#start-button", Button)
+        start_button.label = "Stopping"
+        start_button.can_focus = False
         self.write_terminal_log("Stop requested by operator. Waiting for current item to complete.", "bold yellow")
+        try:
+            self.query_one("#items-table", StepsTable).focus()
+        except Exception:
+            self.set_focus(None)
 
     def start_cycle(self, serial_number: str) -> None:
         """Validates current state constraints before spawning execution cycles."""
@@ -1173,6 +1185,11 @@ class SapasDashboard(App[None]):
             self.focus_serial_input()
             return
         self._abort_ui = False
+        # Move focus immediately away from input/buttons to prevent accidental double-Enter triggers
+        try:
+            self.query_one("#items-table", StepsTable).focus()
+        except Exception:
+            self.set_focus(None)
         self._cycle_task = asyncio.create_task(self.run_station_cycle(clean_sn))
 
     async def run_station_cycle(self, serial_number: str) -> None:
@@ -1181,10 +1198,16 @@ class SapasDashboard(App[None]):
         self.stop_requested = False
         serial_input = self.query_one("#serial-input", Input)
         start_button = self.query_one("#start-button", Button)
+        start_button.can_focus = False
         serial_input.disabled = True
         start_button.disabled = False
         start_button.label = "Stop"
-        start_button.can_focus = False
+
+        # Explicitly move focus to #items-table so Enter/Space keys cannot trigger Stop button
+        try:
+            self.query_one("#items-table", StepsTable).focus()
+        except Exception:
+            self.set_focus(None)
 
         self.reset_station_view(clear_log=True)
         self.args.serialNumber = serial_number

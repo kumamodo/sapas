@@ -183,7 +183,8 @@ Footer > .footer--description {
     text-style: bold;
 }
 
-#start-button:focus {
+#start-button:focus,
+#start-button:hover {
     border: solid $accent;
 }
 
