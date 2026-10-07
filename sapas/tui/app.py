@@ -3,6 +3,7 @@ import contextlib
 import signal
 import sys
 import yaml
+from typing import Optional
 from argparse import Namespace
 from datetime import datetime
 from pathlib import Path
