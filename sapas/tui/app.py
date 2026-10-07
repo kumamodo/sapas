@@ -3,7 +3,6 @@ import contextlib
 import signal
 import sys
 import yaml
-from typing import Optional
 from argparse import Namespace
 from datetime import datetime
 from pathlib import Path
@@ -788,7 +787,7 @@ class SapasDashboard(App[None]):
         except Exception as e:
             self.write_terminal_log(f"[CONFIG] Hot-reload error: {e}", "bold red")
 
-    def reload_flow(self) -> Optional[str]:
+    def reload_flow(self) -> str | None:
         """Re-parses the active flow file from disk and live hot-reloads the test items table."""
         try:
             # 1. Reload flow steps from disk
