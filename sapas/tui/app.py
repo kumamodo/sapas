@@ -96,6 +96,8 @@ class SapasDashboard(App[None]):
         self.has_failed_in_cycle = False
         self._sigint_pending = False
         self._sf_blink_counter = 2
+        self.is_station_remote_locked = False
+        self._previous_lock_msg: str | None = None
 
         # Instantiate log parser with callbacks
         self.log_interceptor = LogInterceptor(
@@ -379,9 +381,54 @@ class SapasDashboard(App[None]):
         self.set_interval(0.5, self.update_elapsed)
         self.set_interval(0.1, self.check_signal_quit_request)
         self.set_interval(1, self.toggle_sf_blink)
+        self.set_interval(0.5, self.check_station_lock)
         self.apply_responsive_layout(self.screen.size.width)
         self.query_one("#live-log", LogView).can_focus = False
         self.call_after_refresh(self.focus_serial_input)
+
+    def check_station_lock(self) -> None:
+        """Polls lockfile status; locks or unlocks TUI controls during remote maintenance."""
+        from sapas.guard.lock_manager import get_lock_data
+        lock_data = get_lock_data()
+        is_locked_now = lock_data is not None
+
+        if is_locked_now and not self.is_station_remote_locked:
+            self.enter_remote_locked_state(lock_data)
+        elif not is_locked_now and self.is_station_remote_locked:
+            self.exit_remote_locked_state()
+        elif is_locked_now and self.is_station_remote_locked:
+            new_msg = f"{lock_data.get('message', '')} ({lock_data.get('ip', '')})"
+            if new_msg != self._previous_lock_msg:
+                self.enter_remote_locked_state(lock_data)
+
+    def enter_remote_locked_state(self, lock_data: dict) -> None:
+        """Displays remote maintenance status in TUI while keeping testing available for the engineer."""
+        self.is_station_remote_locked = True
+        msg = lock_data.get("message", "Remote maintenance")
+        ip = lock_data.get("ip", "Unknown IP")
+        self._previous_lock_msg = f"{msg} ({ip})"
+
+        self.sub_title = Text.assemble(
+            ("[! REMOTE MAINTENANCE ACTIVE !] ", "bold red"),
+            (f"{msg} (by {ip})", "bold yellow")
+        )
+        self.write_terminal_log("=" * 60, "bold red")
+        self.write_terminal_log(f"[LOCK] Station under remote maintenance by {ip}!", "bold red")
+        self.write_terminal_log(f"       Reason: {msg}", "bold yellow")
+        self.write_terminal_log("       Notice: Full debug & testing access remains active for this session.", "dim cyan")
+        self.write_terminal_log("=" * 60, "bold red")
+
+    def exit_remote_locked_state(self) -> None:
+        """Restores normal TUI status when remote maintenance lock is released."""
+        self.is_station_remote_locked = False
+        self._previous_lock_msg = None
+
+        if not self.is_testing and not self.is_debug_mode:
+            self.sub_title = "Ready for Test"
+
+        self.write_terminal_log("=" * 60, "bold green")
+        self.write_terminal_log("[UNLOCK] Remote maintenance lock released. Station ready.", "bold green")
+        self.write_terminal_log("=" * 60, "bold green")
 
     def toggle_sf_blink(self) -> None:
         """Toggles the blink class on the app root if Shopfloor is disabled using a 4-second cycle (3s on, 1s off)."""
@@ -1177,6 +1224,8 @@ class SapasDashboard(App[None]):
     def start_cycle(self, serial_number: str) -> None:
         """Validates current state constraints before spawning execution cycles."""
         clean_sn = serial_number.strip() if serial_number else ""
+        if self.is_station_remote_locked:
+            self.write_terminal_log("[NOTICE] Executing test cycle under remote maintenance session.", "bold yellow")
         if self.is_testing or not clean_sn:
             self.focus_serial_input()
             return

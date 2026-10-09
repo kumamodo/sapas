@@ -171,7 +171,134 @@ def setup_context(args):
     rt.init(context)
     return context
 
+
+def print_guard_help() -> None:
+    help_text = """
+[bold cyan]Sapas Station Guard[/] - Remote Maintenance Lock & Station Protection
+
+[bold]Usage:[/]
+  sapas guard <command> [options]
+
+[bold]Commands:[/]
+  [bold green]lock[/] [message]      Engage station maintenance lock (blocks local testing & alerts desktop)
+  [bold green]unlock[/]              Release station maintenance lock (restores normal operations)
+  [bold green]status[/]              Check guard daemon status and active lock details
+  [bold green]install[/]             Install Station Guard into Windows Startup for auto-protection
+  [bold green]uninstall[/]           Remove Station Guard from Windows Startup and stop background process
+  [bold green]run[/]                 Run Station Guard monitor loop in foreground (for testing/debug)
+
+[bold]Examples:[/]
+  sapas guard lock "Replacing RF cable"
+  sapas guard unlock
+  sapas guard status
+  sapas guard install
+"""
+    console.print(help_text.strip())
+
+
+def handle_guard_cli(argv: list[str]) -> None:
+    """Handles sapas guard subcommands (lock, unlock, status, install, uninstall, run)."""
+    if not argv or argv[0].lower() in ("-h", "--help", "help"):
+        print_guard_help()
+        sys.exit(0)
+
+    subcmd = argv[0].lower()
+
+    if subcmd == "lock":
+        lock_args = argv[1:]
+        msg = ""
+        if lock_args:
+            if lock_args[0] in ("-m", "--message") and len(lock_args) > 1:
+                msg = " ".join(lock_args[1:]).strip()
+            else:
+                msg = " ".join(lock_args).strip()
+
+        from sapas.guard.lock_manager import acquire_lock
+        from sapas.guard.installer import get_daemon_pid
+        data = acquire_lock(msg)
+
+        console.print(Panel(
+            Text.assemble(
+                ("[!] [LOCKED] Station maintenance lock engaged!\n\n", "bold red"),
+                ("  Message   : ", "bold yellow"), (f"{data['message']}\n", "white"),
+                ("  Source IP : ", "bold cyan"), (f"{data['ip']}\n", "bright_cyan"),
+                ("  Lock Time : ", "bold"), (f"{data['time']}\n", "dim"),
+            ),
+            title="Sapas Station Guard",
+            border_style="red"
+        ))
+        if not get_daemon_pid():
+            console.print("[dim yellow][Notice] Station Guard daemon is not running on this PC. Run 'sapas guard install' to enable fullscreen visual alerts on the station desktop.[/]")
+        sys.exit(0)
+
+    elif subcmd == "unlock":
+        from sapas.guard.lock_manager import release_lock, is_locked
+        was_locked = is_locked()
+        released = release_lock()
+        if released or was_locked:
+            console.print("[bold green][OK] [UNLOCKED] Station maintenance lock released. Normal operations restored.[/]")
+        else:
+            console.print("[yellow][Notice] Station was not locked.[/]")
+        sys.exit(0)
+
+    elif subcmd in ("status", "--status"):
+        from sapas.guard.installer import get_status
+        st = get_status()
+        console.print(Panel(
+            Text.assemble(
+                ("Station Guard Status:\n", "bold"),
+                ("  Startup Auto-Run : ", "bold"), (("Installed" if st["installed"] else "Not installed") + "\n", "green" if st["installed"] else "yellow"),
+                ("  Daemon Process   : ", "bold"), ((f"Running (PID {st['daemon_pid']})" if st["running"] else "Stopped") + "\n", "green" if st["running"] else "dim"),
+                ("  Lock Status      : ", "bold"), (("LOCKED" if st["locked"] else "IDLE (Unlocked)") + "\n", "bold red" if st["locked"] else "green"),
+                ("  Startup Path     : ", "dim"), (f"{st['vbs_path']}\n", "dim"),
+            ),
+            title="Sapas Guard Service",
+            border_style="cyan"
+        ))
+        if st["locked"] and st.get("lock_info"):
+            info = st["lock_info"]
+            console.print(f"  [red]Active Lock: '{info.get('message')}' from {info.get('ip')} at {info.get('time')}[/]")
+        sys.exit(0)
+
+    elif subcmd in ("install", "--install"):
+        from sapas.guard.installer import install
+        ok = install()
+        if ok:
+            console.print("[bold green][OK] Station Guard successfully installed to Windows Startup and started in background![/]")
+        else:
+            console.print("[bold red][ERROR] Failed to install Station Guard to Windows Startup.[/]")
+        sys.exit(0 if ok else 1)
+
+    elif subcmd in ("uninstall", "--uninstall"):
+        from sapas.guard.installer import uninstall
+        ok = uninstall()
+        if ok:
+            console.print("[bold green][OK] Station Guard uninstalled and background process terminated.[/]")
+        else:
+            console.print("[bold red][ERROR] Failed to uninstall Station Guard.[/]")
+        sys.exit(0 if ok else 1)
+
+    elif subcmd in ("run", "--run"):
+        from sapas.guard.daemon import StationGuardDaemon
+        console.print("[bold cyan]Starting Sapas Station Guard in foreground. Press Ctrl+C to stop...[/]")
+        StationGuardDaemon().run()
+        sys.exit(0)
+
+    else:
+        console.print(f"[bold red][Error] Unknown guard command '{subcmd}'.[/]")
+        print_guard_help()
+        sys.exit(1)
+
+
 def main():
+    if len(sys.argv) > 1 and sys.argv[1].lower() == "guard":
+        handle_guard_cli(sys.argv[2:])
+        return
+    elif len(sys.argv) > 1 and sys.argv[1].lower() in ("lock", "unlock"):
+        cmd = sys.argv[1].lower()
+        console.print(f"[yellow][Notice] Unknown command 'sapas {cmd}'. Did you mean [bold cyan]sapas guard {cmd}[/]?[/]")
+        sys.exit(1)
+
     parser = argparse.ArgumentParser(description="Sapas Testing Framework", allow_abbrev=False)
     parser.add_argument("script", nargs="?", help="Path to user test script (.py)")
     parser.add_argument("--tui", action="store_true", help="Start the TUI interface mode.")
