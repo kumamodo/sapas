@@ -1,5 +1,6 @@
 import asyncio
 import contextlib
+import os
 import signal
 import sys
 import yaml
@@ -98,6 +99,9 @@ class SapasDashboard(App[None]):
         self._sf_blink_counter = 2
         self.is_station_remote_locked = False
         self._previous_lock_msg: str | None = None
+        self._last_lock_data: dict | None = None
+        self.is_emergency_brake_active = False
+        self._override_event_data: dict | None = None
 
         # Instantiate log parser with callbacks
         self.log_interceptor = LogInterceptor(
@@ -384,13 +388,28 @@ class SapasDashboard(App[None]):
         self.set_interval(0.5, self.check_station_lock)
         self.apply_responsive_layout(self.screen.size.width)
         self.query_one("#live-log", LogView).can_focus = False
+
+        # If this is a local station TUI starting up freshly and station is not currently locked,
+        # clear any stale override events so the operator starts with a clean standby dashboard.
+        is_remote_session = bool(os.environ.get("SSH_CLIENT") or os.environ.get("SSH_CONNECTION"))
+        if not is_remote_session:
+            from sapas.guard.lock_manager import is_locked, clear_override_event
+            if not is_locked():
+                clear_override_event()
+
         self.call_after_refresh(self.focus_serial_input)
 
     def check_station_lock(self) -> None:
-        """Polls lockfile status; locks or unlocks TUI controls during remote maintenance."""
-        from sapas.guard.lock_manager import get_lock_data
+        """Polls lockfile status and override events; locks or unlocks TUI controls during remote maintenance."""
+        from sapas.guard.lock_manager import get_lock_data, get_override_event
         lock_data = get_lock_data()
         is_locked_now = lock_data is not None
+        override_event = get_override_event()
+
+        # If an emergency on-site override happened, engage emergency brake immediately!
+        if override_event and not self.is_emergency_brake_active:
+            self.enter_emergency_brake_state(override_event)
+            return
 
         if is_locked_now and not self.is_station_remote_locked:
             self.enter_remote_locked_state(lock_data)
@@ -401,9 +420,55 @@ class SapasDashboard(App[None]):
             if new_msg != self._previous_lock_msg:
                 self.enter_remote_locked_state(lock_data)
 
+    def enter_emergency_brake_state(self, event_data: dict) -> None:
+        """Triggers full industrial emergency brake when on-site override unlock is detected."""
+        self.is_emergency_brake_active = True
+        self._override_event_data = event_data
+        self.is_station_remote_locked = False
+        self._previous_lock_msg = None
+
+        reason = event_data.get("reason", "On-site Supervisor Override")
+        event_time = event_data.get("time", "")
+
+        self.sub_title = Text.assemble(
+            ("⚠️ [EMERGENCY BRAKE: ON-SITE OVERRIDE DETECTED] ⚠️", "bold white on red")
+        )
+        self.bell()
+        self.write_terminal_log("!" * 70, "bold red")
+        self.write_terminal_log(" [DANGER] STATION WAS FORCEFULLY UNLOCKED ON-SITE! ", "bold white on red")
+        self.write_terminal_log(f" Reason: {reason} at {event_time}", "bold yellow")
+        self.write_terminal_log(" SAFETY BRAKE ENGAGED: ALL REMOTE HARDWARE ACTIONS ARE NOW FROZEN!", "bold red")
+        self.write_terminal_log(" Personnel may be present near the fixture or handling the DUT.", "bold yellow")
+        self.write_terminal_log(" To resume testing, verify physical safety and run: 'sapas guard lock'", "bold cyan")
+        self.write_terminal_log("!" * 70, "bold red")
+
+        # If a cycle is currently running, emergency-stop it immediately!
+        if self.is_testing:
+            self.request_test_stop()
+
+        # If this TUI is running locally on the physical station PC, notify operator to exit & restart
+        is_remote_session = bool(os.environ.get("SSH_CLIENT") or os.environ.get("SSH_CONNECTION"))
+        if not is_remote_session:
+            from sapas.tui.screens.remote_restart import RemoteRestartScreen
+            self.push_screen(RemoteRestartScreen(self._last_lock_data or {}))
+
+
+    def clear_emergency_brake(self) -> None:
+        """Clears the emergency brake state once safety is verified or re-locked."""
+        from sapas.guard.lock_manager import clear_override_event
+        clear_override_event()
+        self.is_emergency_brake_active = False
+        self._override_event_data = None
+        if not self.is_testing and not self.is_debug_mode and not self.is_station_remote_locked:
+            self.sub_title = "Ready for Test"
+        self.write_terminal_log("[SAFETY] Emergency brake reset. Proceed with caution.", "bold green")
+
     def enter_remote_locked_state(self, lock_data: dict) -> None:
         """Displays remote maintenance status in TUI while keeping testing available for the engineer."""
+        if self.is_emergency_brake_active:
+            self.clear_emergency_brake()
         self.is_station_remote_locked = True
+        self._last_lock_data = lock_data
         msg = lock_data.get("message", "Remote maintenance")
         ip = lock_data.get("ip", "Unknown IP")
         self._previous_lock_msg = f"{msg} ({ip})"
@@ -422,13 +487,28 @@ class SapasDashboard(App[None]):
         """Restores normal TUI status when remote maintenance lock is released."""
         self.is_station_remote_locked = False
         self._previous_lock_msg = None
+        last_info = self._last_lock_data or {}
+        self._last_lock_data = None
 
-        if not self.is_testing and not self.is_debug_mode:
+        from sapas.guard.lock_manager import get_override_event
+        override_event = get_override_event()
+        if override_event:
+            self.enter_emergency_brake_state(override_event)
+            return
+
+        if not self.is_testing and not self.is_debug_mode and not self.is_emergency_brake_active:
             self.sub_title = "Ready for Test"
 
         self.write_terminal_log("=" * 60, "bold green")
         self.write_terminal_log("[UNLOCK] Remote maintenance lock released. Station ready.", "bold green")
         self.write_terminal_log("=" * 60, "bold green")
+
+        # If this TUI is running locally on the physical station PC, notify operator to exit & restart
+        is_remote_session = bool(os.environ.get("SSH_CLIENT") or os.environ.get("SSH_CONNECTION"))
+        if not is_remote_session:
+            from sapas.tui.screens.remote_restart import RemoteRestartScreen
+            self.push_screen(RemoteRestartScreen(last_info))
+
 
     def toggle_sf_blink(self) -> None:
         """Toggles the blink class on the app root if Shopfloor is disabled using a 4-second cycle (3s on, 1s off)."""
@@ -748,6 +828,20 @@ class SapasDashboard(App[None]):
             return
         if self.is_retesting or self.is_testing:
             self.write_terminal_log("[WARN] A test or re-test is already running.", "bold yellow")
+            return
+
+        from sapas.guard.lock_manager import ensure_remote_guard_lock
+        auto_locked = ensure_remote_guard_lock()
+        if auto_locked:
+            self.write_terminal_log("[AUTO-GUARD] Remote execution detected without lock. Station Guard engaged on desktop!", "bold yellow")
+        elif self.is_station_remote_locked:
+            is_remote_session = bool(os.environ.get("SSH_CLIENT") or os.environ.get("SSH_CONNECTION"))
+            if not is_remote_session:
+                self.write_terminal_log("[BLOCK] Station is locked for remote maintenance! Local re-test blocked.", "bold red")
+                return
+
+        if self.is_emergency_brake_active:
+            self.write_terminal_log("[BLOCK] EMERGENCY BRAKE ACTIVE! Station was unlocked on-site. Run 'sapas guard lock' to re-verify & resume.", "bold red")
             return
 
         table = self.query_one("#items-table", StepsTable)
@@ -1224,8 +1318,20 @@ class SapasDashboard(App[None]):
     def start_cycle(self, serial_number: str) -> None:
         """Validates current state constraints before spawning execution cycles."""
         clean_sn = serial_number.strip() if serial_number else ""
-        if self.is_station_remote_locked:
-            self.write_terminal_log("[NOTICE] Executing test cycle under remote maintenance session.", "bold yellow")
+        from sapas.guard.lock_manager import ensure_remote_guard_lock
+        auto_locked = ensure_remote_guard_lock()
+        if auto_locked:
+            self.write_terminal_log("[AUTO-GUARD] Remote execution detected without lock. Station Guard engaged on desktop!", "bold yellow")
+        elif self.is_station_remote_locked:
+            is_remote_session = bool(os.environ.get("SSH_CLIENT") or os.environ.get("SSH_CONNECTION"))
+            if not is_remote_session:
+                self.write_terminal_log("[BLOCK] Station is locked for remote maintenance! Local test execution blocked.", "bold red")
+                self.focus_serial_input()
+                return
+        if self.is_emergency_brake_active:
+            self.write_terminal_log("[BLOCK] EMERGENCY BRAKE ACTIVE! Station was unlocked on-site. Run 'sapas guard lock' to re-verify & resume.", "bold red")
+            self.focus_serial_input()
+            return
         if self.is_testing or not clean_sn:
             self.focus_serial_input()
             return

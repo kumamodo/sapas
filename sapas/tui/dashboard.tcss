@@ -369,6 +369,69 @@ QuitConfirmScreen {
 }
 
 /* ==========================================================================
+   Remote Restart Required Modal Dialog
+   ========================================================================== */
+
+RemoteRestartScreen {
+    align: center middle;
+    background: #000000 75%;
+}
+
+#restart-dialog {
+    width: 78;
+    height: auto;
+    background: $panel;
+    border: heavy $accent;
+    padding: 1 3;
+    layout: vertical;
+}
+
+#restart-dialog-title {
+    content-align: center middle;
+    text-style: bold;
+    color: $accent;
+    height: 1;
+    margin-bottom: 1;
+}
+
+#restart-dialog-bullets {
+    content-align: left middle;
+    color: $foreground;
+    text-align: left;
+    height: auto;
+    padding: 0 2;
+    margin-bottom: 1;
+}
+
+#restart-dialog-prompt {
+    content-align: center middle;
+    color: #4FC3F7;
+    text-align: center;
+    text-style: bold;
+    height: auto;
+    margin-top: 1;
+    margin-bottom: 2;
+}
+
+#restart-dialog-actions {
+    layout: horizontal;
+    height: 3;
+    align: center middle;
+    margin-bottom: 1;
+}
+
+#restart-confirm-btn {
+    width: 36;
+    height: 3;
+    text-style: bold;
+}
+
+#restart-confirm-btn:focus {
+    border: solid $accent;
+}
+
+
+/* ==========================================================================
    Device Manager Overlay Screen & Dialog
    ========================================================================== */
 

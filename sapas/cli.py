@@ -1,3 +1,4 @@
+import os
 import sys
 import argparse
 from pathlib import Path
@@ -258,6 +259,11 @@ def handle_guard_cli(argv: list[str]) -> None:
         if st["locked"] and st.get("lock_info"):
             info = st["lock_info"]
             console.print(f"  [red]Active Lock: '{info.get('message')}' from {info.get('ip')} at {info.get('time')}[/]")
+        from sapas.guard.lock_manager import get_override_event
+        ov = get_override_event()
+        if ov:
+            console.print(f"  [bold white on red][!] EMERGENCY OVERRIDE ACTIVE:[/] {ov.get('reason')} at {ov.get('time')}")
+            console.print("      [yellow]Remote execution is temporarily frozen until 'sapas guard lock' is re-engaged.[/]")
         sys.exit(0)
 
     elif subcmd in ("install", "--install"):
@@ -308,6 +314,29 @@ def main():
     parser.add_argument('--serialNumber', default='sapas999999999', help='Serial number')
     parser.add_argument('--timeStamp', default=datetime.now().strftime('%Y%m%d_%H%M%S'))
     args, remaining_args = parser.parse_known_args()
+
+    # Auto-guard interlock: If remote engineer executes a test without locking, auto-engage Station Guard
+    from sapas.guard.lock_manager import ensure_remote_guard_lock, get_override_event
+    override_evt = get_override_event()
+    if override_evt and (os.environ.get("SSH_CLIENT") or os.environ.get("SSH_CONNECTION")):
+        console.print(Panel(
+            Text.assemble(
+                ("[!] [DANGER] STATION WAS FORCEFULLY UNLOCKED ON-SITE!\n\n", "bold white on red"),
+                ("  Reason : ", "bold yellow"), (f"{override_evt.get('reason')}\n", "white"),
+                ("  Time   : ", "bold yellow"), (f"{override_evt.get('time')}\n\n", "dim"),
+                ("  Safety Interlock Engaged:\n", "bold red"),
+                ("  Personnel may be present near the fixture or handling the DUT.\n", "yellow"),
+                ("  To resume remote execution safely, inspect physical station and run: 'sapas guard lock'\n", "bright_cyan"),
+            ),
+            title="⚠️ EMERGENCY SAFETY BRAKE ⚠️",
+            border_style="red"
+        ))
+        sys.exit(1)
+
+    auto_locked = ensure_remote_guard_lock()
+    if auto_locked:
+        console.print("[bold yellow][!] [AUTO-GUARD] Remote execution detected without active lock![/]")
+        console.print(f"[bold yellow]    Engaging Station Guard on station desktop for human safety... (Source: {auto_locked['ip']})[/]\n")
 
     context = setup_context(args)
 

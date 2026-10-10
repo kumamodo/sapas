@@ -20,6 +20,7 @@ class StationGuardWindow:
         self._lbl_time: tk.Label | None = None
         self._beep_job: str | None = None
         self._beep_count: int = 0
+        self._key_history: list[str] = []
         self._current_data: dict = {}
 
     def is_visible(self) -> bool:
@@ -33,6 +34,7 @@ class StationGuardWindow:
             return
 
         self._current_data = data
+        self._key_history.clear()
         self.root = tk.Tk()
         self.root.title("Sapas Station Guard - Remote Maintenance Warning")
         self.root.attributes("-fullscreen", True)
@@ -41,6 +43,13 @@ class StationGuardWindow:
 
         # Disable Alt+F4 / Window Close
         self.root.protocol("WM_DELETE_WINDOW", lambda: None)
+
+        # On-site supervisor emergency override unlock (Supervisor Sequence: Up Up Down Down Left Right Left Right B A B A)
+        self.root.bind("<Key>", self._handle_key)
+
+        # Grab and continuously hold keyboard focus to prevent input leaking to background windows
+        self.root.bind("<FocusOut>", lambda event: self._reclaim_focus())
+        self.root.bind("<Button-1>", lambda event: self._reclaim_focus())
 
         # Main Layout Container
         container = tk.Frame(self.root, bg="#990000")
@@ -196,7 +205,52 @@ class StationGuardWindow:
         lbl_footer.pack(side="bottom", pady=20)
 
         self._start_beep_loop()
+        self.force_foreground_focus()
         self.root.update()
+
+    def force_foreground_focus(self) -> None:
+        """Forces the Windows OS to bring this alert window to the active foreground and give it keyboard focus."""
+        if not self.root:
+            return
+        try:
+            self.root.lift()
+            self.root.focus_force()
+        except Exception:
+            pass
+
+        if sys.platform == "win32":
+            try:
+                import ctypes
+                user32 = ctypes.windll.user32
+                kernel32 = ctypes.windll.kernel32
+
+                hwnd = user32.GetParent(self.root.winfo_id()) or self.root.winfo_id()
+                fg_hwnd = user32.GetForegroundWindow()
+
+                if fg_hwnd != hwnd:
+                    fg_thread = user32.GetWindowThreadProcessId(fg_hwnd, None)
+                    cur_thread = kernel32.GetCurrentThreadId()
+
+                    if fg_thread != cur_thread:
+                        user32.AttachThreadInput(cur_thread, fg_thread, True)
+
+                    # Bring window to top and set foreground
+                    user32.BringWindowToTop(hwnd)
+                    user32.SetForegroundWindow(hwnd)
+                    user32.SetFocus(hwnd)
+
+                    if fg_thread != cur_thread:
+                        user32.AttachThreadInput(cur_thread, fg_thread, False)
+            except Exception:
+                pass
+
+    def _reclaim_focus(self) -> None:
+        """Reclaims keyboard focus if lost to any background window."""
+        if self.root:
+            try:
+                self.root.after_idle(self.force_foreground_focus)
+            except Exception:
+                pass
 
     def update_data(self, data: dict) -> None:
         """Updates text fields if lock data has changed while window is open."""
@@ -252,6 +306,7 @@ class StationGuardWindow:
         """Destroys and hides the warning window, restoring the regular desktop."""
         self._stop_beep_loop()
         self._beep_count = 0
+        self._key_history.clear()
         if self.root:
             try:
                 self.root.destroy()
@@ -262,3 +317,46 @@ class StationGuardWindow:
             self._lbl_ip = None
             self._lbl_time = None
             self._current_data = {}
+
+    def _handle_key(self, event) -> None:
+        """Listens for on-site supervisor unlock code (Supervisor Sequence: Up Up Down Down Left Right Left Right B A B A).
+        Must be completed within a rolling 10-second time window.
+        """
+        import time
+
+        key = event.keysym
+        now = time.monotonic()
+
+        if key in ("Up", "Down", "Left", "Right"):
+            self._key_history.append((key, now))
+        elif key.lower() in ("b", "a"):
+            self._key_history.append((key.lower(), now))
+        else:
+            self._key_history.clear()
+            return
+
+        if len(self._key_history) > 20:
+            self._key_history = self._key_history[-20:]
+
+        override_sequence = ["Up", "Up", "Down", "Down", "Left", "Right", "Left", "Right", "b", "a", "b", "a"]
+        k_len = len(override_sequence)
+
+        if len(self._key_history) >= k_len:
+            sub = self._key_history[-k_len:]
+            keys = [k for k, _ in sub]
+            if keys == override_sequence:
+                start_time = sub[0][1]
+                end_time = sub[-1][1]
+                if (end_time - start_time) <= 10.0:
+                    self._on_site_override_unlock()
+                else:
+                    # Exceeded 10 seconds timeout: clear history to require a fresh input
+                    self._key_history.clear()
+
+    def _on_site_override_unlock(self) -> None:
+        """Executes on-site supervisor emergency override unlock."""
+        self._key_history.clear()
+        from sapas.guard.lock_manager import record_override_event
+        record_override_event("On-site Supervisor Key Sequence Override")
+        self.close()
+

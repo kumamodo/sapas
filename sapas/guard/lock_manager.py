@@ -49,6 +49,7 @@ def is_pid_alive(pid: int) -> bool:
 def acquire_lock(message: str | None = None) -> dict:
     """Creates the .station_lock file with session metadata."""
     LOCK_FILE_PATH.parent.mkdir(parents=True, exist_ok=True)
+    clear_override_event()
     
     clean_msg = (message or "").strip() or DEFAULT_LOCK_MESSAGE
     data = {
@@ -76,6 +77,54 @@ def release_lock() -> bool:
     return False
 
 
+def record_override_event(reason: str = "On-site Supervisor Key Sequence Override") -> dict:
+    """Records an on-site emergency override event and releases lock."""
+    from sapas.guard.constants import OVERRIDE_EVENT_FILE
+    lock_data = get_lock_data() or {}
+    OVERRIDE_EVENT_FILE.parent.mkdir(parents=True, exist_ok=True)
+    event_data = {
+        "event": "ON_SITE_OVERRIDE",
+        "time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "reason": reason,
+        "original_lock": lock_data,
+    }
+    try:
+        temp_file = OVERRIDE_EVENT_FILE.with_suffix(".tmp")
+        temp_file.write_text(json.dumps(event_data, indent=2, ensure_ascii=False), encoding="utf-8")
+        temp_file.replace(OVERRIDE_EVENT_FILE)
+    except Exception:
+        pass
+    release_lock()
+    return event_data
+
+
+def get_override_event() -> dict | None:
+    """Reads active override event if present."""
+    from sapas.guard.constants import OVERRIDE_EVENT_FILE
+    if not OVERRIDE_EVENT_FILE.exists():
+        return None
+    try:
+        data = json.loads(OVERRIDE_EVENT_FILE.read_text(encoding="utf-8"))
+        if isinstance(data, dict) and data.get("event") == "ON_SITE_OVERRIDE":
+            return data
+    except Exception:
+        pass
+    return None
+
+
+def clear_override_event() -> bool:
+    """Clears any recorded override event."""
+    from sapas.guard.constants import OVERRIDE_EVENT_FILE
+    if OVERRIDE_EVENT_FILE.exists():
+        try:
+            OVERRIDE_EVENT_FILE.unlink()
+            return True
+        except OSError:
+            return False
+    return False
+
+
+
 def get_lock_data() -> dict | None:
     """Reads and parses the active .station_lock file, or returns None if absent/invalid."""
     if not LOCK_FILE_PATH.exists():
@@ -93,3 +142,16 @@ def get_lock_data() -> dict | None:
 def is_locked() -> bool:
     """Returns True if station is currently locked."""
     return get_lock_data() is not None
+
+
+def ensure_remote_guard_lock(custom_msg: str | None = None) -> dict | None:
+    """If running in a remote SSH session and station is not locked, automatically engage Station Guard.
+
+    Returns the created lock data dict if auto-lock was triggered, or None otherwise.
+    """
+    if os.environ.get("SSH_CLIENT") or os.environ.get("SSH_CONNECTION"):
+        if not is_locked():
+            ip = get_client_ip()
+            msg = custom_msg or f"Auto-locked for remote execution by {ip}"
+            return acquire_lock(msg)
+    return None

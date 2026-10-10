@@ -58,6 +58,17 @@ class Runner():
         if self.ctx.get('STOP_REQUESTED', False):
             info("STOP_REQUESTED detected, stopping test.", tag='RUNNER')
             return True
+        from sapas.guard.lock_manager import get_override_event
+        override_evt = get_override_event()
+        if override_evt:
+            error(
+                f"[EMERGENCY BRAKE] Station forcefully unlocked on-site ({override_evt.get('reason')}). Stopping test immediately!",
+                tag='RUNNER'
+            )
+            self.critical_error = True
+            self.ctx.set('ERROR_CODE', 'EMERGENCY_STOP')
+            self.ctx.set('ERROR_DESCRIPTION', f"On-site override: {override_evt.get('reason')}")
+            return True
         if self.stop_test_file_path.is_file():
             info("stop.test detected, stopping test.", tag='RUNNER')
             return True
