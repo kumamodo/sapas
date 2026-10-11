@@ -389,14 +389,13 @@ class SapasDashboard(App[None]):
         self.apply_responsive_layout(self.screen.size.width)
         self.query_one("#live-log", LogView).can_focus = False
 
-        # If this is a local station TUI starting up freshly and station is not currently locked,
-        # clear any stale override events so the operator starts with a clean standby dashboard.
+        # If this is a remote SSH session, apply distinct remote-session styling (purple border/header)
         is_remote_session = bool(os.environ.get("SSH_CLIENT") or os.environ.get("SSH_CONNECTION"))
-        if not is_remote_session:
-            from sapas.guard.lock_manager import is_locked, clear_override_event
-            if not is_locked():
-                clear_override_event()
-
+        if is_remote_session:
+            app_root = self.query_one("#app-root")
+            app_root.add_class("remote-session")
+            client_ip = os.environ.get("SSH_CLIENT", "").split()[0] if os.environ.get("SSH_CLIENT") else "Remote"
+            app_root.border_subtitle = f" 🌐 REMOTE SSH SESSION ({client_ip}) "
         self.call_after_refresh(self.focus_serial_input)
 
     def check_station_lock(self) -> None:
@@ -406,10 +405,30 @@ class SapasDashboard(App[None]):
         is_locked_now = lock_data is not None
         override_event = get_override_event()
 
-        # If an emergency on-site override happened, engage emergency brake immediately!
-        if override_event and not self.is_emergency_brake_active:
+        # If an emergency on-site override happened, only remote SSH sessions engage emergency brake!
+        is_remote_session = bool(os.environ.get("SSH_CLIENT") or os.environ.get("SSH_CONNECTION"))
+        if is_remote_session and override_event and not self.is_emergency_brake_active:
             self.enter_emergency_brake_state(override_event)
             return
+
+        # If emergency brake was active:
+        if self.is_emergency_brake_active:
+            if is_locked_now:
+                # Legal resumption: engineer re-engaged lock via 'sapas guard lock'
+                self.clear_emergency_brake()
+                self.enter_remote_locked_state(lock_data)
+                return
+            elif not override_event:
+                # Override event was removed without re-locking (e.g. unlock was executed)
+                # In remote SSH session: self-exit immediately to eliminate ghost sessions!
+                if is_remote_session:
+                    self.write_terminal_log("=" * 60, "bold cyan")
+                    self.write_terminal_log("[SAFETY] Station unlocked on-site. Remote session self-exiting to prevent ghost operations...", "bold bright_cyan")
+                    self.write_terminal_log("=" * 60, "bold cyan")
+                    self.set_timer(1.2, self.stop_and_exit)
+                    return
+                else:
+                    self.clear_emergency_brake()
 
         if is_locked_now and not self.is_station_remote_locked:
             self.enter_remote_locked_state(lock_data)
@@ -434,24 +453,31 @@ class SapasDashboard(App[None]):
             ("⚠️ [EMERGENCY BRAKE: ON-SITE OVERRIDE DETECTED] ⚠️", "bold white on red")
         )
         self.bell()
+
+        # Hard-lock UI controls immediately to prevent any accidental triggers
+        try:
+            self.query_one("#start-button", Button).disabled = True
+            self.query_one("#serial-input", Input).disabled = True
+        except Exception:
+            pass
+
         self.write_terminal_log("!" * 70, "bold red")
         self.write_terminal_log(" [DANGER] STATION WAS FORCEFULLY UNLOCKED ON-SITE! ", "bold white on red")
         self.write_terminal_log(f" Reason: {reason} at {event_time}", "bold yellow")
         self.write_terminal_log(" SAFETY BRAKE ENGAGED: ALL REMOTE HARDWARE ACTIONS ARE NOW FROZEN!", "bold red")
         self.write_terminal_log(" Personnel may be present near the fixture or handling the DUT.", "bold yellow")
-        self.write_terminal_log(" To resume testing, verify physical safety and run: 'sapas guard lock'", "bold cyan")
+        self.write_terminal_log("=" * 70, "bold cyan")
+        self.write_terminal_log(" >>> HOW TO RESUME TESTING (SAFETY SOP) <<<", "bold bright_cyan")
+        self.write_terminal_log("  1. Contact on-site personnel to verify fixture safety.", "cyan")
+        self.write_terminal_log("  2. Re-lock station desktop in another terminal by running:", "cyan")
+        self.write_terminal_log("        sapas guard lock", "bold yellow")
+        self.write_terminal_log("  3. This TUI will automatically unfreeze and restore normal operations!", "cyan")
+        self.write_terminal_log("=" * 70, "bold cyan")
         self.write_terminal_log("!" * 70, "bold red")
 
         # If a cycle is currently running, emergency-stop it immediately!
         if self.is_testing:
             self.request_test_stop()
-
-        # If this TUI is running locally on the physical station PC, notify operator to exit & restart
-        is_remote_session = bool(os.environ.get("SSH_CLIENT") or os.environ.get("SSH_CONNECTION"))
-        if not is_remote_session:
-            from sapas.tui.screens.remote_restart import RemoteRestartScreen
-            self.push_screen(RemoteRestartScreen(self._last_lock_data or {}))
-
 
     def clear_emergency_brake(self) -> None:
         """Clears the emergency brake state once safety is verified or re-locked."""
@@ -459,14 +485,27 @@ class SapasDashboard(App[None]):
         clear_override_event()
         self.is_emergency_brake_active = False
         self._override_event_data = None
-        if not self.is_testing and not self.is_debug_mode and not self.is_station_remote_locked:
-            self.sub_title = "Ready for Test"
+        if not self.is_testing and not self.is_debug_mode:
+            try:
+                self.query_one("#start-button", Button).disabled = False
+                self.query_one("#serial-input", Input).disabled = False
+            except Exception:
+                pass
+            if not self.is_station_remote_locked:
+                self.sub_title = "Ready for Test"
         self.write_terminal_log("[SAFETY] Emergency brake reset. Proceed with caution.", "bold green")
 
     def enter_remote_locked_state(self, lock_data: dict) -> None:
         """Displays remote maintenance status in TUI while keeping testing available for the engineer."""
         if self.is_emergency_brake_active:
             self.clear_emergency_brake()
+        else:
+            if not self.is_testing and not self.is_debug_mode:
+                try:
+                    self.query_one("#start-button", Button).disabled = False
+                    self.query_one("#serial-input", Input).disabled = False
+                except Exception:
+                    pass
         self.is_station_remote_locked = True
         self._last_lock_data = lock_data
         msg = lock_data.get("message", "Remote maintenance")
@@ -503,9 +542,16 @@ class SapasDashboard(App[None]):
         self.write_terminal_log("[UNLOCK] Remote maintenance lock released. Station ready.", "bold green")
         self.write_terminal_log("=" * 60, "bold green")
 
-        # If this TUI is running locally on the physical station PC, notify operator to exit & restart
+        # If this TUI is running in a remote SSH session, SELF-EXIT to eliminate ghost sessions!
         is_remote_session = bool(os.environ.get("SSH_CLIENT") or os.environ.get("SSH_CONNECTION"))
-        if not is_remote_session:
+        if is_remote_session:
+            self.write_terminal_log("=" * 60, "bold cyan")
+            self.write_terminal_log("[SAFETY] Maintenance unlocked. Remote session self-exiting to prevent ghost operations...", "bold bright_cyan")
+            self.write_terminal_log("=" * 60, "bold cyan")
+            # Schedule clean exit so the message renders briefly before closing
+            self.set_timer(1.2, self.stop_and_exit)
+        else:
+            # If this TUI is running locally on the physical station PC, notify operator to exit & restart
             from sapas.tui.screens.remote_restart import RemoteRestartScreen
             self.push_screen(RemoteRestartScreen(last_info))
 
@@ -709,7 +755,12 @@ class SapasDashboard(App[None]):
         app_root = self.query_one("#app-root")
         app_root.remove_class("blink")
         app_root.add_class("debug-mode")
-        app_root.border_subtitle = " [!] DEBUG MODE - PRESS ESC OR F7 TO EXIT [!] "
+        is_remote_session = bool(os.environ.get("SSH_CLIENT") or os.environ.get("SSH_CONNECTION"))
+        if is_remote_session:
+            client_ip = os.environ.get("SSH_CLIENT", "").split()[0] if os.environ.get("SSH_CLIENT") else "Remote"
+            app_root.border_subtitle = f" [!] REMOTE DEBUG MODE ({client_ip}) - PRESS ESC OR F7 TO EXIT [!] "
+        else:
+            app_root.border_subtitle = " [!] DEBUG MODE - PRESS ESC OR F7 TO EXIT [!] "
 
         # Lock Start button and Serial input to prevent accidental production runs during debug
         try:
@@ -718,16 +769,25 @@ class SapasDashboard(App[None]):
         except Exception:
             pass
 
-        self.sub_title = Text.assemble(
-            ("[! DEBUG MODE !] ", "bold bright_yellow"),
-            ("Press 'r' to Re-test, 'e' for Editor, Esc/F7 to Exit", "bold yellow")
-        )
-
-        self.write_terminal_log("=" * 60, "bold bright_yellow")
-        self.write_terminal_log(">>> ENTERED DEBUG MODE <<<", "bold bright_yellow")
-        self.write_terminal_log("Select any step and press 'r' to re-test, 'e' for Editor, or Esc/F7 to exit.", "yellow")
-        self.write_terminal_log("(Diagnostic run only - DUT test results and Shopfloor will NOT be modified)", "dim")
-        self.write_terminal_log("=" * 60, "bold bright_yellow")
+        if self.is_emergency_brake_active:
+            self.sub_title = Text.assemble(
+                ("⚠️ [EMERGENCY BRAKE ACTIVE: RE-TEST BLOCKED] ⚠️ ", "bold white on red"),
+                ("Press Esc/F7 to Exit", "bold yellow")
+            )
+            self.write_terminal_log("=" * 60, "bold red")
+            self.write_terminal_log(">>> ENTERED DEBUG MODE (SAFETY LOCK ENGAGED) <<<", "bold red")
+            self.write_terminal_log("[BLOCK] Station unlocked on-site. Re-testing is BLOCKED until re-locked.", "bold yellow")
+            self.write_terminal_log("=" * 60, "bold red")
+        else:
+            self.sub_title = Text.assemble(
+                ("[! DEBUG MODE !] ", "bold bright_yellow"),
+                ("Press 'r' to Re-test, 'e' for Editor, Esc/F7 to Exit", "bold yellow")
+            )
+            self.write_terminal_log("=" * 60, "bold bright_yellow")
+            self.write_terminal_log(">>> ENTERED DEBUG MODE <<<", "bold bright_yellow")
+            self.write_terminal_log("Select any step and press 'r' to re-test, 'e' for Editor, or Esc/F7 to exit.", "yellow")
+            self.write_terminal_log("(Diagnostic run only - DUT test results and Shopfloor will NOT be modified)", "dim")
+            self.write_terminal_log("=" * 60, "bold bright_yellow")
 
         try:
             self.query_one("#items-table", StepsTable).focus()
@@ -801,13 +861,20 @@ class SapasDashboard(App[None]):
         self._sf_blink_counter = 2
         app_root = self.query_one("#app-root")
         app_root.remove_class("debug-mode")
+        is_remote_session = bool(os.environ.get("SSH_CLIENT") or os.environ.get("SSH_CONNECTION"))
+        if is_remote_session:
+            client_ip = os.environ.get("SSH_CLIENT", "").split()[0] if os.environ.get("SSH_CLIENT") else "Remote"
+            app_root.border_subtitle = f" 🌐 REMOTE SSH SESSION ({client_ip}) "
+        else:
+            app_root.border_subtitle = ""
 
-        # Unlock Start button and Serial input
-        try:
-            self.query_one("#start-button", Button).disabled = False
-            self.query_one("#serial-input", Input).disabled = False
-        except Exception:
-            pass
+        # Unlock Start button and Serial input only if emergency brake is not active
+        if not self.is_emergency_brake_active:
+            try:
+                self.query_one("#start-button", Button).disabled = False
+                self.query_one("#serial-input", Input).disabled = False
+            except Exception:
+                pass
 
         # Reload flow and context to guarantee left table and runtime match disk
         self.reload_context()
@@ -820,7 +887,8 @@ class SapasDashboard(App[None]):
         else:
             self.write_terminal_log("[INFO] Exited Debug Mode.", "bold cyan")
 
-        self.call_after_refresh(self.focus_serial_input)
+        if not self.is_emergency_brake_active:
+            self.call_after_refresh(self.focus_serial_input)
 
     def action_debug_retest_step(self) -> None:
         """Triggered by pressing 'r' in Debug Mode to re-test any selected step (including PENDING)."""
@@ -828,6 +896,12 @@ class SapasDashboard(App[None]):
             return
         if self.is_retesting or self.is_testing:
             self.write_terminal_log("[WARN] A test or re-test is already running.", "bold yellow")
+            return
+
+        if self.is_emergency_brake_active:
+            self.bell()
+            self.write_terminal_log("[BLOCK] EMERGENCY BRAKE ACTIVE! Station was unlocked on-site. Re-test blocked.", "bold red")
+            self.write_terminal_log("        Run 'sapas guard lock' in another terminal to verify safety & resume.", "bold yellow")
             return
 
         from sapas.guard.lock_manager import ensure_remote_guard_lock
@@ -839,10 +913,6 @@ class SapasDashboard(App[None]):
             if not is_remote_session:
                 self.write_terminal_log("[BLOCK] Station is locked for remote maintenance! Local re-test blocked.", "bold red")
                 return
-
-        if self.is_emergency_brake_active:
-            self.write_terminal_log("[BLOCK] EMERGENCY BRAKE ACTIVE! Station was unlocked on-site. Run 'sapas guard lock' to re-verify & resume.", "bold red")
-            return
 
         table = self.query_one("#items-table", StepsTable)
         cursor_row = table.cursor_row
@@ -1318,6 +1388,13 @@ class SapasDashboard(App[None]):
     def start_cycle(self, serial_number: str) -> None:
         """Validates current state constraints before spawning execution cycles."""
         clean_sn = serial_number.strip() if serial_number else ""
+        if self.is_emergency_brake_active:
+            self.bell()
+            self.write_terminal_log("[BLOCK] EMERGENCY BRAKE ACTIVE! Station was unlocked on-site. Test execution blocked.", "bold red")
+            self.write_terminal_log("        Run 'sapas guard lock' in another terminal to verify safety & resume.", "bold yellow")
+            self.focus_serial_input()
+            return
+
         from sapas.guard.lock_manager import ensure_remote_guard_lock
         auto_locked = ensure_remote_guard_lock()
         if auto_locked:
@@ -1328,10 +1405,6 @@ class SapasDashboard(App[None]):
                 self.write_terminal_log("[BLOCK] Station is locked for remote maintenance! Local test execution blocked.", "bold red")
                 self.focus_serial_input()
                 return
-        if self.is_emergency_brake_active:
-            self.write_terminal_log("[BLOCK] EMERGENCY BRAKE ACTIVE! Station was unlocked on-site. Run 'sapas guard lock' to re-verify & resume.", "bold red")
-            self.focus_serial_input()
-            return
         if self.is_testing or not clean_sn:
             self.focus_serial_input()
             return
@@ -1438,12 +1511,18 @@ class SapasDashboard(App[None]):
         await asyncio.sleep(1.8)
 
         serial_input.value = ""
-        serial_input.disabled = False
-        start_button.disabled = False
         start_button.label = "Start"
-        start_button.can_focus = True
         self.is_testing = False
-        self.call_after_refresh(self.focus_serial_input)
+
+        if not self.is_emergency_brake_active:
+            serial_input.disabled = False
+            start_button.disabled = False
+            start_button.can_focus = True
+            self.call_after_refresh(self.focus_serial_input)
+        else:
+            serial_input.disabled = True
+            start_button.disabled = True
+            start_button.can_focus = False
 
 
 if __name__ == "__main__":

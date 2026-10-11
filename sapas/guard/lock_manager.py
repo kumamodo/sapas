@@ -148,8 +148,12 @@ def ensure_remote_guard_lock(custom_msg: str | None = None) -> dict | None:
     """If running in a remote SSH session and station is not locked, automatically engage Station Guard.
 
     Returns the created lock data dict if auto-lock was triggered, or None otherwise.
+    IMPORTANT: Never auto-lock if an on-site override event is active (emergency brake).
     """
     if os.environ.get("SSH_CLIENT") or os.environ.get("SSH_CONNECTION"):
+        if get_override_event():
+            # Emergency brake active due to on-site supervisor override: do NOT auto-lock!
+            return None
         if not is_locked():
             ip = get_client_ip()
             msg = custom_msg or f"Auto-locked for remote execution by {ip}"

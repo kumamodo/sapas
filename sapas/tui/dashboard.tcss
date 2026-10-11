@@ -31,12 +31,43 @@ Screen, Widget {
     border: heavy $panel;
 }
 
+#app-root.remote-session {
+    border: heavy #bf55ec;
+    border-subtitle-align: center;
+    border-subtitle-style: bold;
+}
+
+#app-root.remote-session.debug-mode {
+    border: heavy #bf55ec;
+    border-subtitle-align: center;
+    border-subtitle-style: bold;
+}
+
 #app-root.debug-mode,
 #app-root.sf-disabled.debug-mode,
 #app-root.sf-disabled.blink.debug-mode {
     border: heavy $warning;
     border-subtitle-align: center;
     border-subtitle-style: bold;
+}
+
+/* Header in Debug Mode turns bright yellow with dark text for high visibility */
+#app-root.debug-mode Header {
+    background: $warning;
+    color: #111111;
+    text-style: bold;
+}
+
+#app-root.remote-session Header {
+    background: #6a1b9a;
+    color: #ffffff;
+    text-style: bold;
+}
+
+#app-root.remote-session.debug-mode Header {
+    background: $warning;
+    color: #111111;
+    text-style: bold;
 }
 
 /* ==========================================================================

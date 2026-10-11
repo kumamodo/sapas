@@ -233,11 +233,12 @@ def handle_guard_cli(argv: list[str]) -> None:
         sys.exit(0)
 
     elif subcmd == "unlock":
-        from sapas.guard.lock_manager import release_lock, is_locked
+        from sapas.guard.lock_manager import release_lock, is_locked, clear_override_event
         was_locked = is_locked()
         released = release_lock()
-        if released or was_locked:
-            console.print("[bold green][OK] [UNLOCKED] Station maintenance lock released. Normal operations restored.[/]")
+        cleared_override = clear_override_event()
+        if released or was_locked or cleared_override:
+            console.print("[bold green][OK] [UNLOCKED] Station maintenance lock and emergency override released. Normal operations restored.[/]")
         else:
             console.print("[yellow][Notice] Station was not locked.[/]")
         sys.exit(0)
