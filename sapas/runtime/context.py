@@ -1,3 +1,4 @@
+import os
 import yaml
 from pathlib import Path
 from typing import Union, Optional
@@ -89,6 +90,12 @@ class ExecutionContext:
         # project.yaml (project) <- station.yaml (station) <- site_infra.yaml (env - highest priority override)
         base = deep_merge(self.project, self.station)
         self.config = deep_merge(base, self.env)
+
+        # Remote safety & quality guard: Force ENABLE_SHOPFLOOR to False during remote SSH sessions
+        # to guarantee no accidental phantom passes or shipments can be committed.
+        is_remote_session = bool(os.environ.get("SSH_CLIENT") or os.environ.get("SSH_CONNECTION"))
+        if is_remote_session:
+            self.config["ENABLE_SHOPFLOOR"] = False
 
     def reload_config(self, station_cfg: Optional[dict] = None, project_cfg: Optional[dict] = None, env_cfg: Optional[dict] = None):
         """Live hot-reloads configuration layers and updates hardware link definitions."""

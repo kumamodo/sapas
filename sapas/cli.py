@@ -168,6 +168,14 @@ def setup_context(args):
     context.set('PROJECT_NAME', project_name)
     context.set('STATION_NAME', station_name)
 
+    # Remote safety & quality guard: Force ENABLE_SHOPFLOOR to False during remote SSH or maintenance lock
+    is_remote_session = bool(os.environ.get("SSH_CLIENT") or os.environ.get("SSH_CONNECTION"))
+    from sapas.guard.lock_manager import is_locked
+    if is_remote_session or is_locked():
+        if context.get("ENABLE_SHOPFLOOR", False):
+            context.set("ENABLE_SHOPFLOOR", False)
+            console.print("[bold yellow][SECURITY] Remote session or Station Guard lock active! ENABLE_SHOPFLOOR is forced to FALSE to protect shopfloor integrity.[/]")
+
     # Initialize the global runtime.
     rt.init(context)
     return context
@@ -185,6 +193,7 @@ def print_guard_help() -> None:
   [bold green]unlock[/]              Release station maintenance lock (restores normal operations)
   [bold green]status[/]              Check guard daemon status and active lock details
   [bold green]install[/]             Install Station Guard into Windows Startup for auto-protection
+  [bold green]reinstall[/]           Reset state and reinstall Station Guard to Windows Startup
   [bold green]uninstall[/]           Remove Station Guard from Windows Startup and stop background process
   [bold green]run[/]                 Run Station Guard monitor loop in foreground (for testing/debug)
 
@@ -193,12 +202,13 @@ def print_guard_help() -> None:
   sapas guard unlock
   sapas guard status
   sapas guard install
+  sapas guard reinstall
 """
     console.print(help_text.strip())
 
 
 def handle_guard_cli(argv: list[str]) -> None:
-    """Handles sapas guard subcommands (lock, unlock, status, install, uninstall, run)."""
+    """Handles sapas guard subcommands (lock, unlock, status, install, reinstall, uninstall, run)."""
     if not argv or argv[0].lower() in ("-h", "--help", "help"):
         print_guard_help()
         sys.exit(0)
@@ -214,8 +224,47 @@ def handle_guard_cli(argv: list[str]) -> None:
             else:
                 msg = " ".join(lock_args).strip()
 
-        from sapas.guard.lock_manager import acquire_lock
         from sapas.guard.installer import get_daemon_pid
+
+        # Fail fast: If station guard daemon is NOT running on the station desktop, do NOT claim it is locked!
+        daemon_pid = get_daemon_pid()
+        if not daemon_pid:
+            is_remote_session = bool(os.environ.get("SSH_CLIENT") or os.environ.get("SSH_CONNECTION"))
+            if is_remote_session:
+                explanation = (
+                    "[bold red][!] [ERROR] CANNOT ENGAGE STATION GUARD LOCK![/]\n\n"
+                    "[white]The Station Guard daemon is NOT running on the interactive desktop session.[/]\n\n"
+                    "[bold bright_cyan]Technical Note:[reset]\n"
+                    "[bright_black]  Due to Windows Session Isolation (Session 0 boundary), GUI screens cannot be\n"
+                    "  spawned headlessly across remote SSH sessions without an active desktop login.[/]\n\n"
+                    "[bold bright_yellow]Remedy & Action Options:[reset]\n\n"
+                    "  [bold bright_white]Option A: On-site Installation (Immediate activation)[reset]\n"
+                    "    Ask an on-site engineer to run locally on the station PC:\n"
+                    "      [bold bright_green]sapas guard install[reset]\n"
+                    "    (Takes effect immediately without rebooting)\n\n"
+                    "  [bold bright_white]Option B: Remote Installation (Requires station reboot)[reset]\n"
+                    "    1. Run installation remotely in this SSH terminal:\n"
+                    "       [bold bright_green]sapas guard install[reset]\n"
+                    "    2. Reboot the station PC remotely via SSH:\n"
+                    "       [bold bright_cyan]shutdown /r /t 0[reset]\n"
+                    "       (or ask on-site personnel to log in) to activate physical desktop protection.\n"
+                )
+            else:
+                explanation = (
+                    "[bold red][!] [ERROR] CANNOT ENGAGE STATION GUARD LOCK![/]\n\n"
+                    "[white]The Station Guard background daemon is not running on this PC.[/]\n\n"
+                    "[bold bright_yellow]To activate Station Guard on this machine, run:[reset]\n"
+                    "  [bold bright_green]sapas guard install[reset]\n"
+                )
+
+            console.print(Panel(
+                Text.from_markup(explanation),
+                title="Station Guard Interlock Error",
+                border_style="red"
+            ))
+            sys.exit(1)
+
+        from sapas.guard.lock_manager import acquire_lock
         data = acquire_lock(msg)
 
         console.print(Panel(
@@ -228,8 +277,6 @@ def handle_guard_cli(argv: list[str]) -> None:
             title="Sapas Station Guard",
             border_style="red"
         ))
-        if not get_daemon_pid():
-            console.print("[dim yellow][Notice] Station Guard daemon is not running on this PC. Run 'sapas guard install' to enable fullscreen visual alerts on the station desktop.[/]")
         sys.exit(0)
 
     elif subcmd == "unlock":
@@ -268,12 +315,101 @@ def handle_guard_cli(argv: list[str]) -> None:
         sys.exit(0)
 
     elif subcmd in ("install", "--install"):
-        from sapas.guard.installer import install
+        from sapas.guard.installer import install, get_startup_dir, STARTUP_SCRIPT_NAME
+        vbs_path = get_startup_dir() / STARTUP_SCRIPT_NAME
+
+        console.print(Panel(
+            Text.assemble(
+                ("Sapas Station Guard will install a lightweight auto-start script:\n\n", "bold yellow"),
+                ("  Target Path : ", "dim"), (f"{vbs_path}\n\n", "bright_cyan"),
+                ("[Security Notice]\n", "bold bright_green"),
+                ("  • User-level startup item only — requires NO admin / UAC permissions.\n", "bright_green"),
+                ("  • Zero registry, driver, or system file modifications.\n", "bright_green"),
+                ("  • Strictly for local workstation safety protection.", "bright_green")
+            ),
+            title="Station Guard Auto-Start Installation",
+            border_style="cyan"
+        ))
+
+        # Ask for confirmation unless -y / --yes flag is provided
+        if "-y" not in argv and "--yes" not in argv:
+            try:
+                choice = console.input("[bold yellow]Proceed with installation? [Y/n]: [/]").strip().lower()
+            except (EOFError, KeyboardInterrupt):
+                choice = "n"
+            if choice not in ("", "y", "yes"):
+                console.print("[dim yellow][Cancelled] Installation aborted by user.[/]")
+                sys.exit(0)
+
         ok = install()
         if ok:
-            console.print("[bold green][OK] Station Guard successfully installed to Windows Startup and started in background![/]")
+            console.print("[bold green][OK] Station Guard successfully configured in Windows Startup![/]")
+            is_remote_session = bool(os.environ.get("SSH_CLIENT") or os.environ.get("SSH_CONNECTION"))
+            if is_remote_session:
+                console.print(Panel(
+                    Text.from_markup(
+                        "[bold yellow][!] ACTION REQUIRED FOR REMOTE INSTALLATION:[reset]\n\n"
+                        "Because this was run via a remote SSH session (Session 0), the physical\n"
+                        "screen guard cannot interact with the desktop directly.\n\n"
+                        "[bold bright_white]To activate physical desktop protection, reboot the station PC:[reset]\n"
+                        "  [bold bright_cyan]shutdown /r /t 0[reset]\n"
+                        "[dim](or ask on-site personnel to log into Windows desktop)[/]"
+                    ),
+                    title="Station Reboot Required",
+                    border_style="yellow"
+                ))
+            else:
+                console.print("[bold green][OK] Station Guard daemon started in background.[/]")
         else:
             console.print("[bold red][ERROR] Failed to install Station Guard to Windows Startup.[/]")
+        sys.exit(0 if ok else 1)
+
+    elif subcmd in ("reinstall", "--reinstall"):
+        from sapas.guard.installer import reinstall, get_startup_dir, STARTUP_SCRIPT_NAME
+        vbs_path = get_startup_dir() / STARTUP_SCRIPT_NAME
+
+        console.print(Panel(
+            Text.assemble(
+                ("Sapas Station Guard will reset all state and reinstall the auto-start script:\n\n", "bold yellow"),
+                ("  Target Path : ", "dim"), (f"{vbs_path}\n\n", "bright_cyan"),
+                ("[Security Notice]\n", "bold bright_green"),
+                ("  • User-level startup item only — requires NO admin / UAC permissions.\n", "bright_green"),
+                ("  • Cleans up all previous background processes and state locks.", "bright_green")
+            ),
+            title="Station Guard Re-installation",
+            border_style="cyan"
+        ))
+
+        if "-y" not in argv and "--yes" not in argv:
+            try:
+                choice = console.input("[bold yellow]Proceed with re-installation? [Y/n]: [/]").strip().lower()
+            except (EOFError, KeyboardInterrupt):
+                choice = "n"
+            if choice not in ("", "y", "yes"):
+                console.print("[dim yellow][Cancelled] Re-installation aborted by user.[/]")
+                sys.exit(0)
+
+        ok = reinstall()
+        if ok:
+            console.print("[bold green][OK] Station Guard successfully reinstalled in Windows Startup![/]")
+            is_remote_session = bool(os.environ.get("SSH_CLIENT") or os.environ.get("SSH_CONNECTION"))
+            if is_remote_session:
+                console.print(Panel(
+                    Text.from_markup(
+                        "[bold yellow][!] ACTION REQUIRED FOR REMOTE RE-INSTALLATION:[reset]\n\n"
+                        "Because this was run via a remote SSH session (Session 0), the physical\n"
+                        "screen guard cannot interact with the desktop directly.\n\n"
+                        "[bold bright_white]To activate physical desktop protection, reboot the station PC:[reset]\n"
+                        "  [bold bright_cyan]shutdown /r /t 0[reset]\n"
+                        "[dim](or ask on-site personnel to log into Windows desktop)[/]"
+                    ),
+                    title="Station Reboot Required",
+                    border_style="yellow"
+                ))
+            else:
+                console.print("[bold green][OK] Station Guard daemon restarted in background.[/]")
+        else:
+            console.print("[bold red][ERROR] Failed to reinstall Station Guard.[/]")
         sys.exit(0 if ok else 1)
 
     elif subcmd in ("uninstall", "--uninstall"):

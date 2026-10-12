@@ -110,7 +110,7 @@ def install() -> bool:
 
 
 def uninstall() -> bool:
-    """Removes startup script and terminates any active daemon."""
+    """Removes startup script, terminates any active daemon, and cleans up all guard state files."""
     startup_dir = get_startup_dir()
     vbs_path = startup_dir / STARTUP_SCRIPT_NAME
     if vbs_path.exists():
@@ -120,7 +120,25 @@ def uninstall() -> bool:
             pass
 
     stop_daemon_process()
+
+    # Clean up all station guard state files in ~/.sapas
+    from sapas.guard.lock_manager import release_lock, clear_override_event
+    release_lock()
+    clear_override_event()
+
+    if GUARD_PID_FILE.exists():
+        try:
+            GUARD_PID_FILE.unlink()
+        except Exception:
+            pass
+
     return True
+
+
+def reinstall() -> bool:
+    """Cleans up any existing installation/state and performs a fresh install."""
+    uninstall()
+    return install()
 
 
 def get_status() -> dict:

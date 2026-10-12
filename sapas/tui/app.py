@@ -394,8 +394,7 @@ class SapasDashboard(App[None]):
         if is_remote_session:
             app_root = self.query_one("#app-root")
             app_root.add_class("remote-session")
-            client_ip = os.environ.get("SSH_CLIENT", "").split()[0] if os.environ.get("SSH_CLIENT") else "Remote"
-            app_root.border_subtitle = f" 🌐 REMOTE SSH SESSION ({client_ip}) "
+        self.update_info_display()
         self.call_after_refresh(self.focus_serial_input)
 
     def check_station_lock(self) -> None:
@@ -529,6 +528,20 @@ class SapasDashboard(App[None]):
         last_info = self._last_lock_data or {}
         self._last_lock_data = None
 
+        is_remote_session = bool(os.environ.get("SSH_CLIENT") or os.environ.get("SSH_CONNECTION"))
+
+        # Case 1: Local physical station PC
+        # Regardless of whether it was unlocked via CLI or on-site key override,
+        # the local TUI was locked for maintenance and must now prompt operator to exit & restart cleanly!
+        if not is_remote_session:
+            self.write_terminal_log("=" * 60, "bold green")
+            self.write_terminal_log("[UNLOCK] Remote maintenance lock released. Station ready.", "bold green")
+            self.write_terminal_log("=" * 60, "bold green")
+            from sapas.tui.screens.remote_restart import RemoteRestartScreen
+            self.push_screen(RemoteRestartScreen(last_info))
+            return
+
+        # Case 2: Remote SSH session
         from sapas.guard.lock_manager import get_override_event
         override_event = get_override_event()
         if override_event:
@@ -542,23 +555,18 @@ class SapasDashboard(App[None]):
         self.write_terminal_log("[UNLOCK] Remote maintenance lock released. Station ready.", "bold green")
         self.write_terminal_log("=" * 60, "bold green")
 
-        # If this TUI is running in a remote SSH session, SELF-EXIT to eliminate ghost sessions!
-        is_remote_session = bool(os.environ.get("SSH_CLIENT") or os.environ.get("SSH_CONNECTION"))
-        if is_remote_session:
-            self.write_terminal_log("=" * 60, "bold cyan")
-            self.write_terminal_log("[SAFETY] Maintenance unlocked. Remote session self-exiting to prevent ghost operations...", "bold bright_cyan")
-            self.write_terminal_log("=" * 60, "bold cyan")
-            # Schedule clean exit so the message renders briefly before closing
-            self.set_timer(1.2, self.stop_and_exit)
-        else:
-            # If this TUI is running locally on the physical station PC, notify operator to exit & restart
-            from sapas.tui.screens.remote_restart import RemoteRestartScreen
-            self.push_screen(RemoteRestartScreen(last_info))
+        # Remote session self-exits to eliminate ghost sessions!
+        self.write_terminal_log("=" * 60, "bold cyan")
+        self.write_terminal_log("[SAFETY] Maintenance unlocked. Remote session self-exiting to prevent ghost operations...", "bold bright_cyan")
+        self.write_terminal_log("=" * 60, "bold cyan")
+        # Schedule clean exit so the message renders briefly before closing
+        self.set_timer(1.2, self.stop_and_exit)
 
 
     def toggle_sf_blink(self) -> None:
         """Toggles the blink class on the app root if Shopfloor is disabled using a 4-second cycle (3s on, 1s off)."""
-        if self.is_debug_mode:
+        is_remote_session = bool(os.environ.get("SSH_CLIENT") or os.environ.get("SSH_CONNECTION"))
+        if self.is_debug_mode or is_remote_session:
             return
         app_root = self.query_one("#app-root")
         if not app_root.has_class("sf-disabled"):
@@ -637,14 +645,23 @@ class SapasDashboard(App[None]):
         
         # Apply visual indicator to app root
         app_root = self.query_one("#app-root")
+        is_remote_session = bool(os.environ.get("SSH_CLIENT") or os.environ.get("SSH_CONNECTION"))
+        client_ip = os.environ.get("SSH_CLIENT", "").split()[0] if os.environ.get("SSH_CLIENT") else "Remote"
+        
         if not self.is_debug_mode:
             app_root.remove_class("sf-enabled", "sf-disabled")
             if sf_enabled:
-                app_root.border_subtitle = ""
+                if is_remote_session:
+                    app_root.border_subtitle = f" 🌐 REMOTE SSH SESSION ({client_ip}) "
+                else:
+                    app_root.border_subtitle = ""
                 app_root.border_title = ""
             else:
                 app_root.add_class("sf-disabled")
-                app_root.border_subtitle = " SHOPFLOOR DISABLED "
+                if is_remote_session:
+                    app_root.border_subtitle = f" 🌐 REMOTE ({client_ip}) | SHOPFLOOR DISABLED "
+                else:
+                    app_root.border_subtitle = " SHOPFLOOR DISABLED "
                 app_root.border_title = ""
 
         # 5. Construct metadata text string using left-aligned factory guidelines
@@ -993,6 +1010,15 @@ class SapasDashboard(App[None]):
             project_var = load_yaml(project_config_path) if project_config_path.exists() else {}
 
             self.context.reload_config(station_cfg=station_var, project_cfg=project_var, env_cfg=env)
+
+            # Remote safety: enforce ENABLE_SHOPFLOOR = False even after hot-reloading YAML
+            is_remote_session = bool(os.environ.get("SSH_CLIENT") or os.environ.get("SSH_CONNECTION"))
+            from sapas.guard.lock_manager import is_locked
+            if is_remote_session or is_locked():
+                if self.context.get("ENABLE_SHOPFLOOR", False):
+                    self.context.set("ENABLE_SHOPFLOOR", False)
+                    self.write_terminal_log("[SECURITY] Remote session active: ENABLE_SHOPFLOOR forced to FALSE after config reload.", "bold yellow")
+
             self.update_info_display()
             self.write_terminal_log("[CONFIG] Live Hot-Reload: Updated configurations merged into context.", "bold cyan")
         except Exception as e:
