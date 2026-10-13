@@ -356,7 +356,8 @@ class StationGuardWindow:
     def _on_site_override_unlock(self) -> None:
         """Executes on-site supervisor emergency override unlock."""
         self._key_history.clear()
-        from sapas.guard.lock_manager import record_override_event
+        from sapas.guard.lock_manager import record_override_event, release_lock
         record_override_event("On-site Supervisor Key Sequence Override")
+        release_lock()
         self.close()
 

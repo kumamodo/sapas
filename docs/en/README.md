@@ -20,5 +20,6 @@ Welcome to the Sapas Documentation Center. This documentation is arranged in lea
 ### 4. Maintenance & Support
 - [08 Troubleshooting & FAQ](08_troubleshooting_faq.md) - Common error troubleshooting, connection issues, and environment setup Q&A.
 - [09 TUI Dashboard Operation Manual](09_tui_guide.md) - Terminal layout, status indicators visual semantics, hotkeys, and SOP walkthrough.
+- [10 Station Guard & Remote Maintenance Guide](10_station_guard_guide.md) - Safety lock interlock, remote maintenance SOP, Session 0 isolation, and emergency override procedures.
 
 ---

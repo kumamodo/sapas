@@ -37,6 +37,13 @@ class StationGuardDaemon:
 
     def run(self) -> None:
         """Main monitoring loop."""
+        # Singleton protection: if an active daemon is already running, do not stomp on its PID
+        from sapas.guard.installer import get_daemon_pid
+        existing_pid = get_daemon_pid()
+        if existing_pid and existing_pid != os.getpid():
+            print(f"[Notice] Station Guard daemon is already running (PID {existing_pid}). Exiting redundant instance.")
+            return
+
         self._write_pid()
 
         def _handle_signal(signum, frame):
@@ -51,25 +58,29 @@ class StationGuardDaemon:
 
         try:
             while self.running:
-                lock_data = get_lock_data()
+                try:
+                    lock_data = get_lock_data()
 
-                if lock_data:
-                    if not self.window.is_visible():
-                        self.window.show(lock_data)
+                    if lock_data:
+                        if not self.window.is_visible():
+                            self.window.show(lock_data)
+                        else:
+                            self.window.update_data(lock_data)
                     else:
-                        self.window.update_data(lock_data)
-                else:
-                    if self.window.is_visible():
-                        self.window.close()
+                        if self.window.is_visible():
+                            self.window.close()
 
-                # Process UI events if visible, otherwise sleep quietly
-                if self.window.is_visible():
-                    try:
-                        self.window.root.update()
-                    except Exception:
-                        self.window.close()
-                    time.sleep(0.1)
-                else:
+                    # Process UI events if visible, otherwise sleep quietly
+                    if self.window.is_visible() and self.window.root:
+                        try:
+                            self.window.root.update()
+                        except Exception:
+                            self.window.close()
+                        time.sleep(0.1)
+                    else:
+                        time.sleep(0.5)
+                except Exception:
+                    # Guard against any unexpected transient error, keep daemon alive
                     time.sleep(0.5)
 
         finally:

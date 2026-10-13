@@ -189,13 +189,12 @@ def print_guard_help() -> None:
   sapas guard <command> [options]
 
 [bold]Commands:[/]
-  [bold green]lock[/] [message]      Engage station maintenance lock (blocks local testing & alerts desktop)
+  [bold green]lock[/] "message"    Engage station maintenance lock (blocks local testing & alerts desktop)
   [bold green]unlock[/]              Release station maintenance lock (restores normal operations)
   [bold green]status[/]              Check guard daemon status and active lock details
   [bold green]install[/]             Install Station Guard into Windows Startup for auto-protection
   [bold green]reinstall[/]           Reset state and reinstall Station Guard to Windows Startup
   [bold green]uninstall[/]           Remove Station Guard from Windows Startup and stop background process
-  [bold green]run[/]                 Run Station Guard monitor loop in foreground (for testing/debug)
 
 [bold]Examples:[/]
   sapas guard lock "Replacing RF cable"
@@ -208,7 +207,7 @@ def print_guard_help() -> None:
 
 
 def handle_guard_cli(argv: list[str]) -> None:
-    """Handles sapas guard subcommands (lock, unlock, status, install, reinstall, uninstall, run)."""
+    """Handles sapas guard subcommands (lock, unlock, status, install, reinstall, uninstall)."""
     if not argv or argv[0].lower() in ("-h", "--help", "help"):
         print_guard_help()
         sys.exit(0)
@@ -233,21 +232,20 @@ def handle_guard_cli(argv: list[str]) -> None:
             if is_remote_session:
                 explanation = (
                     "[bold red][!] [ERROR] CANNOT ENGAGE STATION GUARD LOCK![/]\n\n"
-                    "[white]The Station Guard daemon is NOT running on the interactive desktop session.[/]\n\n"
-                    "[bold bright_cyan]Technical Note:[reset]\n"
-                    "[bright_black]  Due to Windows Session Isolation (Session 0 boundary), GUI screens cannot be\n"
-                    "  spawned headlessly across remote SSH sessions without an active desktop login.[/]\n\n"
-                    "[bold bright_yellow]Remedy & Action Options:[reset]\n\n"
-                    "  [bold bright_white]Option A: On-site Installation (Immediate activation)[reset]\n"
+                    "The Station Guard daemon is NOT running on the interactive desktop session.\n\n"
+                    "[bold yellow]Technical Note:[reset]\n"
+                    "  Due to Windows Session Isolation (Session 0 boundary), GUI screens cannot be\n"
+                    "  spawned headlessly across remote SSH sessions without an active desktop login.\n\n"
+                    "[bold white]Remedy Options:[reset]\n\n"
+                    "  [bold cyan]• Option 1: On-site Setup (Instant / No Reboot)[reset]\n"
                     "    Ask an on-site engineer to run locally on the station PC:\n"
-                    "      [bold bright_green]sapas guard install[reset]\n"
-                    "    (Takes effect immediately without rebooting)\n\n"
-                    "  [bold bright_white]Option B: Remote Installation (Requires station reboot)[reset]\n"
-                    "    1. Run installation remotely in this SSH terminal:\n"
-                    "       [bold bright_green]sapas guard install[reset]\n"
-                    "    2. Reboot the station PC remotely via SSH:\n"
-                    "       [bold bright_cyan]shutdown /r /t 0[reset]\n"
-                    "       (or ask on-site personnel to log in) to activate physical desktop protection.\n"
+                    "      [bold green]sapas guard install[reset]\n\n"
+                    "  [bold cyan]• Option 2: Remote Setup via SSH (Requires Station Reboot)[reset]\n"
+                    "    1. Run installation in this SSH session:\n"
+                    "       [bold green]sapas guard install[reset]\n"
+                    "    2. Reboot the station PC remotely:\n"
+                    "       [bold green]shutdown /r /t 0[reset]\n"
+                    "       [dim](or ask on-site personnel to log in to start the desktop session)[/]\n"
                 )
             else:
                 explanation = (
@@ -315,8 +313,26 @@ def handle_guard_cli(argv: list[str]) -> None:
         sys.exit(0)
 
     elif subcmd in ("install", "--install"):
-        from sapas.guard.installer import install, get_startup_dir, STARTUP_SCRIPT_NAME
+        from sapas.guard.installer import install, get_startup_dir, STARTUP_SCRIPT_NAME, get_daemon_pid
         vbs_path = get_startup_dir() / STARTUP_SCRIPT_NAME
+        daemon_pid = get_daemon_pid()
+
+        # If already installed and daemon is currently running, guide user to 'reinstall' if updating
+        if vbs_path.exists() and daemon_pid:
+            console.print(Panel(
+                Text.assemble(
+                    ("Station Guard is already installed and running on this station!\n\n", "bold yellow"),
+                    ("  Status     : ", "bold"), (f"Active Daemon running (PID {daemon_pid})\n", "green"),
+                    ("  Startup VBS: ", "bold"), (f"{vbs_path}\n\n", "bright_cyan"),
+                    ("[Notice]\n", "bold bright_white"),
+                    ("If you are upgrading Sapas or wish to refresh the background daemon with new code,\n", "white"),
+                    ("please execute the reinstall command instead:\n\n", "white"),
+                    ("  sapas guard reinstall\n", "bold bright_green"),
+                ),
+                title="Station Guard Already Active",
+                border_style="yellow"
+            ))
+            sys.exit(0)
 
         console.print(Panel(
             Text.assemble(
@@ -420,12 +436,6 @@ def handle_guard_cli(argv: list[str]) -> None:
         else:
             console.print("[bold red][ERROR] Failed to uninstall Station Guard.[/]")
         sys.exit(0 if ok else 1)
-
-    elif subcmd in ("run", "--run"):
-        from sapas.guard.daemon import StationGuardDaemon
-        console.print("[bold cyan]Starting Sapas Station Guard in foreground. Press Ctrl+C to stop...[/]")
-        StationGuardDaemon().run()
-        sys.exit(0)
 
     else:
         console.print(f"[bold red][Error] Unknown guard command '{subcmd}'.[/]")
