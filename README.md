@@ -58,6 +58,7 @@ Sapas provides a clean abstraction layer that allows RD, TE, and Factory operato
   * **TE** controls the **Criteria & Sequence** (What defines a PASS/FAIL and in what order).
   * **Sapas Engine** controls the **Infrastructure** (Logs, UI, data convergence, and hardware connection pools).
 * **Defensive by Design**: Implements strict data normalization (e.g., rigid boolean convergence) and contract checking (`opas.var.require`) to prevent laboratory scripts from breaking under harsh factory environments.
+* **Industrial Safety & Remote Interlock**: Built-in **Station Guard** system bridges remote R&D SSH maintenance and on-site factory floor safety. It enforces physical safety interlocks on station displays, eliminates accidental MES contamination, and provides emergency brakes.
 * **Aesthetic & Noise-Free CLI**: A unified terminal output powered by `rich`, using balanced visual markers (`✓` / `❌`) ensuring that field technicians or developers can instantly read station health without parsing through raw text noise.
 
 ---
@@ -67,9 +68,9 @@ Sapas provides a clean abstraction layer that allows RD, TE, and Factory operato
 Explore the full guides in your preferred language:
 
 * 🇺🇸 **[English Documentation](./docs/en/README.md)**
-  * [Quick Start](./docs/en/01_quick_start.md) | [Architecture](./docs/en/02_architecture.md) | [Station Loop Mode](./docs/en/07_how_to_build_a_station.md)
+  * [Quick Start](./docs/en/01_quick_start.md) | [Architecture](./docs/en/02_architecture.md) | [Station Loop Mode](./docs/en/07_how_to_build_a_station.md) | [Station Guard & Remote Maintenance](./docs/en/10_station_guard_guide.md)
 * 🇹🇼 **[繁體中文說明文件](./docs/zh/README.md)**
-  * [快速開始](./docs/zh/01_quick_start.md) | [架構設計](./docs/zh/02_architecture.md) | [生產線站點部署](./docs/zh/07_how_to_build_a_station.md)
+  * [快速開始](./docs/zh/01_quick_start.md) | [架構設計](./docs/zh/02_architecture.md) | [生產線站點部署](./docs/zh/07_how_to_build_a_station.md) | [現場防護與遠端維護手冊](./docs/zh/10_station_guard_guide.md)
 
 ---
 
@@ -78,16 +79,42 @@ Explore the full guides in your preferred language:
 * **Sequence-Driven Framework**: Test paths are decoupled from implementation. Sequences are orchestrated via configuration files, allowing rapid updates on the shop floor.
 * **Unified Result Manager**: Eliminates fragmentation in telemetry. Every single test module feeds into a standardized data model, ensuring tracking stability across all shifts.
 * **Multi-Protocol Link Layer**: Built-in support for standard engineering interfaces (**ADB**, **UART**, and **SSH**) so teams don't reinvent connection wrappers.
+* **Active Station Interlock**: Coordinated physical desktop guard and runtime engine preventing cross-continent collisions between remote R&D maintenance and on-site line operators.
+
+---
+
+## 🛡️ Station Guard: Active Industrial Safety & Remote Interlock
+
+In modern manufacturing, remote R&D and test engineers frequently connect via SSH to on-site or overseas station fixtures for calibration and diagnostics. This introduces severe physical hazards (operators touching moving parts unaware) and data risks (accidental injection of debug test records into production MES).
+
+**Sapas Station Guard** provides an out-of-the-box, cross-session safety interlock system:
+
+* 🚨 **Physical Desktop Interlock**: Pops up a topmost, fullscreen red warning window and traps mouse/keyboard focus on the physical station monitor during remote sessions.
+* 🛡️ **Zero MES Contamination**: Remote test runs automatically override `ENABLE_SHOPFLOOR=False`, ensuring debug data never pollutes official factory databases.
+* 🛑 **Emergency Brake**: If an on-site supervisor enters an authorized override sequence on the physical keyboard, all active remote test runners are immediately halted.
+* ⚡ **Zero-Touch Commissioning**: Built-in Windows Task Scheduler registration (`sapas guard install`) effortlessly handles Windows Session 0 isolation without manual service configuration.
+
+```bash
+# Station PC commissioning (Run once as Administrator)
+sapas guard install
+
+# Remote maintenance from engineer's laptop
+sapas guard lock -m "RD remote diagnosing camera sensor"
+sapas run_sensor_check.py
+sapas guard unlock
+```
+
+> 📖 For full architecture, OpenSSH configuration, and on-site override SOPs, see the [Station Guard & Remote Maintenance Guide](./docs/en/10_station_guard_guide.md) (繁中: [現場防護與遠端維護手冊](./docs/zh/10_station_guard_guide.md)).
 
 ---
 
 ## Installation & Getting Started
 
-To install or update Sapas in editable mode for cross-team development (this automatically updates dependencies such as \`textual\`):To install Sapas in editable mode for cross-team development:
+To install or update Sapas in editable mode for cross-team development (this automatically updates dependencies such as `textual`):
 
 ```bash
 # 1. Clone the repository and install Sapas
-git clone [https://github.com/kumamodo/sapas.git](https://github.com/kumamodo/sapas.git)
+git clone https://github.com/kumamodo/sapas.git
 cd sapas
 pip install -e .
 
@@ -112,7 +139,7 @@ PROJECT_NAME: Alishan
 STATION_NAME: Function
 ```
 
-Once this file is set up, simply navigate to that project directory (`example/`) and execute the bare command:Execute `sapas` in your project root. See the `Alishan` example for a complete demonstration.
+Once this file is set up, simply navigate to that project directory (`example/`) and execute the bare command:
 
 ```bash
 sapas

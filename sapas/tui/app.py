@@ -61,7 +61,7 @@ class SapasDashboard(App[None]):
         ("f4", "toggle_device_manager", "Device Manager"),
         ("f6", "toggle_station_monitor", "Monitor"),
         ("f7", "toggle_debug_mode", "Debug Mode"),
-        Binding("r", "debug_retest_step", "Re-test Step", show=False),
+        Binding("r", "debug_retest_step", "Run Step", show=False),
         Binding("e", "open_micro_editor", "Micro Editor", show=False),
         Binding("escape", "handle_escape", "Exit / Cancel", show=False),
     ]
@@ -788,21 +788,21 @@ class SapasDashboard(App[None]):
 
         if self.is_emergency_brake_active:
             self.sub_title = Text.assemble(
-                ("⚠️ [EMERGENCY BRAKE ACTIVE: RE-TEST BLOCKED] ⚠️ ", "bold white on red"),
+                ("⚠️ [EMERGENCY BRAKE ACTIVE: EXECUTION BLOCKED] ⚠️ ", "bold white on red"),
                 ("Press Esc/F7 to Exit", "bold yellow")
             )
             self.write_terminal_log("=" * 60, "bold red")
             self.write_terminal_log(">>> ENTERED DEBUG MODE (SAFETY LOCK ENGAGED) <<<", "bold red")
-            self.write_terminal_log("[BLOCK] Station unlocked on-site. Re-testing is BLOCKED until re-locked.", "bold yellow")
+            self.write_terminal_log("[BLOCK] Station unlocked on-site. Step execution is BLOCKED until re-locked.", "bold yellow")
             self.write_terminal_log("=" * 60, "bold red")
         else:
             self.sub_title = Text.assemble(
                 ("[! DEBUG MODE !] ", "bold bright_yellow"),
-                ("Press 'r' to Re-test, 'e' for Editor, Esc/F7 to Exit", "bold yellow")
+                ("Press 'r' to Run Step, 'e' for Editor, Esc/F7 to Exit", "bold yellow")
             )
             self.write_terminal_log("=" * 60, "bold bright_yellow")
             self.write_terminal_log(">>> ENTERED DEBUG MODE <<<", "bold bright_yellow")
-            self.write_terminal_log("Select any step and press 'r' to re-test, 'e' for Editor, or Esc/F7 to exit.", "yellow")
+            self.write_terminal_log("Select any step and press 'r' to test / run, 'e' for Editor, or Esc/F7 to exit.", "yellow")
             self.write_terminal_log("(Diagnostic run only - DUT test results and Shopfloor will NOT be modified)", "dim")
             self.write_terminal_log("=" * 60, "bold bright_yellow")
 

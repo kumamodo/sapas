@@ -12,12 +12,13 @@ In modern smart manufacturing environments, remote R&D (RD) and test engineers f
 ## Table of Contents
 - [1. Architecture & Safety Mechanisms](#1-architecture--safety-mechanisms)
 - [2. CLI Command Reference](#2-cli-command-reference)
-- [3. Station Commissioning SOP](#3-station-commissioning-sop)
-- [4. Remote Maintenance Workflow](#4-remote-maintenance-workflow)
-- [5. Windows Session 0 Isolation & Remote Reboot](#5-windows-session-0-isolation--remote-reboot)
-- [6. On-Site Emergency Override Procedure](#6-on-site-emergency-override-procedure)
-- [7. Remote Connection Safety Policies](#7-remote-connection-safety-policies)
-- [8. Troubleshooting & FAQ](#8-troubleshooting--faq)
+- [3. Station OpenSSH Setup & KeepAlive Guide](#3-station-openssh-setup--keepalive-guide)
+- [4. Station Commissioning SOP](#4-station-commissioning-sop)
+- [5. Remote Maintenance Workflow](#5-remote-maintenance-workflow)
+- [6. Windows Session 0 Isolation & Remote Reboot](#6-windows-session-0-isolation--remote-reboot)
+- [7. On-Site Emergency Override Procedure](#7-on-site-emergency-override-procedure)
+- [8. Remote Connection Safety Policies](#8-remote-connection-safety-policies)
+- [9. Troubleshooting & FAQ](#9-troubleshooting--faq)
 
 ---
 
@@ -72,7 +73,128 @@ sapas guard <subcommand> [options]
 
 ---
 
-## 3. Station Commissioning SOP
+## 3. Station OpenSSH Setup & KeepAlive Guide
+
+To achieve stable and seamless remote management on Windows production PCs, **"SSH Key-Based Authentication"** is strongly recommended. This approach avoids issues with Windows Hello PINs, Microsoft Cloud Account credential lockouts, and repetitive password prompts during automated testing.
+
+### 3.1 Station Server Quick Configuration
+
+> [!IMPORTANT]
+> Execute the following steps on the station PC in an **elevated PowerShell (Run as Administrator)**.
+
+#### Step 1. Install OpenSSH Server Optional Feature
+```powershell
+Add-WindowsCapability -Online -Name OpenSSH.Server~~~~0.0.1.0
+```
+
+#### Step 2. Start Service & Set Startup to Automatic
+```powershell
+Start-Service sshd
+Set-Service -Name sshd -StartupType 'Automatic'
+```
+
+#### Step 3. Configure Firewall Rules (Allow Private & Public Profiles)
+Windows firewall rules often default to allowing Private networks only. If your station network adapter is classified as "Public", incoming connections will be blocked. Allow all profiles with:
+```powershell
+Set-NetFirewallRule -Name "OpenSSH-Server-In-TCP" -Profile Any
+```
+
+#### Step 4. Unshackle Administrator Authorized Keys & Enable KeepAlive
+By default, Windows OpenSSH enforces a restriction: if the connecting user belongs to the local `Administrators` group, it ignores `~/.ssh/authorized_keys` and insists on `C:\ProgramData\ssh\administrators_authorized_keys`. Furthermore, keep-alive pings are disabled by default, causing NAT routers to drop idle connections after a few minutes.
+
+Open the configuration file as Administrator:
+```powershell
+notepad C:\ProgramData\ssh\sshd_config
+```
+
+Make the following two essential edits:
+
+1. **Enable Server-Side KeepAlive (Prevent Idle Disconnects)**:
+   Locate `ClientAliveInterval` and `ClientAliveCountMax` (around lines 66-67), uncomment them by removing `#`, and configure:
+   ```text
+   ClientAliveInterval 30
+   ClientAliveCountMax 5
+   ```
+   *(The station will send heartbeat probes every 30 seconds and disconnect only after 5 consecutive failures, effectively preventing network switches from dropping silent sessions)*
+
+2. **Bypass Administrator Public Key Lock (Restore standard `~/.ssh/authorized_keys`)**:
+   Scroll to the very bottom of the file (around lines 87-88) and **comment out both lines with `#`**:
+   ```text
+   #Match Group administrators
+   #       AuthorizedKeysFile __PROGRAMDATA__/ssh/administrators_authorized_keys
+   ```
+
+Save and exit Notepad.
+
+#### Step 5. (Recommended) Set Default Shell to PowerShell
+By default, SSH lands in traditional CMD. To use modern PowerShell syntax and modules upon login:
+```powershell
+New-ItemProperty -Path "HKLM:\SOFTWARE\OpenSSH" -Name DefaultShell -Value "C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe" -PropertyType String -Force
+```
+
+#### Step 6. Restart SSH Service to Apply Settings
+```powershell
+Restart-Service sshd
+```
+
+---
+
+### 3.2 SSH Public Key Pairing (Passwordless Login)
+
+#### Step A: On Engineer Workstation (Client Laptop)
+1. Generate an SSH Key (skip if you already have one):
+   ```bash
+   ssh-keygen -t ed25519
+   ```
+2. View and copy your public key:
+   - **Windows Client**: `type ~/.ssh/id_ed25519.pub`
+   - **macOS / Linux Client**: `cat ~/.ssh/id_ed25519.pub`
+   *(Copy the entire string starting with `ssh-ed25519 AAAA...`)*
+
+#### Step B: On Station PC (Server / Target Machine)
+1. Navigate to the user directory `C:\Users\<username>\.ssh\` (create the folder if it does not exist).
+2. Create or edit the `authorized_keys` file (**Note: file has no file extension**).
+3. Paste the public key string copied from Step A and save.
+4. **Fix File ACL Permissions (Crucial)**:
+   Run the following PowerShell commands as Administrator on the station to ensure OpenSSH does not reject the file due to permissive inheritance:
+   ```powershell
+   icacls "$env:USERPROFILE\.ssh" /inheritance:r /grant "$($env:USERNAME):F" /grant "SYSTEM:F"
+   icacls "$env:USERPROFILE\.ssh\authorized_keys" /inheritance:r /grant "$($env:USERNAME):F" /grant "SYSTEM:F"
+   ```
+
+---
+
+### 3.3 Connection Verification
+
+1. **Verify Connection Info** (run on station terminal):
+   - IP Address: run `ipconfig` (note the IPv4 address, e.g. `192.168.1.50`).
+   - Username: run `whoami` (e.g. `DESKTOP-88NEIUV\tester`, username is `tester`).
+2. **Connect from Client Laptop**:
+   ```bash
+   ssh tester@192.168.1.50
+   ```
+   🎉 **Connects instantly without password prompts!**
+
+---
+
+### 3.4 Long-Running Connection KeepAlive & Power Best Practices
+
+When debugging on the shop floor, idle connections frequently encounter `Connection reset by peer` or `Broken pipe` due to two common causes:
+
+1. **NAT Router / Firewall Idle Timeout**:
+   - In addition to `ClientAliveInterval 30` configured on the station, engineers can configure client-side heartbeats in `~/.ssh/config`:
+     ```text
+     Host *
+         ServerAliveInterval 60
+         ServerAliveCountMax 3
+     ```
+2. **Station PC Auto-Sleep (Power Management)**:
+   - Windows default settings put idle PCs to sleep after 10-15 minutes, cutting the network card and dropping SSH.
+   - **Remedy**: Go to **[Settings] $\rightarrow$ [System] $\rightarrow$ [Power & Sleep]** and set "When plugged in, PC goes to sleep after" to **"Never"**.
+
+---
+
+## 4. Station Commissioning SOP
 
 When a newly assembled test station is configured with Sapas, perform a one-time commissioning setup.
 
@@ -94,7 +216,7 @@ When a newly assembled test station is configured with Sapas, perform a one-time
 
 ---
 
-## 4. Remote Maintenance Workflow
+## 5. Remote Maintenance Workflow
 
 Standard operating procedure (SOP) when an engineer connects remotely via SSH:
 
@@ -109,7 +231,7 @@ Before modifying hardware or running tests, engage the lock with a descriptive m
 sapas guard lock "Replacing RF cable & running calibration"
 ```
 - **Lock Engaged**: The terminal displays the red `[!] [LOCKED]` panel. The station physical screen is instantly blanketed by a fullscreen red alert showing your IP, timestamp, and message.
-- **Fail-Fast Safety Check**: If the station PC is **not running the Guard Daemon**, the system **rejects the lock** and presents clear remedy options (see Section 5), preventing false-positive security assumptions.
+- **Fail-Fast Safety Check**: If the station PC is **not running the Guard Daemon**, the system **rejects the lock** and presents clear remedy options (see Section 6), preventing false-positive security assumptions.
 
 ### Step 3. Execute Debugging & Test Scripts
 Navigate to your test folder and run test scripts or launch TUI normally:
@@ -129,7 +251,7 @@ The red fullscreen window closes automatically, returning desktop control to lin
 
 ---
 
-## 5. Windows Session 0 Isolation & Remote Reboot
+## 6. Windows Session 0 Isolation & Remote Reboot
 
 ### What is Session 0 Isolation?
 Windows isolates system services (including the OpenSSH server `sshd.exe`) within **Session 0**, while interactive user desktops run in **Session 1 or higher**.
@@ -162,7 +284,7 @@ Remedy Options:
 
 ---
 
-## 6. On-Site Emergency Override Procedure
+## 7. On-Site Emergency Override Procedure
 
 What happens if an on-site situation occurs (e.g. equipment jam, emergency, or remote engineer lost connection while locked)?
 
@@ -193,7 +315,7 @@ To protect personnel from concurrent remote testing commands, an override event 
 
 ---
 
-## 7. Remote Connection Safety Policies
+## 8. Remote Connection Safety Policies
 
 When Sapas detects a remote SSH session:
 
@@ -209,7 +331,7 @@ When Sapas detects a remote SSH session:
 
 ---
 
-## 8. Troubleshooting & FAQ
+## 9. Troubleshooting & FAQ
 
 ### Q1: Why does `sapas guard lock` error out saying Daemon is not running?
 **A**: The station PC has not installed the startup script or has not logged into the desktop yet. Follow terminal instructions: run `sapas guard install` and reboot with `shutdown /r /t 0`.
@@ -224,6 +346,6 @@ When Sapas detects a remote SSH session:
 3. Purges `.station_lock`, `override_event.json`, and `guard.pid` from `~/.sapas/`.
 
 ### Q4: Daemon does not start after station reboot?
-**A**:
+**A**: 
 1. Ensure the Windows user account is configured with **Auto-login**. Startup programs launch upon desktop login (Session 1).
 2. Run `sapas guard status` to verify `Startup Auto-Run` is `Installed`. If not, re-run `sapas guard install`.

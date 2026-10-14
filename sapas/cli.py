@@ -189,7 +189,7 @@ def print_guard_help() -> None:
   sapas guard <command> [options]
 
 [bold]Commands:[/]
-  [bold green]lock[/] "message"    Engage station maintenance lock (blocks local testing & alerts desktop)
+  [bold green]lock[/] "message"      Engage station maintenance lock (blocks local testing & alerts desktop)
   [bold green]unlock[/]              Release station maintenance lock (restores normal operations)
   [bold green]status[/]              Check guard daemon status and active lock details
   [bold green]install[/]             Install Station Guard into Windows Startup for auto-protection
@@ -444,13 +444,21 @@ def handle_guard_cli(argv: list[str]) -> None:
 
 
 def main():
-    if len(sys.argv) > 1 and sys.argv[1].lower() == "guard":
+    first_arg = sys.argv[1].lower() if len(sys.argv) > 1 else ""
+
+    if first_arg == "guard":
         handle_guard_cli(sys.argv[2:])
         return
-    elif len(sys.argv) > 1 and sys.argv[1].lower() in ("lock", "unlock"):
-        cmd = sys.argv[1].lower()
-        console.print(f"[yellow][Notice] Unknown command 'sapas {cmd}'. Did you mean [bold cyan]sapas guard {cmd}[/]?[/]")
+    elif first_arg in ("lock", "unlock"):
+        console.print(f"[yellow][Notice] Unknown command 'sapas {first_arg}'. Did you mean [bold cyan]sapas guard {first_arg}[/]?[/]")
         sys.exit(1)
+    elif first_arg:
+        import difflib
+        matches = difflib.get_close_matches(first_arg, ["guard"], n=1, cutoff=0.7)
+        if matches and not Path(first_arg).exists():
+            console.print(f"[bold red][Error] Unknown command '{first_arg}'.[/]")
+            console.print(f"[bold yellow]Did you mean:[/] [bold cyan]sapas guard[/]?\n")
+            sys.exit(1)
 
     parser = argparse.ArgumentParser(description="Sapas Testing Framework", allow_abbrev=False)
     parser.add_argument("script", nargs="?", help="Path to user test script (.py)")

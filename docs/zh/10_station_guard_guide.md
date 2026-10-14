@@ -12,12 +12,13 @@
 ## 目錄
 - [1. 核心架構與防護機制](#1-核心架構與防護機制)
 - [2. 常用指令一覽表](#2-常用指令一覽表)
-- [3. 機台初始化部署 SOP (Commissioning)](#3-機台初始化部署-sop-commissioning)
-- [4. 遠端維修日常操作流程 (Daily Operation)](#4-遠端維修日常操作流程-daily-operation)
-- [5. Windows Session 0 隔離與遠端重啟機制](#5-windows-session-0-隔離與遠端重啟機制)
-- [6. 現場緊急應變與主管覆寫程序 (Emergency Override)](#6-現場緊急應變與主管覆寫程序-emergency-override)
-- [7. 遠端連線安全保護 (Remote Safety Policies)](#7-遠端連線安全保護-remote-safety-policies)
-- [8. 常見問題與故障排除 (FAQ)](#8-常見問題與故障排除-faq)
+- [3. 現場機台 OpenSSH 啟用與連線保活指南 (Station OpenSSH Setup)](#3-現場機台-openssh-啟用與連線保活指南-station-openssh-setup)
+- [4. 機台初始化部署 SOP (Commissioning)](#4-機台初始化部署-sop-commissioning)
+- [5. 遠端維修日常操作流程 (Daily Operation)](#5-遠端維修日常操作流程-daily-operation)
+- [6. Windows Session 0 隔離與遠端重啟機制](#6-windows-session-0-隔離與遠端重啟機制)
+- [7. 現場緊急應變與主管覆寫程序 (Emergency Override)](#7-現場緊急應變與主管覆寫程序-emergency-override)
+- [8. 遠端連線安全保護 (Remote Safety Policies)](#8-遠端連線安全保護-remote-safety-policies)
+- [9. 常見問題與故障排除 (FAQ)](#9-常見問題與故障排除-faq)
 
 ---
 
@@ -72,7 +73,128 @@ sapas guard <subcommand> [options]
 
 ---
 
-## 3. 機台初始化部署 SOP (Commissioning)
+## 3. 現場機台 OpenSSH 啟用與連線保活指南 (Station OpenSSH Setup)
+
+在 Windows 產線電腦上，要達成穩定且安全的遠端連線，推薦採用**「SSH Key 免密碼金鑰登入」**。此方式能徹底避開 Windows Hello PIN 碼、微軟線上帳號（MS Account）密碼無法登入，以及自動化測試需頻繁打密碼的困境。
+
+### 3.1 現場被連線端 (Station Server) 快速配置
+
+> [!IMPORTANT]
+> 現場機台以下步驟請在 Windows 中以**「系統管理員身分 (Run as Administrator)」**開啟 PowerShell 執行。
+
+#### Step 1. 安裝 OpenSSH Server 選用功能
+```powershell
+Add-WindowsCapability -Online -Name OpenSSH.Server~~~~0.0.1.0
+```
+
+#### Step 2. 啟動服務並設定開機自啟
+```powershell
+Start-Service sshd
+Set-Service -Name sshd -StartupType 'Automatic'
+```
+
+#### Step 3. 防火牆規則全開 (放行公用與私人網路)
+Windows 預設防火牆規則通常只放行「私人網路」。若機台網卡被判定為「公用網路（Public）」，遠端會連不進去。執行以下指令放行所有 Profile：
+```powershell
+Set-NetFirewallRule -Name "OpenSSH-Server-In-TCP" -Profile Any
+```
+
+#### Step 4. 【實戰關鍵】解除管理員公鑰綁架與開啟連線保活
+微軟預設規定：若登入者具備 Administrator 管理員權限，OpenSSH 會強制忽略使用者家目錄的 `authorized_keys`。同時，預設未開啟主動心跳（KeepAlive），閒置數分鐘即會被交換機中斷連線。
+
+以管理員身分開啟設定檔：
+```powershell
+notepad C:\ProgramData\ssh\sshd_config
+```
+
+進行以下兩處核心修改：
+
+1. **開啟 Server 端心跳保活（防止閒置斷線）**：
+   找到 `ClientAliveInterval` 與 `ClientAliveCountMax`（約第 66 行），去掉前面 `#` 註解並設定數值：
+   ```text
+   ClientAliveInterval 30
+   ClientAliveCountMax 5
+   ```
+   *(現場主機會每 30 秒主動發送心跳檢查連線，連續 5 次未回應才斷開，徹底防止 NAT 路由器與防火牆踢除連線)*
+
+2. **解除管理員專用公鑰限制（回歸標準 `~/.ssh/authorized_keys`）**：
+   滑到檔案最底部（約第 87~88 行），將這兩行前面**加上 `#` 註解掉**：
+   ```text
+   #Match Group administrators
+   #       AuthorizedKeysFile __PROGRAMDATA__/ssh/administrators_authorized_keys
+   ```
+
+存檔並關閉 Notepad。
+
+#### Step 5. （可選推薦）將預設 Shell 改為 PowerShell
+Windows 預設連進去是傳統的 CMD，若習慣 PowerShell 的語法與模組，可執行：
+```powershell
+New-ItemProperty -Path "HKLM:\SOFTWARE\OpenSSH" -Name DefaultShell -Value "C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe" -PropertyType String -Force
+```
+
+#### Step 6. 重啟 SSH 服務套用設定
+```powershell
+Restart-Service sshd
+```
+
+---
+
+### 3.2 設定 SSH 公鑰免密碼登入 (Key Pairing)
+
+#### 步驟 A：在連線端電腦（Client / 工程師筆電）
+1. 產生 SSH Key（若本機已有則可跳過）：
+   ```bash
+   ssh-keygen -t ed25519
+   ```
+2. 檢視並複製您的 Public Key 內容：
+   - **Windows Client**: `type ~/.ssh/id_ed25519.pub`
+   - **macOS / Linux Client**: `cat ~/.ssh/id_ed25519.pub`
+   *(複製整串開頭為 `ssh-ed25519 AAAA...` 的文字)*
+
+#### 步驟 B：在現場機台電腦（Server / 被連線端）
+1. 進入登入使用者的目錄 `C:\Users\<使用者名稱>\.ssh\`（若無此資料夾請手動新增）。
+2. 在該資料夾內建立或編輯 `authorized_keys` 檔案（**注意：檔案無任何副檔名**）。
+3. 將步驟 A 複製的公鑰文字貼入並存檔。
+4. **【權限修復】執行權限重置（極重要，避免因權限過大被 SSH 拒絕）**：
+   在現場電腦以管理員身分執行以下兩行 PowerShell 指令：
+   ```powershell
+   icacls "$env:USERPROFILE\.ssh" /inheritance:r /grant "$($env:USERNAME):F" /grant "SYSTEM:F"
+   icacls "$env:USERPROFILE\.ssh\authorized_keys" /inheritance:r /grant "$($env:USERNAME):F" /grant "SYSTEM:F"
+   ```
+
+---
+
+### 3.3 連線測試與驗證
+
+1. **查詢機台連線資訊**（在現場機台終端機執行）：
+   - 查詢 IP：執行 `ipconfig`（查看 IPv4 位址，如 `192.168.1.50`）。
+   - 查詢帳號：執行 `whoami`（例如顯示 `DESKTOP-88NEIUV\tester`，使用者名稱即為 `tester`）。
+2. **在工程師筆電（Client 端）發起連線**：
+   ```bash
+   ssh tester@192.168.1.50
+   ```
+   🎉 **無需輸入密碼，1 秒內直接進入現場機台終端機！**
+
+---
+
+### 3.4 遠端長連線防斷線指南 (KeepAlive & 電源最佳實踐)
+
+在產線調試時，最常遇到連線放著幾分鐘沒動就跳出 `Connection reset by peer` 或 `Broken pipe`，這通常是兩大原因造成：
+
+1. **路由器 / 交換器的 NAT 閒置超時 (Idle Timeout)**：
+   - 除了前面在機台端設定的 `ClientAliveInterval 30` 外，建議工程師在自己的筆電（Client 端）的 `~/.ssh/config` 加上全域心跳設定：
+     ```text
+     Host *
+         ServerAliveInterval 60
+         ServerAliveCountMax 3
+     ```
+2. **現場機台電腦的自動睡眠 (Power Management)**：
+   - 現場 Windows 預設閒置 10~15 分鐘會自動進入「睡眠（Sleep）」，導致網卡休眠中斷 SSH。
+   - **處置**：至現場電腦的 **[設定] $\rightarrow$ [系統] $\rightarrow$ [電源與睡眠]**，將「接通電源時，讓電腦進入睡眠狀態」修改為 **「永不 (Never)」**。
+
+---
+
+## 4. 機台初始化部署 SOP (Commissioning)
 
 新測試機台組裝完成並配置好 Sapas 執行環境後，應執行一次性初始化安裝。
 
@@ -94,7 +216,7 @@ sapas guard <subcommand> [options]
 
 ---
 
-## 4. 遠端維修日常操作流程 (Daily Operation)
+## 5. 遠端維修日常操作流程 (Daily Operation)
 
 遠端工程師透過 SSH 進行現場機台維護時的標準操作流程（SOP）：
 
@@ -109,7 +231,7 @@ ssh tester@192.168.1.100
 sapas guard lock "Replacing RF cable & running calibration"
 ```
 - **成功鎖定**：終端機顯示大紅色的 `[!] [LOCKED]` 面板，現場螢幕立刻被大紅畫面完全覆蓋，顯示您的來源 IP、上鎖時間與原因。
-- **防呆攔截**：若現場電腦**尚未啟動 Guard Daemon**，系統會**拒絕上鎖**並跳出具體解決指引（參見第 5 節），絕不製造「以為鎖上了」的假性安全錯覺。
+- **防呆攔截**：若現場電腦**尚未啟動 Guard Daemon**，系統會**拒絕上鎖**並跳出具體解決指引（參見第 6 節），絕不製造「以為鎖上了」的假性安全錯覺。
 
 ### Step 3. 執行測試與調試
 切換至測試資料夾，正常執行測試腳本或進入 TUI 介面：
@@ -129,7 +251,7 @@ sapas guard unlock
 
 ---
 
-## 5. Windows Session 0 隔離與遠端重啟機制
+## 6. Windows Session 0 隔離與遠端重啟機制
 
 ### 什麼是 Session 0 隔離？
 Windows 作業系統為了安全性，將背景服務（包括 OpenSSH 伺服器 `sshd.exe`）隔離在 **Session 0**，而現場人員登入看到的實體桌面則處於 **Session 1 或更高**。
@@ -162,7 +284,7 @@ Remedy Options:
 
 ---
 
-## 6. 現場緊急應變與主管覆寫程序 (Emergency Override)
+## 7. 現場緊急應變與主管覆寫程序 (Emergency Override)
 
 當現場發生緊急突發狀況（如設備卡料、冒煙，或遠端工程師失去連線導致機台被長時間鎖定），現場人員該如何處置？
 
@@ -194,7 +316,7 @@ Remedy Options:
 
 ---
 
-## 7. 遠端連線安全保護 (Remote Safety Policies)
+## 8. 遠端連線安全保護 (Remote Safety Policies)
 
 Sapas 在感知到遠端 SSH 工作階段時，會自動啟動以下安全策略：
 
@@ -210,7 +332,7 @@ Sapas 在感知到遠端 SSH 工作階段時，會自動啟動以下安全策略
 
 ---
 
-## 8. 常見問題與故障排除 (FAQ)
+## 9. 常見問題與故障排除 (FAQ)
 
 ### Q1: 為什麼我在 SSH 執行了 `sapas guard lock`，終端機報錯說 Daemon 未運行？
 **A**: 這代表現場電腦的開機啟動項目尚未安裝，或開機後未登入 Windows 桌面。請參考終端機上的說明，執行 `sapas guard install` 後使用 `shutdown /r /t 0` 重啟機台即可。
