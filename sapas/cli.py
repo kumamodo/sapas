@@ -1,3 +1,4 @@
+import os
 import sys
 import argparse
 from pathlib import Path
@@ -167,11 +168,298 @@ def setup_context(args):
     context.set('PROJECT_NAME', project_name)
     context.set('STATION_NAME', station_name)
 
+    # Remote safety & quality guard: Force ENABLE_SHOPFLOOR to False during remote SSH or maintenance lock
+    is_remote_session = bool(os.environ.get("SSH_CLIENT") or os.environ.get("SSH_CONNECTION"))
+    from sapas.guard.lock_manager import is_locked
+    if is_remote_session or is_locked():
+        if context.get("ENABLE_SHOPFLOOR", False):
+            context.set("ENABLE_SHOPFLOOR", False)
+            console.print("[bold yellow][SECURITY] Remote session or Station Guard lock active! ENABLE_SHOPFLOOR is forced to FALSE to protect shopfloor integrity.[/]")
+
     # Initialize the global runtime.
     rt.init(context)
     return context
 
+
+def print_guard_help() -> None:
+    help_text = """
+[bold cyan]Sapas Station Guard[/] - Remote Maintenance Lock & Station Protection
+
+[bold]Usage:[/]
+  sapas guard <command> [options]
+
+[bold]Commands:[/]
+  [bold green]lock[/] "message"      Engage station maintenance lock (blocks local testing & alerts desktop)
+  [bold green]unlock[/]              Release station maintenance lock (restores normal operations)
+  [bold green]status[/]              Check guard daemon status and active lock details
+  [bold green]install[/]             Install Station Guard into Windows Startup for auto-protection
+  [bold green]reinstall[/]           Reset state and reinstall Station Guard to Windows Startup
+  [bold green]uninstall[/]           Remove Station Guard from Windows Startup and stop background process
+
+[bold]Examples:[/]
+  sapas guard lock "Replacing RF cable"
+  sapas guard unlock
+  sapas guard status
+  sapas guard install
+  sapas guard reinstall
+"""
+    console.print(help_text.strip())
+
+
+def handle_guard_cli(argv: list[str]) -> None:
+    """Handles sapas guard subcommands (lock, unlock, status, install, reinstall, uninstall)."""
+    if not argv or argv[0].lower() in ("-h", "--help", "help"):
+        print_guard_help()
+        sys.exit(0)
+
+    subcmd = argv[0].lower()
+
+    if subcmd == "lock":
+        lock_args = argv[1:]
+        msg = ""
+        if lock_args:
+            if lock_args[0] in ("-m", "--message") and len(lock_args) > 1:
+                msg = " ".join(lock_args[1:]).strip()
+            else:
+                msg = " ".join(lock_args).strip()
+
+        from sapas.guard.installer import get_daemon_pid
+
+        # Fail fast: If station guard daemon is NOT running on the station desktop, do NOT claim it is locked!
+        daemon_pid = get_daemon_pid()
+        if not daemon_pid:
+            is_remote_session = bool(os.environ.get("SSH_CLIENT") or os.environ.get("SSH_CONNECTION"))
+            if is_remote_session:
+                explanation = (
+                    "[bold red][!] [ERROR] CANNOT ENGAGE STATION GUARD LOCK![/]\n\n"
+                    "The Station Guard daemon is NOT running on the interactive desktop session.\n\n"
+                    "[bold yellow]Technical Note:[reset]\n"
+                    "  Due to Windows Session Isolation (Session 0 boundary), GUI screens cannot be\n"
+                    "  spawned headlessly across remote SSH sessions without an active desktop login.\n\n"
+                    "[bold white]Remedy Options:[reset]\n\n"
+                    "  [bold cyan]• Option 1: On-site Setup (Instant / No Reboot)[reset]\n"
+                    "    Ask an on-site engineer to run locally on the station PC:\n"
+                    "      [bold green]sapas guard install[reset]\n\n"
+                    "  [bold cyan]• Option 2: Remote Setup via SSH (Requires Station Reboot)[reset]\n"
+                    "    1. Run installation in this SSH session:\n"
+                    "       [bold green]sapas guard install[reset]\n"
+                    "    2. Reboot the station PC remotely:\n"
+                    "       [bold green]shutdown /r /t 0[reset]\n"
+                    "       [dim](or ask on-site personnel to log in to start the desktop session)[/]\n"
+                )
+            else:
+                explanation = (
+                    "[bold red][!] [ERROR] CANNOT ENGAGE STATION GUARD LOCK![/]\n\n"
+                    "[white]The Station Guard background daemon is not running on this PC.[/]\n\n"
+                    "[bold bright_yellow]To activate Station Guard on this machine, run:[reset]\n"
+                    "  [bold bright_green]sapas guard install[reset]\n"
+                )
+
+            console.print(Panel(
+                Text.from_markup(explanation),
+                title="Station Guard Interlock Error",
+                border_style="red"
+            ))
+            sys.exit(1)
+
+        from sapas.guard.lock_manager import acquire_lock
+        data = acquire_lock(msg)
+
+        console.print(Panel(
+            Text.assemble(
+                ("[!] [LOCKED] Station maintenance lock engaged!\n\n", "bold red"),
+                ("  Message   : ", "bold yellow"), (f"{data['message']}\n", "white"),
+                ("  Source IP : ", "bold cyan"), (f"{data['ip']}\n", "bright_cyan"),
+                ("  Lock Time : ", "bold"), (f"{data['time']}\n", "dim"),
+            ),
+            title="Sapas Station Guard",
+            border_style="red"
+        ))
+        sys.exit(0)
+
+    elif subcmd == "unlock":
+        from sapas.guard.lock_manager import release_lock, is_locked, clear_override_event
+        was_locked = is_locked()
+        released = release_lock()
+        cleared_override = clear_override_event()
+        if released or was_locked or cleared_override:
+            console.print("[bold green][OK] [UNLOCKED] Station maintenance lock and emergency override released. Normal operations restored.[/]")
+        else:
+            console.print("[yellow][Notice] Station was not locked.[/]")
+        sys.exit(0)
+
+    elif subcmd in ("status", "--status"):
+        from sapas.guard.installer import get_status
+        st = get_status()
+        console.print(Panel(
+            Text.assemble(
+                ("Station Guard Status:\n", "bold"),
+                ("  Startup Auto-Run : ", "bold"), (("Installed" if st["installed"] else "Not installed") + "\n", "green" if st["installed"] else "yellow"),
+                ("  Daemon Process   : ", "bold"), ((f"Running (PID {st['daemon_pid']})" if st["running"] else "Stopped") + "\n", "green" if st["running"] else "dim"),
+                ("  Lock Status      : ", "bold"), (("LOCKED" if st["locked"] else "IDLE (Unlocked)") + "\n", "bold red" if st["locked"] else "green"),
+                ("  Startup Path     : ", "dim"), (f"{st['vbs_path']}\n", "dim"),
+            ),
+            title="Sapas Guard Service",
+            border_style="cyan"
+        ))
+        if st["locked"] and st.get("lock_info"):
+            info = st["lock_info"]
+            console.print(f"  [red]Active Lock: '{info.get('message')}' from {info.get('ip')} at {info.get('time')}[/]")
+        from sapas.guard.lock_manager import get_override_event
+        ov = get_override_event()
+        if ov:
+            console.print(f"  [bold white on red][!] EMERGENCY OVERRIDE ACTIVE:[/] {ov.get('reason')} at {ov.get('time')}")
+            console.print("      [yellow]Remote execution is temporarily frozen until 'sapas guard lock' is re-engaged.[/]")
+        sys.exit(0)
+
+    elif subcmd in ("install", "--install"):
+        from sapas.guard.installer import install, get_startup_dir, STARTUP_SCRIPT_NAME, get_daemon_pid
+        vbs_path = get_startup_dir() / STARTUP_SCRIPT_NAME
+        daemon_pid = get_daemon_pid()
+
+        # If already installed and daemon is currently running, guide user to 'reinstall' if updating
+        if vbs_path.exists() and daemon_pid:
+            console.print(Panel(
+                Text.assemble(
+                    ("Station Guard is already installed and running on this station!\n\n", "bold yellow"),
+                    ("  Status     : ", "bold"), (f"Active Daemon running (PID {daemon_pid})\n", "green"),
+                    ("  Startup VBS: ", "bold"), (f"{vbs_path}\n\n", "bright_cyan"),
+                    ("[Notice]\n", "bold bright_white"),
+                    ("If you are upgrading Sapas or wish to refresh the background daemon with new code,\n", "white"),
+                    ("please execute the reinstall command instead:\n\n", "white"),
+                    ("  sapas guard reinstall\n", "bold bright_green"),
+                ),
+                title="Station Guard Already Active",
+                border_style="yellow"
+            ))
+            sys.exit(0)
+
+        console.print(Panel(
+            Text.assemble(
+                ("Sapas Station Guard will install a lightweight auto-start script:\n\n", "bold yellow"),
+                ("  Target Path : ", "dim"), (f"{vbs_path}\n\n", "bright_cyan"),
+                ("[Security Notice]\n", "bold bright_green"),
+                ("  • User-level startup item only — requires NO admin / UAC permissions.\n", "bright_green"),
+                ("  • Zero registry, driver, or system file modifications.\n", "bright_green"),
+                ("  • Strictly for local workstation safety protection.", "bright_green")
+            ),
+            title="Station Guard Auto-Start Installation",
+            border_style="cyan"
+        ))
+
+        # Ask for confirmation unless -y / --yes flag is provided
+        if "-y" not in argv and "--yes" not in argv:
+            try:
+                choice = console.input("[bold yellow]Proceed with installation? [Y/n]: [/]").strip().lower()
+            except (EOFError, KeyboardInterrupt):
+                choice = "n"
+            if choice not in ("", "y", "yes"):
+                console.print("[dim yellow][Cancelled] Installation aborted by user.[/]")
+                sys.exit(0)
+
+        ok = install()
+        if ok:
+            console.print("[bold green][OK] Station Guard successfully configured in Windows Startup![/]")
+            is_remote_session = bool(os.environ.get("SSH_CLIENT") or os.environ.get("SSH_CONNECTION"))
+            if is_remote_session:
+                console.print(Panel(
+                    Text.from_markup(
+                        "[bold yellow][!] ACTION REQUIRED FOR REMOTE INSTALLATION:[reset]\n\n"
+                        "Because this was run via a remote SSH session (Session 0), the physical\n"
+                        "screen guard cannot interact with the desktop directly.\n\n"
+                        "[bold bright_white]To activate physical desktop protection, reboot the station PC:[reset]\n"
+                        "  [bold bright_cyan]shutdown /r /t 0[reset]\n"
+                        "[dim](or ask on-site personnel to log into Windows desktop)[/]"
+                    ),
+                    title="Station Reboot Required",
+                    border_style="yellow"
+                ))
+            else:
+                console.print("[bold green][OK] Station Guard daemon started in background.[/]")
+        else:
+            console.print("[bold red][ERROR] Failed to install Station Guard to Windows Startup.[/]")
+        sys.exit(0 if ok else 1)
+
+    elif subcmd in ("reinstall", "--reinstall"):
+        from sapas.guard.installer import reinstall, get_startup_dir, STARTUP_SCRIPT_NAME
+        vbs_path = get_startup_dir() / STARTUP_SCRIPT_NAME
+
+        console.print(Panel(
+            Text.assemble(
+                ("Sapas Station Guard will reset all state and reinstall the auto-start script:\n\n", "bold yellow"),
+                ("  Target Path : ", "dim"), (f"{vbs_path}\n\n", "bright_cyan"),
+                ("[Security Notice]\n", "bold bright_green"),
+                ("  • User-level startup item only — requires NO admin / UAC permissions.\n", "bright_green"),
+                ("  • Cleans up all previous background processes and state locks.", "bright_green")
+            ),
+            title="Station Guard Re-installation",
+            border_style="cyan"
+        ))
+
+        if "-y" not in argv and "--yes" not in argv:
+            try:
+                choice = console.input("[bold yellow]Proceed with re-installation? [Y/n]: [/]").strip().lower()
+            except (EOFError, KeyboardInterrupt):
+                choice = "n"
+            if choice not in ("", "y", "yes"):
+                console.print("[dim yellow][Cancelled] Re-installation aborted by user.[/]")
+                sys.exit(0)
+
+        ok = reinstall()
+        if ok:
+            console.print("[bold green][OK] Station Guard successfully reinstalled in Windows Startup![/]")
+            is_remote_session = bool(os.environ.get("SSH_CLIENT") or os.environ.get("SSH_CONNECTION"))
+            if is_remote_session:
+                console.print(Panel(
+                    Text.from_markup(
+                        "[bold yellow][!] ACTION REQUIRED FOR REMOTE RE-INSTALLATION:[reset]\n\n"
+                        "Because this was run via a remote SSH session (Session 0), the physical\n"
+                        "screen guard cannot interact with the desktop directly.\n\n"
+                        "[bold bright_white]To activate physical desktop protection, reboot the station PC:[reset]\n"
+                        "  [bold bright_cyan]shutdown /r /t 0[reset]\n"
+                        "[dim](or ask on-site personnel to log into Windows desktop)[/]"
+                    ),
+                    title="Station Reboot Required",
+                    border_style="yellow"
+                ))
+            else:
+                console.print("[bold green][OK] Station Guard daemon restarted in background.[/]")
+        else:
+            console.print("[bold red][ERROR] Failed to reinstall Station Guard.[/]")
+        sys.exit(0 if ok else 1)
+
+    elif subcmd in ("uninstall", "--uninstall"):
+        from sapas.guard.installer import uninstall
+        ok = uninstall()
+        if ok:
+            console.print("[bold green][OK] Station Guard uninstalled and background process terminated.[/]")
+        else:
+            console.print("[bold red][ERROR] Failed to uninstall Station Guard.[/]")
+        sys.exit(0 if ok else 1)
+
+    else:
+        console.print(f"[bold red][Error] Unknown guard command '{subcmd}'.[/]")
+        print_guard_help()
+        sys.exit(1)
+
+
 def main():
+    first_arg = sys.argv[1].lower() if len(sys.argv) > 1 else ""
+
+    if first_arg == "guard":
+        handle_guard_cli(sys.argv[2:])
+        return
+    elif first_arg in ("lock", "unlock"):
+        console.print(f"[yellow][Notice] Unknown command 'sapas {first_arg}'. Did you mean [bold cyan]sapas guard {first_arg}[/]?[/]")
+        sys.exit(1)
+    elif first_arg:
+        import difflib
+        matches = difflib.get_close_matches(first_arg, ["guard"], n=1, cutoff=0.7)
+        if matches and not Path(first_arg).exists():
+            console.print(f"[bold red][Error] Unknown command '{first_arg}'.[/]")
+            console.print(f"[bold yellow]Did you mean:[/] [bold cyan]sapas guard[/]?\n")
+            sys.exit(1)
+
     parser = argparse.ArgumentParser(description="Sapas Testing Framework", allow_abbrev=False)
     parser.add_argument("script", nargs="?", help="Path to user test script (.py)")
     parser.add_argument("--tui", action="store_true", help="Start the TUI interface mode.")
@@ -181,6 +469,29 @@ def main():
     parser.add_argument('--serialNumber', default='sapas999999999', help='Serial number')
     parser.add_argument('--timeStamp', default=datetime.now().strftime('%Y%m%d_%H%M%S'))
     args, remaining_args = parser.parse_known_args()
+
+    # Auto-guard interlock: If remote engineer executes a test without locking, auto-engage Station Guard
+    from sapas.guard.lock_manager import ensure_remote_guard_lock, get_override_event
+    override_evt = get_override_event()
+    if override_evt and (os.environ.get("SSH_CLIENT") or os.environ.get("SSH_CONNECTION")):
+        console.print(Panel(
+            Text.assemble(
+                ("[!] [DANGER] STATION WAS FORCEFULLY UNLOCKED ON-SITE!\n\n", "bold white on red"),
+                ("  Reason : ", "bold yellow"), (f"{override_evt.get('reason')}\n", "white"),
+                ("  Time   : ", "bold yellow"), (f"{override_evt.get('time')}\n\n", "dim"),
+                ("  Safety Interlock Engaged:\n", "bold red"),
+                ("  Personnel may be present near the fixture or handling the DUT.\n", "yellow"),
+                ("  To resume remote execution safely, inspect physical station and run: 'sapas guard lock'\n", "bright_cyan"),
+            ),
+            title="⚠️ EMERGENCY SAFETY BRAKE ⚠️",
+            border_style="red"
+        ))
+        sys.exit(1)
+
+    auto_locked = ensure_remote_guard_lock()
+    if auto_locked:
+        console.print("[bold yellow][!] [AUTO-GUARD] Remote execution detected without active lock![/]")
+        console.print(f"[bold yellow]    Engaging Station Guard on station desktop for human safety... (Source: {auto_locked['ip']})[/]\n")
 
     context = setup_context(args)
 
