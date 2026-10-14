@@ -42,6 +42,7 @@ class MicroEditorScreen(ModalScreen[None]):
         self,
         context=None,
         selected_step=None,
+        selected_section: Optional[str] = None,
         test_steps=None,
         flow_path: Optional[Path] = None,
         session_snapshots: Optional[dict[Path, str]] = None,
@@ -52,6 +53,7 @@ class MicroEditorScreen(ModalScreen[None]):
         super().__init__()
         self.context = context
         self.selected_step = selected_step
+        self.selected_section = selected_section
         self.test_steps = test_steps or []
         self.flow_path = flow_path
         self.session_snapshots = session_snapshots if session_snapshots is not None else {}
@@ -71,9 +73,11 @@ class MicroEditorScreen(ModalScreen[None]):
         project_name = self.context.get("PROJECT_NAME", "") if self.context else ""
         station_name = self.context.get("STATION_NAME", "") if self.context else ""
 
-        # Check if selected step is a Flow Control Directive (IF, END_IF, DELAY, PROMPT, CYCLE)
+        # Check if selected step is a Flow Control Directive (IF, END_IF, DELAY, PROMPT, CYCLE) or Section Header
         self.is_flow_directive = False
-        if self.selected_step:
+        if self.selected_section in ("on_fail", "final"):
+            self.is_flow_directive = True
+        elif self.selected_step:
             cmd = (self.selected_step.command or "").strip().lower()
             if cmd in ("if", "end_if", "delay", "prompt", "cycle") or getattr(self.selected_step, "is_condition", False):
                 self.is_flow_directive = True
@@ -145,16 +149,37 @@ class MicroEditorScreen(ModalScreen[None]):
             content = ""
             missing = False
             if tid == "script" and self.is_flow_directive:
-                step_name = self.selected_step.item_label.strip() if self.selected_step else "Flow Directive"
-                content = (
-                    "# ==========================================================================\n"
-                    f"# [NOTICE] Selected item '{step_name}' is a Flow Control Directive.\n"
-                    "# Flow directives (IF, END_IF, DELAY, PROMPT) do not have a Python script.\n"
-                    "# They are defined directly inside the active .flow file.\n"
-                    "#\n"
-                    f"# -> Sapas has automatically opened [F2] {flow_title} for direct editing.\n"
-                    "# ==========================================================================\n"
-                )
+                if self.selected_section == "on_fail":
+                    content = (
+                        "# ==========================================================================\n"
+                        "# [SECTION] ON-FAIL DIAGNOSTICS\n"
+                        "# This block is triggered immediately if any test item fails.\n"
+                        "# It is defined directly inside the active .flow file.\n"
+                        "#\n"
+                        f"# -> Sapas has automatically opened [F2] {flow_title} at the 'on_fail' block.\n"
+                        "# ==========================================================================\n"
+                    )
+                elif self.selected_section == "final":
+                    content = (
+                        "# ==========================================================================\n"
+                        "# [SECTION] FINAL CLEANUP\n"
+                        "# This block is guaranteed to execute at the end of each cycle.\n"
+                        "# It is defined directly inside the active .flow file.\n"
+                        "#\n"
+                        f"# -> Sapas has automatically opened [F2] {flow_title} at the 'final' block.\n"
+                        "# ==========================================================================\n"
+                    )
+                else:
+                    step_name = self.selected_step.item_label.strip() if self.selected_step else "Flow Directive"
+                    content = (
+                        "# ==========================================================================\n"
+                        f"# [NOTICE] Selected item '{step_name}' is a Flow Control Directive.\n"
+                        "# Flow directives (IF, END_IF, DELAY, PROMPT) do not have a Python script.\n"
+                        "# They are defined directly inside the active .flow file.\n"
+                        "#\n"
+                        f"# -> Sapas has automatically opened [F2] {flow_title} for direct editing.\n"
+                        "# ==========================================================================\n"
+                    )
             elif path and path.is_file():
                 try:
                     content = path.read_text(encoding="utf-8")
@@ -176,35 +201,65 @@ class MicroEditorScreen(ModalScreen[None]):
             )
             self.tabs.append(tab)
 
-        # Smart tab selection: If flow directive, open Tab 1 (Flow) by default and locate target line
+        # Smart tab selection: If flow directive or section header, open Tab 1 (Flow) by default and locate target line
         if self.is_flow_directive:
             self.active_tab_index = 1
             flow_content = self.tabs[1].buffer
             flow_lines = flow_content.splitlines()
-            cond_target = (self.selected_step.condition or self.selected_step.flow_item or "").strip()
-            cmd_target = (self.selected_step.command or "").strip().lower()
 
-            for line_no, raw_line in enumerate(flow_lines):
-                line_str = raw_line.strip()
-                if line_str.startswith("#"):
-                    continue
-                if cmd_target == "if" and ("if " in line_str.lower() or "if\t" in line_str.lower()):
-                    if cond_target and cond_target in line_str:
+            if self.selected_section == "on_fail":
+                for line_no, raw_line in enumerate(flow_lines):
+                    line_str = raw_line.strip()
+                    if not line_str.startswith("#") and line_str.lower().startswith("on_fail"):
                         self.initial_cursor_line = line_no
                         break
-                    elif not cond_target:
+            elif self.selected_section == "final":
+                for line_no, raw_line in enumerate(flow_lines):
+                    line_str = raw_line.strip()
+                    if not line_str.startswith("#") and line_str.lower().startswith("final"):
                         self.initial_cursor_line = line_no
                         break
-                elif cmd_target == "end_if" and line_str.lower().startswith("end_if"):
-                    self.initial_cursor_line = line_no
-                    break
-                elif cmd_target in ("delay", "prompt") and line_str.lower().startswith(cmd_target):
-                    if cond_target and cond_target in line_str:
+            elif self.selected_step:
+                cond_target = (self.selected_step.condition or self.selected_step.flow_item or "").strip()
+                cmd_target = (self.selected_step.command or "").strip().lower()
+                prefix_code = getattr(self.selected_step, "item_id", "")[:1]
+
+                start_scan = 0
+                end_scan = len(flow_lines)
+
+                on_fail_line = next((i for i, l in enumerate(flow_lines) if not l.strip().startswith("#") and l.strip().lower().startswith("on_fail")), None)
+                final_line = next((i for i, l in enumerate(flow_lines) if not l.strip().startswith("#") and l.strip().lower().startswith("final")), None)
+
+                if prefix_code == "F" and on_fail_line is not None:
+                    start_scan = on_fail_line
+                    end_scan = final_line if final_line is not None and final_line > on_fail_line else len(flow_lines)
+                elif prefix_code == "E" and final_line is not None:
+                    start_scan = final_line
+                elif on_fail_line is not None:
+                    end_scan = on_fail_line
+
+                for line_no in range(start_scan, end_scan):
+                    raw_line = flow_lines[line_no]
+                    line_str = raw_line.strip()
+                    if line_str.startswith("#"):
+                        continue
+                    if cmd_target == "if" and ("if " in line_str.lower() or "if\t" in line_str.lower()):
+                        if cond_target and cond_target in line_str:
+                            self.initial_cursor_line = line_no
+                            break
+                        elif not cond_target:
+                            self.initial_cursor_line = line_no
+                            break
+                    elif cmd_target == "end_if" and line_str.lower().startswith("end_if"):
                         self.initial_cursor_line = line_no
                         break
-                    else:
-                        self.initial_cursor_line = line_no
-                        break
+                    elif cmd_target in ("delay", "prompt") and line_str.lower().startswith(cmd_target):
+                        if cond_target and cond_target in line_str:
+                            self.initial_cursor_line = line_no
+                            break
+                        else:
+                            self.initial_cursor_line = line_no
+                            break
 
     @staticmethod
     def _build_footer_guide() -> Text:
@@ -218,7 +273,14 @@ class MicroEditorScreen(ModalScreen[None]):
         return t
 
     def compose(self) -> ComposeResult:
-        step_label = f"Step: [{self.selected_step.item_id}] {self.selected_step.item_label}" if self.selected_step else "General Diagnosis"
+        if self.selected_step:
+            step_label = f"Step: [{self.selected_step.item_id}] {self.selected_step.item_label}"
+        elif self.selected_section == "on_fail":
+            step_label = "Section: [ON-FAIL] On-Fail Diagnostics"
+        elif self.selected_section == "final":
+            step_label = "Section: [FINAL] Final Cleanup"
+        else:
+            step_label = "General Diagnosis"
         active_tab = self.tabs[self.active_tab_index]
 
         yield Container(
@@ -416,7 +478,8 @@ class MicroEditorScreen(ModalScreen[None]):
                     feedback.styles.color = "yellow"
                 else:
                     if hasattr(self.app, "test_steps"):
-                        self.test_steps = getattr(self.app, "test_steps", self.test_steps)
+                        all_reloaded = getattr(self.app, "test_steps", []) + getattr(self.app, "on_fail_steps", []) + getattr(self.app, "final_steps", [])
+                        self.test_steps = all_reloaded or self.test_steps
                     feedback.update("✓ Saved & Flow steps hot-reloaded into table!")
                     feedback.styles.color = "green"
             else:

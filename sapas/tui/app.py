@@ -938,9 +938,13 @@ class SapasDashboard(App[None]):
             return
 
         row_key = table.ordered_rows[cursor_row].key.value
-        step = next((s for s in self.test_steps if s.row_key == row_key), None)
+        all_steps = self.test_steps + self.on_fail_steps + self.final_steps
+        step = next((s for s in all_steps if s.row_key == row_key), None)
         if not step:
-            self.write_terminal_log(f"[WARN] Step not found for row {row_key}.", "bold yellow")
+            if row_key in ("on_fail_separator", "final_separator"):
+                self.write_terminal_log("[WARN] Section separator headers cannot be run.", "bold yellow")
+            else:
+                self.write_terminal_log(f"[WARN] Step not found for row {row_key}.", "bold yellow")
             return
 
         if step.is_condition:
@@ -973,15 +977,23 @@ class SapasDashboard(App[None]):
         table = self.query_one("#items-table", StepsTable)
         cursor_row = table.cursor_row
         selected_step = None
+        selected_section = None
+        all_steps = self.test_steps + self.on_fail_steps + self.final_steps
         if cursor_row is not None and 0 <= cursor_row < len(table.ordered_rows):
             row_key = table.ordered_rows[cursor_row].key.value
-            selected_step = next((s for s in self.test_steps if s.row_key == row_key), None)
+            selected_step = next((s for s in all_steps if s.row_key == row_key), None)
+            if not selected_step:
+                if row_key == "on_fail_separator":
+                    selected_section = "on_fail"
+                elif row_key == "final_separator":
+                    selected_section = "final"
 
         self.push_screen(
             MicroEditorScreen(
                 context=self.context,
                 selected_step=selected_step,
-                test_steps=self.test_steps,
+                selected_section=selected_section,
+                test_steps=all_steps,
                 flow_path=self.resolved_flow_path,
                 session_snapshots=self._session_snapshots,
                 session_modified_files=self._session_modified_files,
