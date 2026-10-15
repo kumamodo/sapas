@@ -234,6 +234,22 @@ class TestItem(BaseItem, ABC):
         # by ResultManager, so that the Runner can access it directly.
         existing_data = ctx.get('TEST_DATA_STRING') or ""
         ctx.set('TEST_DATA_STRING', existing_data + self.pResult.shopfloor_string)
+
+        existing_measurements = ctx.get('_ALL_MEASUREMENTS') or []
+        for row in self.pResult.test_criteria[1:]:
+            item_name = str(row[ResultManager.COL_ITEM])
+            if self.pResult.fill_test_item_name:
+                item_name = item_name.format(self.pResult.fill_test_item_name)
+            existing_measurements.append({
+                "item": item_name,
+                "lsl": str(row[ResultManager.COL_LSL]),
+                "usl": str(row[ResultManager.COL_USL]),
+                "measured": str(row[ResultManager.COL_MEASURED]),
+                "status": str(row[ResultManager.COL_STATUS]),
+                "desc": str(row[ResultManager.COL_DESC]),
+                "err_code": str(row[ResultManager.COL_ERRCODE]),
+            })
+        ctx.set('_ALL_MEASUREMENTS', existing_measurements)
         
         ctx.set('ERROR_CODE', self.pResult.first_fail_code)
         if self.pResult.first_fail_code != "PASS":

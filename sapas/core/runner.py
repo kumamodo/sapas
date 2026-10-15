@@ -152,6 +152,53 @@ class Runner():
         except (IOError, yaml.YAMLError) as err:
             error(f"Failed to save runtime context snapshot: {err}", tag='RUNNER')
 
+    def _generate_html_report_artifact(self, final_status: str):
+        """
+        Generates a standalone, single-file HTML test report in output/<serialNumber>/.
+        Filename format: {SN}_{timestamp}_{status}.html
+        """
+        try:
+            from sapas.reports.html_reporter import generate_html_report
+
+            elapsed_sec = time.time() - self.station_start_time if self.station_start_time > 0 else 0.0
+            if elapsed_sec < 60:
+                elapsed_str = f"{elapsed_sec:.1f}s"
+            else:
+                elapsed_str = f"{int(elapsed_sec // 60)}m {elapsed_sec % 60:.1f}s"
+
+            raw_log = ""
+            log_file = self.main_log_path / f"{self.serialNumber}.log"
+            if log_file.exists():
+                try:
+                    raw_log = log_file.read_text(encoding="utf-8", errors="ignore")
+                except Exception:
+                    pass
+
+            measurements = self.ctx.get('_ALL_MEASUREMENTS') or []
+            fixture_id = self.ctx.get('FIXTURE_ID', 'N/A')
+            project_name = getattr(self, 'project_name', None) or self.ctx.get('PROJECT_NAME', '')
+            station_name = getattr(self, 'station_name', None) or self.ctx.get('STATION_NAME', '')
+            first_err_code = self.ctx.get('ERROR_CODE', '')
+            first_err_desc = self.ctx.get('ERROR_DESCRIPTION', '')
+
+            report_file = generate_html_report(
+                output_dir=self.main_log_path,
+                serial_number=self.serialNumber,
+                timestamp=self.timeStamp,
+                status=final_status,
+                project_name=project_name,
+                station_name=station_name,
+                fixture_id=str(fixture_id),
+                elapsed_time_str=elapsed_str,
+                first_error_code=str(first_err_code),
+                first_error_desc=str(first_err_desc),
+                measurements=measurements,
+                raw_console_log=raw_log,
+            )
+            info(f"HTML test report generated: {report_file.name}", tag='REPORT')
+        except Exception as e:
+            error(f"Failed to generate HTML test report: {e}", tag='REPORT')
+
     def _cmd_delay(self, seconds_str: str):
         """
         Handle the delay command natively, supporting floating-point countdown.
@@ -458,6 +505,7 @@ class Runner():
                 self.ctx.set('ERROR_CODE', 'RUNNING')
                 self.ctx.set('ERROR_DESCRIPTION', 'Test initialized and running')
                 self.ctx.set('SERIAL_NUMBER', self.serialNumber)
+                self.ctx.set('_ALL_MEASUREMENTS', [])
                 
                 stop_test_flag = False
                 if current_cycle >= 2:
@@ -643,3 +691,7 @@ class Runner():
                 error(f"Cleanup encountered an issue: {cleanup_err}", tag='RUNNER')
 
             savelog.close()
+
+            # Generate Standalone HTML Report for this test session
+            final_status = self.ctx.get('ERROR_CODE') or "UNKNOWN"
+            self._generate_html_report_artifact(final_status)
