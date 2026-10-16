@@ -234,6 +234,45 @@ class TestItem(BaseItem, ABC):
         # by ResultManager, so that the Runner can access it directly.
         existing_data = ctx.get('TEST_DATA_STRING') or ""
         ctx.set('TEST_DATA_STRING', existing_data + self.pResult.shopfloor_string)
+
+        existing_measurements = ctx.get('_ALL_MEASUREMENTS') or []
+        script_name = ctx.get("CURRENT_SCRIPT_NAME")
+        if not script_name:
+            try:
+                import inspect
+                script_name = os.path.basename(inspect.getfile(self.__class__))
+            except Exception:
+                script_name = f"{self.__class__.__name__.lower()}.py"
+        if self.sapas_tag:
+            script_display = f"{script_name} ({self.sapas_tag})"
+        else:
+            script_display = str(script_name)
+
+        script_start = ctx.get("CURRENT_SCRIPT_START_TIME")
+        if isinstance(script_start, (int, float)) and script_start > 0:
+            import time as _time
+            script_duration = f"{max(0.0, _time.time() - script_start):.1f}s"
+        else:
+            script_duration = ""
+
+        script_run_id = len(existing_measurements) + 1
+        for row in self.pResult.test_criteria[1:]:
+            item_name = str(row[ResultManager.COL_ITEM])
+            if self.pResult.fill_test_item_name:
+                item_name = item_name.format(self.pResult.fill_test_item_name)
+            existing_measurements.append({
+                "script": script_display,
+                "script_run_id": script_run_id,
+                "script_duration": script_duration,
+                "item": item_name,
+                "lsl": str(row[ResultManager.COL_LSL]),
+                "usl": str(row[ResultManager.COL_USL]),
+                "measured": str(row[ResultManager.COL_MEASURED]),
+                "status": str(row[ResultManager.COL_STATUS]),
+                "desc": str(row[ResultManager.COL_DESC]),
+                "err_code": str(row[ResultManager.COL_ERRCODE]),
+            })
+        ctx.set('_ALL_MEASUREMENTS', existing_measurements)
         
         ctx.set('ERROR_CODE', self.pResult.first_fail_code)
         if self.pResult.first_fail_code != "PASS":

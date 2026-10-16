@@ -59,6 +59,7 @@ Sapas provides a clean abstraction layer that allows RD, TE, and Factory operato
   * **Sapas Engine** controls the **Infrastructure** (Logs, UI, data convergence, and hardware connection pools).
 * **Defensive by Design**: Implements strict data normalization (e.g., rigid boolean convergence) and contract checking (`opas.var.require`) to prevent laboratory scripts from breaking under harsh factory environments.
 * **Industrial Safety & Remote Interlock**: Built-in **Station Guard** system bridges remote R&D SSH maintenance and on-site factory floor safety. It enforces physical safety interlocks on station displays, eliminates accidental MES contamination, and provides emergency brakes.
+* **Standalone HTML Diagnostic Reports**: Every test cycle automatically generates a 100% offline, single-file HTML report (`{SN}_{Timestamp}_{PASS|FAIL|STOP}.html`) bundling Fixture ID, Retest counter, collapsible per-script (`[+] script.py`) measurement tables (with auto-expand on failure and per-script execution times), and embedded raw console logs — allowing operators to send a single lightweight file for instant remote triage.
 * **Aesthetic & Noise-Free CLI**: A unified terminal output powered by `rich`, using balanced visual markers (`✓` / `❌`) ensuring that field technicians or developers can instantly read station health without parsing through raw text noise.
 
 ---
@@ -77,7 +78,7 @@ Explore the full guides in your preferred language:
 ## Core Concepts
 
 * **Sequence-Driven Framework**: Test paths are decoupled from implementation. Sequences are orchestrated via configuration files, allowing rapid updates on the shop floor.
-* **Unified Result Manager**: Eliminates fragmentation in telemetry. Every single test module feeds into a standardized data model, ensuring tracking stability across all shifts.
+* **Unified Result Manager & HTML Reporter**: Eliminates fragmentation in telemetry. Every single test module feeds into a standardized data model and self-contained HTML diagnostic report, ensuring tracking stability across all shifts.
 * **Multi-Protocol Link Layer**: Built-in support for standard engineering interfaces (**ADB**, **UART**, and **SSH**) so teams don't reinvent connection wrappers.
 * **Active Station Interlock**: Coordinated physical desktop guard and runtime engine preventing cross-continent collisions between remote R&D maintenance and on-site line operators.
 
