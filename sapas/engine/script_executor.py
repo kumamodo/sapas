@@ -105,15 +105,17 @@ class ScriptExecutor:
                     i += 1
                 script_args = new_args
 
-            try:
-                from sapas.runtime.runtime import ctx
-                ctx.set("CURRENT_SAPAS_TAG", sapas_tag)
-            except Exception:
-                pass
-
             from sapas.core.utils import setup_sapas_sys_path
             script_path_obj = Path(script_path).resolve()
             setup_sapas_sys_path(script_path_obj)
+
+            try:
+                from sapas.runtime.runtime import ctx
+                ctx.set("CURRENT_SAPAS_TAG", sapas_tag)
+                ctx.set("CURRENT_SCRIPT_NAME", script_path_obj.name)
+                ctx.set("CURRENT_SCRIPT_START_TIME", start)
+            except Exception:
+                pass
 
             module_name = f"test_module_{uuid.uuid4().hex}"
             spec = importlib.util.spec_from_file_location(module_name, str(script_path_obj))

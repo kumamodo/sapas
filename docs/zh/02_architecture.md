@@ -60,10 +60,25 @@ end
 
 當腳本執行時，它會將測量值寫入系統。測試結束後，`ResultManager` 會根據 `criteria/` 目錄下的 CSV 檔案進行判定。
 
-## 4. 日誌與輸出
+## 4. 日誌與獨立 HTML 診斷報表 (Logs & Standalone HTML Reports)
 
-測試結果會保存在 `output/` 目錄下：
-`output/{序號}/{時間戳記}/`
+每次測試執行完畢後，所有產出皆會自動歸檔於 `output/{序號}/` 目錄下：
 
-- `runtime_snapshot.yaml`: 該次測試的所有變數快照。
-- `{序號}.log`: 完整執行日誌。
+```text
+output/
+└── {SN}/
+    ├── {SN}_{Timestamp}_{PASS|FAIL|STOP}.html  # 獨立單一檔案 HTML 診斷報表
+    ├── {SN}.log                                # 該序號的完整終端執行日誌
+    └── {Timestamp}/                            # 單次測試明細資料夾
+        ├── runtime_snapshot.yaml               # 該次測試結束時的設定與變數快照
+        └── {LOGS_FOLDER}/                      # 各 TestItem 產出的原始量測與 CSV 結果
+```
+
+### 📊 獨立 HTML 診斷報表 (`{SN}_{Timestamp}_{STATUS}.html`)
+為了解決產線與 RD 之間「打包整包 Log 傳送繁瑣、翻找數百個細項費時」的痛點，Sapas 會在每次測試週期結束時自動生成一份 **100% 離線、零外部依賴（無需連網或 CDN）** 的單一 HTML 檔案：
+- **一眼辨識的檔名與頂部大橫幅**：檔名直接包含 `{序號}_{時間戳記}_{PASS|FAIL|STOP}.html`，現場人員只需傳送這一個小檔案，工程師連點開前就能從檔名看出機器序號與最終判定結果。
+- **治具編號 (`FIXTURE_ID`) 與重測次數 (`Retest`) 自動追蹤**：頂部與摘要卡片清楚標示站別、治具 ID、首次錯誤碼 (`First Error Code`)，並自動偵測該序號是第幾次測試（如 `Run #1`、`Run #2 (Retest)`）。
+- **以 `.py` 腳本為單位的智慧摺疊表格 (`[+] script.py`)**：
+  - **全 PASS 腳本預設收合 (`[+]`)**：即使整站有上百個細項，畫面依然清爽呈現各支 `.py` 的執行順序、通過率（如 `17 / 17 PASS`）與單支腳本執行秒數（`Time` 欄）。點擊即可展開查看子細項。
+  - **含 FAIL 或 Crash 腳本自動展開 (`[−]`)**：只要某支 `.py` 內有任何細項失敗，或發生未預期腳本閃退 (`CRITICAL / EXCEPTION`)，開啟報表時該腳本會**自動展開並以紅底高亮標示**，第一時間鎖定問題根因。
+- **內嵌原始終端日誌 (`Raw Console Log`)**：報表底部內建可展開的完整 Console Log，單一 HTML 檔案即同時具備「高階視覺化統計」與「底層除錯 Log」。

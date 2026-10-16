@@ -113,11 +113,36 @@ class Runner():
         return result
 
     def _run_test_script(self, item_str: str):
+        prev_measurements = list(self.ctx.get('_ALL_MEASUREMENTS') or [])
+        prev_len = len(prev_measurements)
+
         result = self._execute_script_item(item_str)
         if result is None:
+            measurements = list(self.ctx.get('_ALL_MEASUREMENTS') or [])
+            measurements.append({
+                "script": item_str.split()[0] if item_str.split() else item_str,
+                "script_run_id": prev_len + 1,
+                "script_duration": "0.0s",
+                "item": "SCRIPT_NOT_FOUND",
+                "lsl": "N/A",
+                "usl": "N/A",
+                "measured": "MISSING",
+                "status": "CRITICAL",
+                "desc": f"Script not found: {item_str}",
+                "err_code": "CRITICAL",
+            })
+            self.ctx.set('_ALL_MEASUREMENTS', measurements)
             return -1
 
         return_code = result.return_code
+        dur_str = f"{result.duration:.1f}s" if result.duration is not None else ""
+
+        measurements = list(self.ctx.get('_ALL_MEASUREMENTS') or [])
+        if len(measurements) > prev_len and dur_str:
+            for m in measurements[prev_len:]:
+                m["script_duration"] = dur_str
+            self.ctx.set('_ALL_MEASUREMENTS', measurements)
+
         # if not result.success:
         if return_code != 0 and return_code != 80:
             self.critical_error = True
@@ -125,6 +150,25 @@ class Runner():
             if result.stderr:
                 error_msg += f"\nError message: {result.stderr}"
             error(error_msg, tag='RUNNER')
+
+            if len(measurements) == prev_len:
+                err_desc = self.ctx.get('ERROR_DESCRIPTION')
+                if not err_desc and result.stderr:
+                    non_empty = [line.strip() for line in result.stderr.splitlines() if line.strip()]
+                    err_desc = non_empty[-1] if non_empty else f"{item_str} got exception!"
+                measurements.append({
+                    "script": item_str.split()[0] if item_str.split() else item_str,
+                    "script_run_id": prev_len + 1,
+                    "script_duration": dur_str or "0.0s",
+                    "item": "SCRIPT_EXCEPTION",
+                    "lsl": "N/A",
+                    "usl": "N/A",
+                    "measured": "EXCEPTION",
+                    "status": "CRITICAL",
+                    "desc": str(err_desc or f"{item_str} got exception!"),
+                    "err_code": "CRITICAL",
+                })
+                self.ctx.set('_ALL_MEASUREMENTS', measurements)
 
         return return_code
 
@@ -140,6 +184,10 @@ class Runner():
         try:
             self.time_stamp_folder.mkdir(parents=True, exist_ok=True)
             execution_snapshot = self.ctx.to_dict()
+            rt_ctx = execution_snapshot.get("runtime_context")
+            if isinstance(rt_ctx, dict):
+                for internal_key in ("_ALL_MEASUREMENTS", "CURRENT_SCRIPT_NAME", "CURRENT_SCRIPT_START_TIME"):
+                    rt_ctx.pop(internal_key, None)
             with open(snapshot_path, 'w', encoding='utf-8') as yaml_file:
                 yaml.dump(
                     execution_snapshot,

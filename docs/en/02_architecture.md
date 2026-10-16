@@ -60,10 +60,25 @@ end
 
 When a script is executed, it writes measured values into the system. After the test is completed, `ResultManager` performs judgment based on the CSV files in the `criteria/` directory.
 
-## 4. Logs and Output
+## 4. Logs & Standalone HTML Diagnostic Reports
 
-Test results are saved in the `output/` directory:
-`output/{Serial Number}/{Timestamp}/`
+After each test cycle completes, all artifacts are automatically archived under `output/{SerialNumber}/`:
 
-- `runtime_snapshot.yaml`: A snapshot of all variables for that test run.
-- `{Serial Number}.log`: Complete execution log.
+```text
+output/
+└── {SN}/
+    ├── {SN}_{Timestamp}_{PASS|FAIL|STOP}.html  # Standalone single-file HTML diagnostic report
+    ├── {SN}.log                                # Complete console execution log for this SN
+    └── {Timestamp}/                            # Per-run artifact directory
+        ├── runtime_snapshot.yaml               # Final configuration and runtime variable snapshot
+        └── {LOGS_FOLDER}/                      # Raw measurements and CSV results per TestItem
+```
+
+### 📊 Standalone HTML Diagnostic Report (`{SN}_{Timestamp}_{STATUS}.html`)
+To eliminate the friction of zipping and transferring entire log folders between factory floors and R&D engineers, Sapas automatically generates a **100% offline, zero-dependency, single-file HTML report** at the end of every test cycle:
+- **Instant Verdict Filename & Banner**: Named `{SN}_{Timestamp}_{PASS|FAIL|STOP}.html` so engineers immediately know the DUT serial number, timestamp, and final verdict before even opening the file.
+- **Fixture ID & Retest Tracking**: Displays Station, `FIXTURE_ID`, `First Error Code`, Total Elapsed Time, and automatically tracks retest counts (`Run #1`, `Run #2 (Retest)`).
+- **Smart Collapsible Per-Script Table (`[+] script.py`)**:
+  - **Passing Scripts Collapsed by Default (`[+]`)**: Keeps 100+ item reports clean and scannable by grouping sub-items under their parent `.py` script along with pass counts (e.g., `17 / 17 PASS`) and per-script execution duration (`Time`). Click any script row to expand its sub-items.
+  - **Failing or Crashed Scripts Auto-Expanded (`[−]`)**: Any `.py` script containing a failed sub-item or an unhandled script crash (`CRITICAL / EXCEPTION`) is **automatically expanded and highlighted in red** upon opening the report.
+- **Embedded Raw Console Log**: Includes a collapsible `Raw Console Log` drawer at the bottom, combining high-level executive summary cards with low-level terminal logs in a single lightweight file.
