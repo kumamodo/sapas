@@ -60,6 +60,7 @@ Sapas provides a clean abstraction layer that allows RD, TE, and Factory operato
 * **Defensive by Design**: Implements strict data normalization (e.g., rigid boolean convergence) and contract checking (`opas.var.require`) to prevent laboratory scripts from breaking under harsh factory environments.
 * **Industrial Safety & Remote Interlock**: Built-in **Station Guard** system bridges remote R&D SSH maintenance and on-site factory floor safety. It enforces physical safety interlocks on station displays, eliminates accidental MES contamination, and provides emergency brakes.
 * **Standalone HTML Diagnostic Reports**: Every test cycle automatically generates a 100% offline, single-file HTML report (`{SN}_{Timestamp}_{PASS|FAIL|STOP}.html`) bundling Fixture ID, Retest counter, collapsible per-script (`[+] script.py`) measurement tables (with auto-expand on failure and per-script execution times), and embedded raw console logs — allowing operators to send a single lightweight file for instant remote triage.
+* **Local SQLite Station Database & Interactive Yield Dashboard (`sapas summary`)**: Every test cycle is recorded in `< 2ms` (SQLite `WAL` mode) into `output/sapas_local_{STATION}_{FIXTURE_ID}.db` with indexed summary columns plus a complete JSON measurement snapshot. Running `sapas summary` (or `sapas summary <path/to/file.db>`) generates a 100% offline interactive SPA dashboard (`station_summary_{STATION}_{FIXTURE_ID}.html`) featuring in-browser date/status/search filtering, real-time FPY & overall yield recalculation, Top Failures Pareto breakdown, hourly/daily throughput trends, and an embedded **Database Snapshot Modal** so engineers can inspect full measurement tables even after raw station folders are archived to FTP/NAS.
 * **Aesthetic & Noise-Free CLI**: A unified terminal output powered by `rich`, using balanced visual markers (`✓` / `❌`) ensuring that field technicians or developers can instantly read station health without parsing through raw text noise.
 
 ---
@@ -157,3 +158,16 @@ During development or factory-line debugging, you do not need to run the entire 
 ```bash
 sapas get_os_name.py
 ```
+
+### Station Yield & Quality Summary Dashboard (`sapas summary`)
+
+Generate and open a self-contained, interactive HTML yield and failure analytics dashboard directly from the station's local SQLite database (`output/sapas_local_{STATION}_{FIXTURE_ID}.db`) or any `.db` file downloaded from a production line:
+
+```bash
+# Auto-detect the latest local database in output/ and open the dashboard
+sapas summary
+
+# Or pass a specific .db file path directly (e.g., downloaded from a station PC)
+sapas summary ~/Downloads/sapas_local_FAN_44205100.db
+```
+

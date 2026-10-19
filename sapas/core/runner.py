@@ -205,14 +205,22 @@ class Runner():
         Generates a standalone, single-file HTML test report in output/<serialNumber>/.
         Filename format: {SN}_{timestamp}_{status}.html
         """
+        elapsed_sec = time.time() - self.station_start_time if self.station_start_time > 0 else 0.0
+        if elapsed_sec < 60:
+            elapsed_str = f"{elapsed_sec:.1f}s"
+        else:
+            elapsed_str = f"{int(elapsed_sec // 60)}m {elapsed_sec % 60:.1f}s"
+
+        measurements = self.ctx.get('_ALL_MEASUREMENTS') or []
+        fixture_id = str(self.ctx.get('FIXTURE_ID', 'N/A'))
+        project_name = str(getattr(self, 'project_name', None) or self.ctx.get('PROJECT_NAME', ''))
+        station_name = str(getattr(self, 'station_name', None) or self.ctx.get('STATION_NAME', ''))
+        first_err_code = str(self.ctx.get('ERROR_CODE', ''))
+        first_err_desc = str(self.ctx.get('ERROR_DESCRIPTION', ''))
+
+        report_relpath = ""
         try:
             from sapas.reports.html_reporter import generate_html_report
-
-            elapsed_sec = time.time() - self.station_start_time if self.station_start_time > 0 else 0.0
-            if elapsed_sec < 60:
-                elapsed_str = f"{elapsed_sec:.1f}s"
-            else:
-                elapsed_str = f"{int(elapsed_sec // 60)}m {elapsed_sec % 60:.1f}s"
 
             raw_log = ""
             log_file = self.main_log_path / f"{self.serialNumber}.log"
@@ -222,13 +230,6 @@ class Runner():
                 except Exception:
                     pass
 
-            measurements = self.ctx.get('_ALL_MEASUREMENTS') or []
-            fixture_id = self.ctx.get('FIXTURE_ID', 'N/A')
-            project_name = getattr(self, 'project_name', None) or self.ctx.get('PROJECT_NAME', '')
-            station_name = getattr(self, 'station_name', None) or self.ctx.get('STATION_NAME', '')
-            first_err_code = self.ctx.get('ERROR_CODE', '')
-            first_err_desc = self.ctx.get('ERROR_DESCRIPTION', '')
-
             report_file = generate_html_report(
                 output_dir=self.main_log_path,
                 serial_number=self.serialNumber,
@@ -236,16 +237,52 @@ class Runner():
                 status=final_status,
                 project_name=project_name,
                 station_name=station_name,
-                fixture_id=str(fixture_id),
+                fixture_id=fixture_id,
                 elapsed_time_str=elapsed_str,
-                first_error_code=str(first_err_code),
-                first_error_desc=str(first_err_desc),
+                first_error_code=first_err_code,
+                first_error_desc=first_err_desc,
                 measurements=measurements,
                 raw_console_log=raw_log,
             )
+            report_relpath = f"{self.serialNumber}/{report_file.name}"
             info(f"HTML test report generated: {report_file.name}", tag='REPORT')
         except Exception as e:
             error(f"Failed to generate HTML test report: {e}", tag='REPORT')
+
+        try:
+            from sapas.database.local_db import LocalDBManager, resolve_db_filename
+
+            db_filename = resolve_db_filename(station_name, fixture_id)
+            db_path = self.output_root / db_filename
+            db_mgr = LocalDBManager(db_path)
+
+            fail_py = ""
+            if final_status.upper() != "PASS":
+                for m in measurements:
+                    if str(m.get("status", "")).upper() not in ("PASS", "NA", "SKIP"):
+                        if m.get("script"):
+                            fail_py = str(m.get("script")).split()[0]
+                            break
+                if not fail_py and getattr(self, "current_item", None):
+                    fail_py = str(self.current_item).split()[0]
+
+            _, write_ms = db_mgr.insert_test_record(
+                serial_number=self.serialNumber,
+                raw_timestamp=self.timeStamp,
+                status=final_status,
+                project_name=project_name,
+                station_name=station_name,
+                fixture_id=fixture_id,
+                elapsed_sec=elapsed_sec,
+                first_error_code=first_err_code,
+                first_error_desc=first_err_desc,
+                fail_on_py=fail_py,
+                html_report_relpath=report_relpath,
+                measurements=measurements,
+            )
+            info(f"Local SQLite record saved to {db_filename} ({write_ms:.1f}ms)", tag='REPORT')
+        except Exception as db_err:
+            error(f"Failed to save record to local SQLite DB: {db_err}", tag='REPORT')
 
     def _cmd_delay(self, seconds_str: str):
         """
