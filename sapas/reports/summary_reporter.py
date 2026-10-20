@@ -1456,7 +1456,8 @@ function classifyUnits(records) {{
     const oneShotSn = new Set();
     const recoveredSn = new Set();
     const hardFailSn = new Set();
-    const multiRunUnits = [];
+    const allUnits = [];
+    const attentionUnits = [];
 
     bySn.forEach((runs, sn) => {{
         const statuses = runs.map(x => (x.status || '').toUpperCase());
@@ -1480,27 +1481,31 @@ function classifyUnits(records) {{
             category = 'HARDFAIL';
         }}
 
-        if (runs.length > 1) {{
-            // Priority: 0 = RECOVERED (False-Fail), 1 = HARDFAIL (Repeated Fail), 2 = ONESHOT (PASS -> PASS)
-            const priority = category === 'RECOVERED' ? 0 : (category === 'HARDFAIL' ? 1 : 2);
-            multiRunUnits.push({{
-                sn,
-                runs,
-                statuses,
-                hadFail,
-                lastSt,
-                category,
-                priority
-            }});
+        // Priority: 0 = RECOVERED (False-Fail), 1 = HARDFAIL (Unrecovered), 2 = ONESHOT multi-run, 3 = ONESHOT single-run
+        const priority = category === 'RECOVERED' ? 0 : (category === 'HARDFAIL' ? 1 : (runs.length > 1 ? 2 : 3));
+        const unitObj = {{
+            sn,
+            runs,
+            statuses,
+            hadFail,
+            lastSt,
+            category,
+            priority
+        }};
+        allUnits.push(unitObj);
+        if (runs.length > 1 || category === 'HARDFAIL') {{
+            attentionUnits.push(unitObj);
         }}
     }});
 
-    multiRunUnits.sort((a, b) => {{
+    const sortUnits = (a, b) => {{
         if (a.priority !== b.priority) return a.priority - b.priority;
         return b.runs.length - a.runs.length;
-    }});
+    }};
+    allUnits.sort(sortUnits);
+    attentionUnits.sort(sortUnits);
 
-    return {{ oneShotSn, recoveredSn, hardFailSn, multiRunUnits, totalUnique: bySn.size }};
+    return {{ oneShotSn, recoveredSn, hardFailSn, allUnits, attentionUnits, totalUnique: bySn.size }};
 }}
 
 function formatStatusToken(s) {{
@@ -1537,21 +1542,24 @@ function renderRetestPanel() {{
         return;
     }}
 
-    const {{ oneShotSn, recoveredSn, hardFailSn, multiRunUnits, totalUnique }} = classifyUnits(filteredRecords);
+    const {{ oneShotSn, recoveredSn, hardFailSn, allUnits, attentionUnits, totalUnique }} = classifyUnits(filteredRecords);
     const oneShotPct = totalUnique > 0 ? (oneShotSn.size * 100 / totalUnique).toFixed(0) : 0;
     const recovPct = totalUnique > 0 ? (recoveredSn.size * 100 / totalUnique).toFixed(0) : 0;
     const hardPct = totalUnique > 0 ? (hardFailSn.size * 100 / totalUnique).toFixed(0) : 0;
 
-    let visibleUnits = multiRunUnits;
-    let listHeaderLabel = `Retested Serial Numbers (${{multiRunUnits.length}} units) — Click to inspect runs:`;
+    let visibleUnits = attentionUnits;
+    let listHeaderLabel = `Retested & Unrecovered Serial Numbers (${{attentionUnits.length}} units) — Click to inspect runs:`;
     if (selectedRetestFilter === 'RECOVERED' || selectedRetestFilter === 'HARDFAIL' || selectedRetestFilter === 'ONESHOT') {{
-        visibleUnits = multiRunUnits.filter(u => u.category === selectedRetestFilter);
-        listHeaderLabel = `Retested Serial Numbers (${{visibleUnits.length}} of ${{multiRunUnits.length}} units in category):`;
+        visibleUnits = allUnits.filter(u => u.category === selectedRetestFilter);
+        const catTitle = selectedRetestFilter === 'RECOVERED'
+            ? '🟡 RETEST → PASS'
+            : (selectedRetestFilter === 'HARDFAIL' ? '🔴 HARD FAIL' : '🟢 ONE-SHOT PASS');
+        listHeaderLabel = `${{catTitle}} Serial Numbers (${{visibleUnits.length}} units) — Click SN to lock:`;
     }}
 
     let multiHtml = '';
     if (visibleUnits.length === 0) {{
-        multiHtml = `<div style="text-align: center; color: var(--text-secondary); padding: 18px 8px; font-size: 12.5px;">✨ No multi-run / retested serial numbers in this selection.</div>`;
+        multiHtml = `<div style="text-align: center; color: var(--text-secondary); padding: 18px 8px; font-size: 12.5px;">✨ No units in this category.</div>`;
     }} else {{
         multiHtml = `<div style="font-size: 11.5px; color: var(--text-secondary); margin-bottom: 6px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; flex-shrink: 0;">${{listHeaderLabel}}</div>` +
             `<div class="retest-unit-list">` +
@@ -1560,11 +1568,12 @@ function renderRetestPanel() {{
                 const isSel = selectedRetestFilter === fKey ? 'selected' : '';
                 const chain = formatRunChain(u.statuses);
                 const fullChainTitle = u.statuses.map((st, idx) => `Run #${{idx + 1}}: ${{st}}`).join(' → ');
+                const runText = u.runs.length === 1 ? '1 run' : `${{u.runs.length}} runs`;
                 return `
                     <div class="retest-unit-row ${{isSel}}" onclick="toggleRetestFilter('${{escapeHtml(fKey)}}')" title="${{escapeHtml(u.sn)}} — ${{escapeHtml(fullChainTitle)}}">
                         <div style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
                             <span style="font-weight: 700; color: var(--text-primary);">${{escapeHtml(u.sn)}}</span>
-                            <span style="color: var(--text-secondary); font-size: 11.5px; margin-left: 6px;">(${{u.runs.length}} runs)</span>
+                            <span style="color: var(--text-secondary); font-size: 11.5px; margin-left: 6px;">(${{runText}})</span>
                         </div>
                         <div style="font-size: 12px; white-space: nowrap; flex-shrink: 0;">${{chain}}</div>
                     </div>
@@ -1595,32 +1604,92 @@ function renderRetestPanel() {{
     `;
 }}
 
+function isStrictDecimal(val) {{
+    if (val === null || val === undefined) return false;
+    const s = String(val).trim();
+    if (!s) return false;
+    // Only allow pure decimal numbers (e.g., 46.9, -12, 0, 528.88).
+    // Rejects hex strings (0xf2fc5743, 0xff), multi-dot versions (2.1.0), and leading-zero IDs (0012).
+    return /^[-+]?(?:0|[1-9]\\d*)(?:\\.\\d+)?$/.test(s);
+}}
+
+function isValidSpecBound(val) {{
+    if (val === null || val === undefined) return true;
+    const s = String(val).trim().toUpperCase();
+    if (!s || s === 'RECORD' || s === '-' || s === 'N/A' || s === 'NONE') return true;
+    return isStrictDecimal(s);
+}}
+
 function populateSPCItems() {{
     const sel = document.getElementById('spc-item-select');
     if (!sel) return;
     const prevVal = sel.value;
-    const numericItems = new Map();
+    const itemStats = new Map();
 
     filteredRecords.forEach(r => {{
         (r.measurements || []).forEach(m => {{
-            const val = parseFloat(m.measured);
-            if (!Number.isNaN(val) && Number.isFinite(val) && String(m.measured).trim() !== '') {{
-                const key = `${{m.script || 'script.py'}}:::${{m.item || 'Item'}}`;
-                if (!numericItems.has(key)) {{
-                    numericItems.set(key, `${{m.item}} (${{m.script || ''}})`);
+            const rawMeasured = m.measured !== null && m.measured !== undefined ? String(m.measured).trim() : '';
+            if (!rawMeasured) return;
+            const key = `${{m.script || 'script.py'}}:::${{m.item || 'Item'}}`;
+            if (!itemStats.has(key)) {{
+                itemStats.set(key, {{
+                    script: m.script || 'script.py',
+                    item: m.item || 'Item',
+                    allNumeric: true,
+                    validCount: 0,
+                    hasRangeSpec: false,
+                    hasDistinctRange: false,
+                    lslStr: '',
+                    uslStr: ''
+                }});
+            }}
+            const st = itemStats.get(key);
+            if (!isStrictDecimal(rawMeasured) || !isValidSpecBound(m.lsl) || !isValidSpecBound(m.usl)) {{
+                st.allNumeric = false;
+                return;
+            }}
+            // Also guard against RECORD-only serial/UID/version strings that happen to contain only digits
+            const lslClean = String(m.lsl || '').trim().toUpperCase();
+            const uslClean = String(m.usl || '').trim().toUpperCase();
+            const isRecordOnly = (!lslClean || lslClean === 'RECORD') && (!uslClean || uslClean === 'RECORD');
+            if (isRecordOnly && /(?:^|_)(?:sn|uid|uuid|mac|ver|version|crc|hash)(?:$|_)/i.test(st.item)) {{
+                st.allNumeric = false;
+                return;
+            }}
+            st.validCount++;
+            if (isStrictDecimal(m.lsl) && isStrictDecimal(m.usl)) {{
+                st.hasRangeSpec = true;
+                st.lslStr = String(m.lsl).trim();
+                st.uslStr = String(m.usl).trim();
+                if (parseFloat(st.lslStr) < parseFloat(st.uslStr)) {{
+                    st.hasDistinctRange = true;
                 }}
             }}
         }});
     }});
 
-    if (numericItems.size === 0) {{
+    const validEntries = Array.from(itemStats.entries())
+        .filter(([_, st]) => st.allNumeric && st.validCount > 0)
+        .sort((a, b) => {{
+            // Prioritize items with real LSL < USL continuous tolerance bands first
+            if (a[1].hasDistinctRange !== b[1].hasDistinctRange) return a[1].hasDistinctRange ? -1 : 1;
+            if (a[1].hasRangeSpec !== b[1].hasRangeSpec) return a[1].hasRangeSpec ? -1 : 1;
+            return a[0].localeCompare(b[0]);
+        }});
+
+    if (validEntries.length === 0) {{
         sel.innerHTML = `<option value="">No numeric items in selection</option>`;
         return;
     }}
 
-    const entries = Array.from(numericItems.entries());
-    sel.innerHTML = entries.map(([k, label]) => `<option value="${{escapeHtml(k)}}">${{escapeHtml(label)}}</option>`).join('');
-    if (prevVal && numericItems.has(prevVal)) {{
+    sel.innerHTML = validEntries.map(([k, st]) => {{
+        const specHint = st.hasDistinctRange ? ` [${{st.lslStr}} ~ ${{st.uslStr}}]` : '';
+        const label = `${{st.item}} (${{st.script}})${{specHint}}`;
+        return `<option value="${{escapeHtml(k)}}">${{escapeHtml(label)}}</option>`;
+    }}).join('');
+
+    const validKeySet = new Set(validEntries.map(([k]) => k));
+    if (prevVal && validKeySet.has(prevVal)) {{
         sel.value = prevVal;
     }}
 }}
@@ -1791,15 +1860,11 @@ function renderXYChart() {{
 
         filteredRecords.forEach((r, idx) => {{
             const found = (r.measurements || []).find(m => (m.script || 'script.py') === targetPy && (m.item || 'Item') === targetItem);
-            if (found) {{
+            if (found && isStrictDecimal(found.measured)) {{
                 const val = parseFloat(found.measured);
-                if (!Number.isNaN(val) && Number.isFinite(val)) {{
-                    ptsData.push({{ r, runIdx: idx + 1, val, m: found }});
-                    const l = parseFloat(found.lsl);
-                    const u = parseFloat(found.usl);
-                    if (!Number.isNaN(l) && Number.isFinite(l)) lslNum = l;
-                    if (!Number.isNaN(u) && Number.isFinite(u)) uslNum = u;
-                }}
+                ptsData.push({{ r, runIdx: idx + 1, val, m: found }});
+                if (isStrictDecimal(found.lsl)) lslNum = parseFloat(found.lsl);
+                if (isStrictDecimal(found.usl)) uslNum = parseFloat(found.usl);
             }}
         }});
 
@@ -1920,7 +1985,7 @@ function renderTable() {{
     }}
 
     if (selectedParetoError || selectedRetestFilter || query) {{
-        titleEl.innerHTML = `📋 Test Execution Records (${{tableRecords.length}} of ${{filteredRecords.length}})${{activeFilterHtml}} <button onclick="clearParetoFilter()" class="btn-view" style="margin-left: 8px; padding: 2px 10px; font-size: 11.5px; border-color: var(--accent-blue); color: var(--accent-blue);">✕ Show All (${{filteredRecords.length}})</button>`;
+        titleEl.innerHTML = `📋 Test Execution Records (${{tableRecords.length}} of ${{filteredRecords.length}})${{activeFilterHtml}} <button onclick="clearParetoFilter()" class="btn-view" style="margin-left: 8px; padding: 2px 10px; font-size: 11.5px; border-color: var(--accent-blue); color: var(--accent-blue); background-color: var(--accent-blue-bg);">✕ Clear Table Filter</button>`;
     }} else {{
         titleEl.textContent = `📋 Test Execution Records (${{tableRecords.length}})`;
     }}
