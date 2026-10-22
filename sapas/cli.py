@@ -186,7 +186,7 @@ def print_guard_help() -> None:
 [bold cyan]Sapas Station Guard[/] - Remote Maintenance Lock & Station Protection
 
 [bold]Usage:[/]
-  sapas guard <command> [options]
+  sapas guard <command> \[options]
 
 [bold]Commands:[/]
   [bold green]lock[/] "message"      Engage station maintenance lock (blocks local testing & alerts desktop)
@@ -443,21 +443,136 @@ def handle_guard_cli(argv: list[str]) -> None:
         sys.exit(1)
 
 
+def print_summary_help() -> None:
+    help_text = """
+[bold cyan]Sapas Station Summary[/] - Interactive Station Yield & Quality Dashboard
+
+[bold]Usage:[/]
+  sapas summary \[db_path] \[options]
+
+[bold]Commands & Arguments:[/]
+  [bold green]sapas summary[/]                     Auto-detect local SQLite DB in output/ and open HTML dashboard
+  [bold green]sapas summary <path/to/file.db>[/]   Generate & open dashboard directly from a specific .db file
+  [bold green]--no-open[/]                         Generate HTML dashboard without launching the web browser
+  [bold green]help[/]                              Show this help message
+
+[bold]Examples:[/]
+  sapas summary
+  sapas summary ~/Desktop/sapas_local_FAN_44205100.db
+  sapas summary D:/Downloads/yesterday_fixture2.db --no-open
+"""
+    console.print(help_text.strip())
+
+
+def _discover_default_db() -> Path | None:
+    """Locate the most relevant SQLite database when no path is provided."""
+    cwd = Path.cwd()
+    candidates: list[Path] = []
+    search_dirs = [cwd / "output", cwd]
+
+    # Also check parent workspace output if running inside a project subfolder
+    if (cwd.parent / "output").is_dir():
+        search_dirs.append(cwd.parent / "output")
+
+    for d in search_dirs:
+        if d.is_dir():
+            candidates.extend(sorted(d.glob("sapas_local_*.db"), key=lambda p: p.stat().st_mtime, reverse=True))
+            if not candidates:
+                candidates.extend(sorted(d.glob("*.db"), key=lambda p: p.stat().st_mtime, reverse=True))
+        if candidates:
+            break
+
+    return candidates[0] if candidates else None
+
+
+def handle_summary_cli(argv: list[str]):
+    """Handle `sapas summary [db_path]` CLI subcommand."""
+    import webbrowser
+    from sapas.reports.summary_reporter import generate_summary_dashboard
+
+    if any(arg in ("-h", "--help", "help") for arg in argv):
+        print_summary_help()
+        sys.exit(0)
+
+    no_open = "--no-open" in argv
+    clean_args = [a for a in argv if a not in ("--no-open", "--db")]
+
+    target_db: Path | None = None
+    if clean_args:
+        raw_path = Path(clean_args[0]).expanduser().resolve()
+        if raw_path.is_dir():
+            dbs = sorted(raw_path.glob("sapas_local_*.db"), key=lambda p: p.stat().st_mtime, reverse=True)
+            if not dbs:
+                dbs = sorted(raw_path.glob("*.db"), key=lambda p: p.stat().st_mtime, reverse=True)
+            if not dbs:
+                console.print(f"[bold red][Error] No SQLite (.db) files found in directory:[/] {raw_path}")
+                sys.exit(1)
+            target_db = dbs[0]
+        elif raw_path.is_file():
+            target_db = raw_path
+        else:
+            console.print(f"[bold red][Error] Database file not found:[/] {raw_path}")
+            sys.exit(1)
+    else:
+        target_db = _discover_default_db()
+        if not target_db:
+            console.print(Panel(
+                Text.assemble(
+                    ("No local SQLite database found in ", "yellow"),
+                    ("output/", "bold bright_cyan"),
+                    (".\n\n", "yellow"),
+                    ("Run at least one test cycle to auto-create ", "white"),
+                    ("output/sapas_local_<STATION>_<FIXTURE>.db", "bold cyan"),
+                    (",\nor specify a database file path directly:\n  ", "white"),
+                    ("sapas summary <path/to/file.db>", "bold green"),
+                ),
+                title="Station Summary Dashboard",
+                border_style="yellow"
+            ))
+            sys.exit(1)
+
+    try:
+        out_html = generate_summary_dashboard(target_db)
+    except Exception as exc:
+        console.print(f"[bold red][Error] Failed to generate summary dashboard:[/] {exc}")
+        sys.exit(1)
+
+    console.print(Panel(
+        Text.assemble(
+            ("  Database Source : ", "dim"), (f"{target_db}\n", "bright_cyan"),
+            ("  HTML Dashboard  : ", "dim"), (f"{out_html}", "bold bright_green"),
+        ),
+        title="Station Summary Dashboard Generated",
+        border_style="green",
+    ))
+
+    is_ssh = bool(os.environ.get("SSH_CLIENT") or os.environ.get("SSH_CONNECTION"))
+    if not no_open and not is_ssh:
+        try:
+            webbrowser.open(out_html.resolve().as_uri())
+            console.print("[dim]Opened dashboard in your default web browser.[/]")
+        except Exception:
+            pass
+
+
 def main():
     first_arg = sys.argv[1].lower() if len(sys.argv) > 1 else ""
 
     if first_arg == "guard":
         handle_guard_cli(sys.argv[2:])
         return
+    elif first_arg == "summary":
+        handle_summary_cli(sys.argv[2:])
+        return
     elif first_arg in ("lock", "unlock"):
         console.print(f"[yellow][Notice] Unknown command 'sapas {first_arg}'. Did you mean [bold cyan]sapas guard {first_arg}[/]?[/]")
         sys.exit(1)
     elif first_arg:
         import difflib
-        matches = difflib.get_close_matches(first_arg, ["guard"], n=1, cutoff=0.7)
+        matches = difflib.get_close_matches(first_arg, ["guard", "summary"], n=1, cutoff=0.7)
         if matches and not Path(first_arg).exists():
             console.print(f"[bold red][Error] Unknown command '{first_arg}'.[/]")
-            console.print(f"[bold yellow]Did you mean:[/] [bold cyan]sapas guard[/]?\n")
+            console.print(f"[bold yellow]Did you mean:[/] [bold cyan]sapas {matches[0]}[/]?\n")
             sys.exit(1)
 
     parser = argparse.ArgumentParser(description="Sapas Testing Framework", allow_abbrev=False)

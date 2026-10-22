@@ -66,6 +66,8 @@ end
 
 ```text
 output/
+├── sapas_local_{STATION}_{FIXTURE_ID}.db       # 本機 SQLite 站點高速資料庫 (WAL 模式)
+├── station_summary_{STATION}_{FIXTURE_ID}.html # 互動式全站良率與異常分析總表 (由 sapas summary 產出)
 └── {SN}/
     ├── {SN}_{Timestamp}_{PASS|FAIL|STOP}.html  # 獨立單一檔案 HTML 診斷報表
     ├── {SN}.log                                # 該序號的完整終端執行日誌
@@ -82,3 +84,18 @@ output/
   - **全 PASS 腳本預設收合 (`[+]`)**：即使整站有上百個細項，畫面依然清爽呈現各支 `.py` 的執行順序、通過率（如 `17 / 17 PASS`）與單支腳本執行秒數（`Time` 欄）。點擊即可展開查看子細項。
   - **含 FAIL 或 Crash 腳本自動展開 (`[−]`)**：只要某支 `.py` 內有任何細項失敗，或發生未預期腳本閃退 (`CRITICAL / EXCEPTION`)，開啟報表時該腳本會**自動展開並以紅底高亮標示**，第一時間鎖定問題根因。
 - **內嵌原始終端日誌 (`Raw Console Log`)**：報表底部內建可展開的完整 Console Log，單一 HTML 檔案即同時具備「高階視覺化統計」與「底層除錯 Log」。
+
+### 🗄️ 本機 SQLite 站點資料庫與互動式總覽儀表板 (`sapas summary`)
+除了單機診斷報表外，Sapas 會在每次測試結束時，以 SQLite `WAL (Write-Ahead Logging)` 模式於 `< 2ms` 內將該次測試摘要與完整子測項快照寫入 `output/sapas_local_{STATION}_{FIXTURE_ID}.db`：
+- **極速寫入、零欄位膨脹**：採用「固定核心索引欄位 + `measurements_json` 完整細項快照」架構，徹底避免傳統將數百個測項名稱動態新增為資料表欄位（`ALTER TABLE`）所造成的長期運作卡頓。
+- **瀏覽器內建互動式篩選與良率重算**：執行 `sapas summary` 產出 `station_summary_{STATION}_{FIXTURE_ID}.html` 後，無需帶複雜 CLI 參數，直接在瀏覽器內點選日期區間（`Today`、`Yesterday`、`Last 7 Days`、`Last 30 Days`、自訂 `From ~ To`）、狀態篩選（`PASS` / `FAIL` / `STOP`）或關鍵字搜尋（`SN` / `ErrCode` / `.py`），畫面上的 **整體良率 (Yield %)**、**一次良率 (FPY %)**、**Top Failures 柏拉圖** 與 **產能趨勢圖** 皆會毫秒級即時聯動更新。
+- **無懼 FTP 搬移的資料庫快照檢視 (`Database Snapshot Modal`)**：即使產線工位電腦已將舊的 `output/{SN}/` 測試資料夾搬移至 FTP/NAS 歸檔，或工程師僅拿到一顆 `.db` 檔案，在總表中點擊任一筆測試紀錄即可直接彈出該次測試的完整 `.py` 摺疊量測明細：
+
+```bash
+# 自動偵測 output/ 下的本機資料庫並開啟瀏覽器儀表板
+sapas summary
+
+# 直接指定任意路徑（如桌面或下載資料夾）的 .db 檔案產出並開啟儀表板
+sapas summary ~/Desktop/sapas_local_FAN_44205100.db
+```
+

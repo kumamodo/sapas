@@ -66,6 +66,8 @@ After each test cycle completes, all artifacts are automatically archived under 
 
 ```text
 output/
+├── sapas_local_{STATION}_{FIXTURE_ID}.db       # High-speed local SQLite station database (WAL mode)
+├── station_summary_{STATION}_{FIXTURE_ID}.html # Interactive station yield & failure dashboard (via sapas summary)
 └── {SN}/
     ├── {SN}_{Timestamp}_{PASS|FAIL|STOP}.html  # Standalone single-file HTML diagnostic report
     ├── {SN}.log                                # Complete console execution log for this SN
@@ -82,3 +84,18 @@ To eliminate the friction of zipping and transferring entire log folders between
   - **Passing Scripts Collapsed by Default (`[+]`)**: Keeps 100+ item reports clean and scannable by grouping sub-items under their parent `.py` script along with pass counts (e.g., `17 / 17 PASS`) and per-script execution duration (`Time`). Click any script row to expand its sub-items.
   - **Failing or Crashed Scripts Auto-Expanded (`[−]`)**: Any `.py` script containing a failed sub-item or an unhandled script crash (`CRITICAL / EXCEPTION`) is **automatically expanded and highlighted in red** upon opening the report.
 - **Embedded Raw Console Log**: Includes a collapsible `Raw Console Log` drawer at the bottom, combining high-level executive summary cards with low-level terminal logs in a single lightweight file.
+
+### 🗄️ Local SQLite Station Database & Interactive Yield Dashboard (`sapas summary`)
+In addition to per-unit diagnostic reports, Sapas records every completed test cycle into `output/sapas_local_{STATION}_{FIXTURE_ID}.db` in `< 2ms` using SQLite `WAL (Write-Ahead Logging)` mode:
+- **Sub-2ms Writes with Zero Column Bloat**: Combines fixed indexed relational columns (`sn`, `test_time`, `status`, `fail_on_py`, `error_code`, `elapsed_sec`, etc.) with a `measurements_json` snapshot column — completely avoiding the `ALTER TABLE` wide-column slowdown seen in legacy frameworks.
+- **In-Browser Interactive Filtering & Real-Time Yield Recalculation**: Run `sapas summary` to generate `station_summary_{STATION}_{FIXTURE_ID}.html`. Inside the browser, engineers can filter by date presets (`Today`, `Yesterday`, `Last 7 Days`, `Last 30 Days`, custom `From ~ To`), status (`PASS` / `FAIL` / `STOP`), or search keywords (`SN` / `ErrCode` / `.py`) — dynamically recalculating **Overall Yield %**, **First Pass Yield (FPY %)**, **Top Failures Pareto**, and **Hourly/Daily Throughput Trends** in real time.
+- **FTP-Resilient Database Snapshot Modal**: Even after old `output/{SN}/` folders are moved from the station PC to FTP/NAS, or when an engineer receives only the `.db` file on their laptop, clicking any test record in the summary table opens an embedded **Database Snapshot Modal** displaying the full collapsible `[+] script.py` measurement table directly from SQLite:
+
+```bash
+# Auto-detect the local database in output/ and open the interactive dashboard
+sapas summary
+
+# Pass any .db file path directly (e.g., on Desktop or Downloads)
+sapas summary ~/Desktop/sapas_local_FAN_44205100.db
+```
+
