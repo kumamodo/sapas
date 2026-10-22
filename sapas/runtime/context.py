@@ -1,7 +1,7 @@
 import os
 import yaml
 from pathlib import Path
-from typing import Union, Optional
+from typing import Union, Optional, Callable, Any
 from datetime import datetime
 
 from sapas.runtime.connection_manager import ConnectionManager
@@ -53,6 +53,7 @@ class ExecutionContext:
         self.config = {}
         self.external = {}
         self.runtime = {}
+        self._listeners: dict[str, list[Callable[[Any], None]]] = {}
 
         # Merge all configurations; the order determines the priority.
         self._merge_config()
@@ -145,6 +146,15 @@ class ExecutionContext:
         warn("[DEPRECATION] inject_sf() is deprecated and will be removed in future versions. Please use inject_yaml() instead.", tag='CONTEXT')
         self.inject_yaml(sf_data)
 
+    def add_listener(self, key: str, callback: Callable[[Any], None]) -> None:
+        """Registers a listener callback invoked whenever a specific runtime variable is modified."""
+        self._listeners.setdefault(key, []).append(callback)
+
+    def remove_listener(self, key: str, callback: Callable[[Any], None]) -> None:
+        """Removes a registered variable listener callback."""
+        if key in self._listeners:
+            self._listeners[key] = [cb for cb in self._listeners[key] if cb != callback]
+
     def set(self, key, value):
         if key == 'ERROR_CODE' and value == 'PASS':
             current = self.runtime.get(key)
@@ -152,7 +162,19 @@ class ExecutionContext:
             # block subsequent attempts to overwrite it back to PASS.
             if current not in (None, 'PASS', 'RUNNING'):
                 return
+        if key == 'SERIAL_NUMBER' and self.runtime.get('_SERIAL_NUMBER_LOCKED'):
+            current = self.runtime.get('SERIAL_NUMBER')
+            if current and value != current:
+                return
+        old_val = self.runtime.get(key)
         self.runtime[key] = value
+
+        if key in self._listeners and value != old_val:
+            for cb in list(self._listeners[key]):
+                try:
+                    cb(value)
+                except Exception:
+                    pass
 
     def get(self, key: str, default=None):
         """

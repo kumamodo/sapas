@@ -1,0 +1,26 @@
+# ==============================================================================
+# STATION MISSION:
+# Automated Fixture & External Trigger Demo Flow
+# Triggered externally via: `sapas trigger start` (Lazy SN mode)
+#
+# Sequence:
+# 1. scan_barcode.py: Scans DUT barcode or generates mock SN, binds via sapas.var.set("SERIAL_NUMBER", sn)
+# 2. verify_voltage.py: Verifies voltage under active load
+# 3. final: Guaranteed fixture release / MES reporting
+# ==============================================================================
+
+start auto_fixture
+    cycle 1
+        verify scan_barcode.py
+        verify verify_voltage.py --sapas-tag FIRST
+        verify get_os_name.py
+stop
+
+on_fail
+    action sleep.py --sec 1
+end
+
+final
+    # Guaranteed teardown / fixture release even on failure
+    action shopfloor_report.py
+end

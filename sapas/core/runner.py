@@ -3,7 +3,10 @@ import time
 import math
 import yaml
 import shlex
+import shutil
+import logging
 import argparse
+import contextlib
 
 from argparse import Namespace
 from datetime import datetime
@@ -486,25 +489,148 @@ class Runner():
 
         return current_idx, False
 
+    def _handle_serial_number_update(self, new_sn: str):
+        if not getattr(self, 'is_lazy_sn', False):
+            clean_new = str(new_sn).strip() if new_sn else ""
+            if clean_new and clean_new != self.serialNumber and clean_new not in ("[SCANNING...]", "WAITING_SN"):
+                warn(f"SERIAL_NUMBER is locked to '{self.serialNumber}' (upfront specified). Ignoring in-flow override attempt '{clean_new}'.", tag='RUNNER')
+            return
+        if not new_sn or not isinstance(new_sn, str):
+            return
+        clean_sn = new_sn.strip()
+        if not clean_sn or clean_sn in ("[SCANNING...]", "WAITING_SN", self.serialNumber):
+            return
+
+        info(f"Lazy SN resolved: '{clean_sn}'. Rebinding output directory and logger...", tag='RUNNER')
+
+        # 1. Close current logger handlers to release file lock on Windows
+        if hasattr(self, 'savelog') and self.savelog:
+            self.savelog.close()
+
+        if hasattr(self, 'logger') and self.logger:
+            for h in list(self.logger.handlers):
+                if isinstance(h, logging.FileHandler):
+                    with contextlib.suppress(Exception):
+                        h.flush()
+                        h.close()
+                    self.logger.removeHandler(h)
+
+        # Also release file lock on active TestItem if running
+        active_item = self.ctx.get("ACTIVE_ITEM")
+        if active_item and hasattr(active_item, "savelog") and active_item.savelog:
+            with contextlib.suppress(Exception):
+                active_item.savelog.close()
+            if hasattr(active_item, "logger") and active_item.logger:
+                for h in list(active_item.logger.handlers):
+                    if isinstance(h, logging.FileHandler):
+                        with contextlib.suppress(Exception):
+                            h.flush()
+                            h.close()
+                        active_item.logger.removeHandler(h)
+
+        old_main_path = self.main_log_path
+        old_time_stamp_folder = self.time_stamp_folder
+        old_log_file = old_main_path / f"{self.serialNumber}.log"
+
+        new_main_path = self.output_root / clean_sn
+        new_time_stamp_folder = new_main_path / self.timeStamp
+        new_log_file = new_main_path / f"{clean_sn}.log"
+
+        new_main_path.mkdir(parents=True, exist_ok=True)
+
+        # Move timestamp folder if it exists
+        if old_time_stamp_folder.exists():
+            if new_time_stamp_folder.exists():
+                for item in old_time_stamp_folder.iterdir():
+                    dest_file = new_time_stamp_folder / item.name
+                    if dest_file.exists():
+                        if dest_file.is_file():
+                            dest_file.unlink(missing_ok=True)
+                        else:
+                            shutil.rmtree(dest_file, ignore_errors=True)
+                    shutil.move(str(item), str(dest_file))
+                shutil.rmtree(old_time_stamp_folder, ignore_errors=True)
+            else:
+                shutil.move(str(old_time_stamp_folder), str(new_time_stamp_folder))
+
+        # Handle log file
+        if old_log_file.exists():
+            if new_log_file.exists():
+                with open(old_log_file, "r", encoding="utf-8", errors="ignore") as f_in,                      open(new_log_file, "a", encoding="utf-8") as f_out:
+                    f_out.write(f_in.read())
+                with contextlib.suppress(Exception):
+                    old_log_file.unlink(missing_ok=True)
+            else:
+                shutil.move(str(old_log_file), str(new_log_file))
+
+        # Handle any remaining files in old_main_path
+        if old_main_path.exists():
+            for item in list(old_main_path.iterdir()):
+                dest = new_main_path / item.name
+                if not dest.exists():
+                    shutil.move(str(item), str(dest))
+            with contextlib.suppress(Exception):
+                shutil.rmtree(old_main_path, ignore_errors=True)
+
+        # Update Runner pointers
+        self.serialNumber = clean_sn
+        self.main_log_path = new_main_path
+        self.time_stamp_folder = new_time_stamp_folder
+        self.stop_test_file_path = self.main_log_path / "stop.test"
+        self.is_lazy_sn = False
+        self.ctx.set('_SERIAL_NUMBER_LOCKED', True)
+
+        # Re-attach new Message logger for Runner
+        self.savelog = Message(str(new_log_file), 'Runner')
+        self.logger = self.savelog.logger
+        self.ctx.set('RUNNER_LOGGER', self.logger)
+
+        # Re-align active TestItem paths & logger if running
+        if active_item:
+            if hasattr(active_item, 'args') and hasattr(active_item.args, 'serialNumber'):
+                active_item.args.serialNumber = clean_sn
+            if hasattr(active_item, 'logs_folder'):
+                active_item.outputFolder = str(new_time_stamp_folder / active_item.logs_folder)
+                if hasattr(active_item, 'pResult') and active_item.pResult:
+                    active_item.pResult.output_path = Path(active_item.outputFolder)
+                if hasattr(active_item, 'logs_name') and active_item.logs_name:
+                    new_item_log = os.path.join(active_item.outputFolder, active_item.logs_name)
+                    active_item.savelog = Message(new_item_log, active_item.logs_folder, self.logger)
+                    active_item.logger = active_item.savelog.logger
+                    self.ctx.set("ACTIVE_LOGGER", active_item.logger)
+
+        info(f"Output directory rebound successfully to: {new_main_path}", tag='RUNNER')
+
     def execute_flows(self, args):
         self.critical_error = False
         self.error_code = None
         self.item_index = 0
 
-        self.serialNumber = args.serialNumber
+        raw_sn = getattr(args, 'serialNumber', None)
+        is_placeholder = not raw_sn or str(raw_sn).strip() in ("", "[SCANNING...]", "WAITING_SN")
         self.timeStamp = args.timeStamp
+        if is_placeholder:
+            self.is_lazy_sn = True
+            self.serialNumber = f"_TEMP_{self.timeStamp}"
+            self.ctx.set('_SERIAL_NUMBER_LOCKED', False)
+        else:
+            self.is_lazy_sn = False
+            self.serialNumber = str(raw_sn).strip()
+            self.ctx.set('_SERIAL_NUMBER_LOCKED', True)
 
         self.output_root = self.workspace_root / "output"
         self.main_log_path = self.output_root / self.serialNumber
         self.time_stamp_folder = self.main_log_path / self.timeStamp
         self.time_stamp_folder.mkdir(parents=True, exist_ok=True)
 
-        savelog = Message(str(self.main_log_path / f"{self.serialNumber}.log"), 'Runner')
+        self.savelog = Message(str(self.main_log_path / f"{self.serialNumber}.log"), 'Runner')
         try:
-            self.logger = savelog.logger
+            self.logger = self.savelog.logger
             self.ctx.set('RUNNER_LOGGER', self.logger)
             self.ctx.set('SERIAL_NUMBER', self.serialNumber)
             self.ctx.set('TIME_STAMP', self.timeStamp)
+
+            self.ctx.add_listener('SERIAL_NUMBER', self._handle_serial_number_update)
 
             # Log deferred deprecation warnings
             deprecation_warnings = self.ctx.get('_DEPRECATION_WARNINGS')
@@ -775,7 +901,11 @@ class Runner():
             except Exception as cleanup_err:
                 error(f"Cleanup encountered an issue: {cleanup_err}", tag='RUNNER')
 
-            savelog.close()
+            if hasattr(self, '_handle_serial_number_update'):
+                self.ctx.remove_listener('SERIAL_NUMBER', self._handle_serial_number_update)
+
+            if hasattr(self, 'savelog') and self.savelog:
+                self.savelog.close()
 
             # Generate Standalone HTML Report for this test session
             final_status = self.ctx.get('ERROR_CODE') or "UNKNOWN"
