@@ -106,6 +106,7 @@ def generate_summary_dashboard(
     <title>Station Quality Dashboard - {safe_station} ({safe_fixture}) | Sapas</title>
     <style>
         :root {{
+            color-scheme: dark;
             --bg-page: #0d1117;
             --bg-card: #161b22;
             --bg-card-subtle: #21262d;
@@ -133,6 +134,26 @@ def generate_summary_dashboard(
             box-sizing: border-box;
             margin: 0;
             padding: 0;
+            scrollbar-width: thin;
+            scrollbar-color: #30363d transparent;
+        }}
+
+        ::-webkit-scrollbar {{
+            width: 6px;
+            height: 6px;
+        }}
+
+        ::-webkit-scrollbar-track {{
+            background: transparent;
+        }}
+
+        ::-webkit-scrollbar-thumb {{
+            background-color: #30363d;
+            border-radius: 999px;
+        }}
+
+        ::-webkit-scrollbar-thumb:hover {{
+            background-color: #484f58;
         }}
 
         body {{
@@ -652,6 +673,79 @@ def generate_summary_dashboard(
             margin-bottom: 28px;
         }}
 
+        .table-scroll-wrap {{
+            max-height: 520px;
+            overflow-y: auto;
+        }}
+
+        .table-scroll-wrap thead th {{
+            position: sticky;
+            top: 0;
+            z-index: 2;
+            background-color: var(--bg-card-subtle);
+            box-shadow: 0 1px 0 var(--border-color);
+        }}
+
+        .pagination-bar {{
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 12px;
+            padding: 10px 16px;
+            background-color: var(--bg-card-subtle);
+            border-top: 1px solid var(--border-color);
+            font-size: 12.5px;
+            color: var(--text-secondary);
+            font-family: var(--font-mono);
+        }}
+
+        .page-controls {{
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }}
+
+        .btn-page {{
+            background-color: var(--bg-card);
+            color: var(--text-primary);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            padding: 4px 10px;
+            font-size: 12px;
+            font-weight: 600;
+            font-family: var(--font-mono);
+            cursor: pointer;
+            transition: all 0.15s ease;
+        }}
+
+        .btn-page:hover:not(:disabled) {{
+            border-color: var(--accent-blue);
+            color: var(--accent-blue);
+            background-color: var(--accent-blue-bg);
+        }}
+
+        .btn-page:disabled {{
+            opacity: 0.38;
+            cursor: not-allowed;
+        }}
+
+        .page-size-select {{
+            background-color: var(--bg-card);
+            color: var(--text-primary);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            padding: 3px 8px;
+            font-size: 12px;
+            font-family: var(--font-mono);
+            outline: none;
+            cursor: pointer;
+        }}
+
+        .page-size-select:focus {{
+            border-color: var(--accent-blue);
+        }}
+
         table {{
             width: 100%;
             table-layout: fixed;
@@ -1038,28 +1132,47 @@ def generate_summary_dashboard(
         <div class="section-title" id="table-title">📋 Test Execution Records (0)</div>
         <div style="display: flex; align-items: center; gap: 12px;">
             <span style="font-size: 12.5px; color: var(--text-secondary);">Click any row to inspect DB snapshot</span>
-            <input type="text" id="search-box" class="search-input" placeholder="🔍 Search SN / ErrCode / .py..." oninput="renderTable()">
+            <input type="text" id="search-box" class="search-input" placeholder="🔍 Search SN / ErrCode / .py..." oninput="onSearchInput()">
         </div>
     </div>
 
     <div class="table-container">
-        <table>
-            <thead>
-                <tr>
-                    <th style="width: 52px;">#</th>
-                    <th style="width: 15%;">Test Time</th>
-                    <th style="width: 15%;">Serial Number</th>
-                    <th style="width: 9%;">Run</th>
-                    <th style="width: 8%;">Status</th>
-                    <th style="width: 14%;">Failed Script</th>
-                    <th style="width: 9%;">ErrCode</th>
-                    <th style="width: 16%;">Description</th>
-                    <th style="width: 6%;">Time</th>
-                    <th style="width: 108px;">Report</th>
-                </tr>
-            </thead>
-            <tbody id="records-tbody"></tbody>
-        </table>
+        <div class="table-scroll-wrap" id="records-scroll-wrap">
+            <table>
+                <thead>
+                    <tr>
+                        <th style="width: 52px;">#</th>
+                        <th style="width: 15%;">Test Time</th>
+                        <th style="width: 15%;">Serial Number</th>
+                        <th style="width: 9%;">Run</th>
+                        <th style="width: 8%;">Status</th>
+                        <th style="width: 14%;">Failed Script</th>
+                        <th style="width: 9%;">ErrCode</th>
+                        <th style="width: 16%;">Description</th>
+                        <th style="width: 6%;">Time</th>
+                        <th style="width: 108px;">Report</th>
+                    </tr>
+                </thead>
+                <tbody id="records-tbody"></tbody>
+            </table>
+        </div>
+        <div class="pagination-bar" id="pagination-bar">
+            <div style="display: flex; align-items: center; gap: 10px;">
+                <span id="page-range-info">Showing 0–0 of 0 records</span>
+                <select id="page-size-select" class="page-size-select" onchange="changePageSize(this.value)">
+                    <option value="25" selected>25 / page</option>
+                    <option value="50">50 / page</option>
+                    <option value="100">100 / page</option>
+                </select>
+            </div>
+            <div class="page-controls">
+                <button class="btn-page" id="btn-page-first" onclick="changeTablePage(1)">⏮ First</button>
+                <button class="btn-page" id="btn-page-prev" onclick="changeTablePage(currentTablePage - 1)">◀ Prev</button>
+                <span id="page-num-info" style="padding: 0 8px; color: var(--text-primary); font-weight: 700;">Page 1 of 1</span>
+                <button class="btn-page" id="btn-page-next" onclick="changeTablePage(currentTablePage + 1)">Next ▶</button>
+                <button class="btn-page" id="btn-page-last" onclick="changeTablePage(totalTablePages)">Last ⏭</button>
+            </div>
+        </div>
     </div>
 
     <div class="footer">
@@ -1116,6 +1229,9 @@ let selectedParetoError = null;
 let selectedRetestFilter = null; // 'ONESHOT' | 'RECOVERED' | 'HARDFAIL' | 'SN:<sn>' | null
 let currentXYMode = 'yield';     // 'yield' | 'cycletime' | 'spc'
 let filteredRecords = [];
+let currentTablePage = 1;
+let tablePageSize = 25;
+let totalTablePages = 1;
 
 function escapeHtml(str) {{
     if (str === null || str === undefined) return '';
@@ -1221,6 +1337,7 @@ function toggleParetoFilter(paretoKey) {{
     }} else {{
         selectedParetoError = paretoKey;
     }}
+    currentTablePage = 1;
     renderPareto();
     renderRetestPanel();
     renderTable();
@@ -1233,6 +1350,7 @@ function toggleRetestFilter(filterKey) {{
     }} else {{
         selectedRetestFilter = filterKey;
     }}
+    currentTablePage = 1;
     renderPareto();
     renderRetestPanel();
     renderTable();
@@ -1241,11 +1359,31 @@ function toggleRetestFilter(filterKey) {{
 function clearParetoFilter() {{
     selectedParetoError = null;
     selectedRetestFilter = null;
+    currentTablePage = 1;
     const sb = document.getElementById('search-box');
     if (sb) sb.value = '';
     renderPareto();
     renderRetestPanel();
     renderTable();
+}}
+
+function onSearchInput() {{
+    currentTablePage = 1;
+    renderTable();
+}}
+
+function changePageSize(newSize) {{
+    tablePageSize = parseInt(newSize, 10) || 25;
+    currentTablePage = 1;
+    renderTable();
+}}
+
+function changeTablePage(targetPage) {{
+    if (targetPage < 1 || targetPage > totalTablePages) return;
+    currentTablePage = targetPage;
+    renderTable();
+    const wrap = document.getElementById('records-scroll-wrap');
+    if (wrap) wrap.scrollTop = 0;
 }}
 
 function setXYChartMode(mode) {{
@@ -1262,6 +1400,7 @@ function setXYChartMode(mode) {{
 function applyFilters() {{
     const fromVal = document.getElementById('date-from').value;
     const toVal = document.getElementById('date-to').value;
+    currentTablePage = 1;
 
     filteredRecords = RAW_RECORDS.filter(r => {{
         const datePart = (r.test_time || '').slice(0, 10);
@@ -1991,13 +2130,46 @@ function renderTable() {{
     }}
 
     if (tableRecords.length === 0) {{
+        totalTablePages = 1;
+        currentTablePage = 1;
+        const rangeInfoEl = document.getElementById('page-range-info');
+        const pageNumEl = document.getElementById('page-num-info');
+        if (rangeInfoEl) rangeInfoEl.textContent = 'Showing 0 of 0 records';
+        if (pageNumEl) pageNumEl.textContent = 'Page 1 of 1';
+        ['btn-page-first', 'btn-page-prev', 'btn-page-next', 'btn-page-last'].forEach(id => {{
+            const b = document.getElementById(id);
+            if (b) b.disabled = true;
+        }});
         tbody.innerHTML = `<tr><td colspan="10" style="text-align: center; color: var(--text-secondary); padding: 32px;">No matching test records found.</td></tr>`;
         return;
     }}
 
-    // Show newest first
+    // Show newest first + paginate
     const reversed = [...tableRecords].reverse();
-    tbody.innerHTML = reversed.map((r, idx) => {{
+    totalTablePages = Math.max(1, Math.ceil(reversed.length / tablePageSize));
+    if (currentTablePage > totalTablePages) currentTablePage = totalTablePages;
+    if (currentTablePage < 1) currentTablePage = 1;
+
+    const startIdx = (currentTablePage - 1) * tablePageSize;
+    const endIdx = Math.min(startIdx + tablePageSize, reversed.length);
+    const pageRows = reversed.slice(startIdx, endIdx);
+
+    const rangeInfoEl = document.getElementById('page-range-info');
+    const pageNumEl = document.getElementById('page-num-info');
+    if (rangeInfoEl) rangeInfoEl.textContent = `Showing ${{startIdx + 1}}–${{endIdx}} of ${{reversed.length}} records`;
+    if (pageNumEl) pageNumEl.textContent = `Page ${{currentTablePage}} of ${{totalTablePages}}`;
+
+    const btnFirst = document.getElementById('btn-page-first');
+    const btnPrev = document.getElementById('btn-page-prev');
+    const btnNext = document.getElementById('btn-page-next');
+    const btnLast = document.getElementById('btn-page-last');
+    if (btnFirst) btnFirst.disabled = currentTablePage <= 1;
+    if (btnPrev) btnPrev.disabled = currentTablePage <= 1;
+    if (btnNext) btnNext.disabled = currentTablePage >= totalTablePages;
+    if (btnLast) btnLast.disabled = currentTablePage >= totalTablePages;
+
+    tbody.innerHTML = pageRows.map((r, idx) => {{
+        const globalIdx = startIdx + idx;
         const st = (r.status || 'UNKNOWN').toUpperCase();
         const isPass = st === 'PASS';
         const isStop = st === 'STOP';
@@ -2011,7 +2183,7 @@ function renderTable() {{
 
         return `
             <tr class="${{rowClass}}" onclick="openSnapshotModal(${{r.id}})">
-                <td class="num-col" style="color: var(--text-secondary); font-size: 12px;">${{reversed.length - idx}}</td>
+                <td class="num-col" style="color: var(--text-secondary); font-size: 12px;">${{reversed.length - globalIdx}}</td>
                 <td class="num-col" title="${{escapeHtml(r.test_time)}}">${{escapeHtml(r.test_time)}}</td>
                 <td class="num-col" style="font-weight: 700; color: var(--text-primary);" title="${{escapeHtml(r.sn)}}">${{escapeHtml(r.sn)}}</td>
                 <td class="num-col" style="color: var(--text-secondary); font-size: 12px;">${{runLabel}}</td>
