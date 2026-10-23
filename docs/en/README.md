@@ -17,9 +17,10 @@ Welcome to the Sapas Documentation Center. This documentation is arranged in lea
 - [06 Script Development Reference (API Reference)](06_script_api_reference.md) - Python script development manual: including var, link, and measure APIs.
 - [07 Quick Station Setup Guide](07_how_to_build_a_station.md) - Step-by-step tutorial: from creating folders to writing your first Flow.
 
-### 4. Maintenance & Support
+### 4. Maintenance, Automation & Industrial Safety
 - [08 Troubleshooting & FAQ](08_troubleshooting_faq.md) - Common error troubleshooting, connection issues, and environment setup Q&A.
 - [09 TUI Dashboard Operation Manual](09_tui_guide.md) - Terminal layout, status indicators visual semantics, hotkeys, and SOP walkthrough.
 - [10 Station Guard & Remote Maintenance Guide](10_station_guard_guide.md) - Safety lock interlock, remote maintenance SOP, Session 0 isolation, and emergency override procedures.
+- [11 Station Trigger & Lazy SN Guide](11_station_trigger_and_lazy_sn_guide.md) - Automated fixture/robot triggers, IPC commands, dynamic serial number rebinding, and industrial safety interlocks.
 
 ---

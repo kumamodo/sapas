@@ -17,9 +17,10 @@
 - [06 腳本開發參考 (API Reference)](06_script_api_reference.md) - Python 腳本開發手冊：包含 var, link, measure API。
 - [07 快速建站指南 (Station Setup)](07_how_to_build_a_station.md) - 手把手教學：從建立資料夾到撰寫第一個 Flow。
 
-### 4. 維護與支援
+### 4. 維護、自動化與工安
 - [08 故障排除與 FAQ (Troubleshooting)](08_troubleshooting_faq.md) - 常見錯誤排除、連線問題與環境設定 Q&A。
 - [09 TUI 儀表板操作指引 (TUI Dashboard Guide)](09_tui_guide.md) - 終端機介面佈局、狀態燈號語意、常用快捷鍵與 SOP 操作說明。
 - [10 機台守護者與遠端維護指南 (Station Guard Guide)](10_station_guard_guide.md) - 工安維護鎖定、遠端除錯 SOP、Session 隔離說明與緊急覆寫機制。
+- [11 外部觸發與延遲序號綁定指南 (Trigger & Lazy SN Guide)](11_station_trigger_and_lazy_sn_guide.md) - 自動化手臂串接、IPC 觸發指令、動態序號熱轉移與遠端工安互鎖防護。
 
 ---
