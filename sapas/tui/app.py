@@ -31,6 +31,16 @@ from sapas.tui.utils.constants import PASS_SYMBOL, FAIL_SYMBOL, SKIP_FLOW_COMMAN
 from sapas.tui.utils.data_types import TestStep, parse_flow_tree
 from sapas.tui.engine.log_interceptor import LogInterceptor
 from sapas.tui.engine.runner_worker import run_flow_in_daemon_thread, run_single_step_in_daemon_thread
+from sapas.trigger import (
+    TriggerServer,
+    ACTION_START,
+    ACTION_STOP,
+    ACTION_STATUS,
+    STATUS_OK,
+    STATUS_BUSY,
+    STATUS_BLOCKED,
+    STATUS_ERROR,
+)
 
 
 sapas_classic_theme = Theme(
@@ -102,6 +112,8 @@ class SapasDashboard(App[None]):
         self._last_lock_data: dict | None = None
         self.is_emergency_brake_active = False
         self._override_event_data: dict | None = None
+        self._trigger_server: TriggerServer | None = None
+        self.is_lazy_sn = False
 
         # Instantiate log parser with callbacks
         self.log_interceptor = LogInterceptor(
@@ -121,6 +133,28 @@ class SapasDashboard(App[None]):
 
     def _handle_context_created(self, context) -> None:
         self.context = context
+        context.add_listener('SERIAL_NUMBER', self._on_serial_number_change_from_runner)
+
+    def _on_serial_number_change_from_runner(self, new_sn: str) -> None:
+        self.call_from_thread(self._update_serial_number_ui, new_sn)
+
+    def _update_serial_number_ui(self, new_sn: str) -> None:
+        if not getattr(self, "is_lazy_sn", False):
+            return
+        if not new_sn:
+            return
+        clean_sn = str(new_sn).strip()
+        if not clean_sn or clean_sn in ("[SCANNING...]", "WAITING_SN"):
+            return
+        self.args.serialNumber = clean_sn
+        try:
+            serial_input = self.query_one("#serial-input", Input)
+            serial_input.value = clean_sn
+        except Exception:
+            pass
+        self.update_info_display()
+        self.write_terminal_log(f"[LAZY-SN] Serial Number updated: {clean_sn}", "bold cyan")
+        self.is_lazy_sn = False
 
     def _handle_cycle_start(self, current_cycle: int, total_cycles: int) -> None:
         self.is_in_fail_block = False
@@ -386,6 +420,15 @@ class SapasDashboard(App[None]):
         self.set_interval(0.1, self.check_signal_quit_request)
         self.set_interval(1, self.toggle_sf_blink)
         self.set_interval(0.5, self.check_station_lock)
+        # External automation trigger server
+        try:
+            self._trigger_server = TriggerServer(handler=self._handle_trigger_action)
+            self._trigger_server.start()
+            self.write_terminal_log(f"[TRIGGER] Automation IPC server active on port {self._trigger_server.port}", "dim")
+        except Exception as e:
+            self.write_terminal_log(f"[WARN] Failed to start trigger server: {e}", "bold yellow")
+            self._trigger_server = None
+
         self.apply_responsive_layout(self.screen.size.width)
         self.query_one("#live-log", LogView).can_focus = False
 
@@ -394,6 +437,12 @@ class SapasDashboard(App[None]):
         if is_remote_session:
             app_root = self.query_one("#app-root")
             app_root.add_class("remote-session")
+        else:
+            # If this is a local station TUI starting up freshly and station is not currently locked,
+            # clear any stale override events so the operator starts with a clean standby dashboard.
+            from sapas.guard.lock_manager import is_locked, clear_override_event
+            if not is_locked():
+                clear_override_event()
         self.update_info_display()
         self.call_after_refresh(self.focus_serial_input)
 
@@ -599,7 +648,11 @@ class SapasDashboard(App[None]):
         self.action_request_quit()
 
     def on_unmount(self) -> None:
-        """Restore the previous SIGINT handler when the app is torn down."""
+        """Restore the previous SIGINT handler and stop background IPC servers."""
+        if hasattr(self, "_trigger_server") and self._trigger_server:
+            with contextlib.suppress(Exception):
+                self._trigger_server.stop()
+                self._trigger_server = None
         if self._previous_sigint_handler is not None:
             with contextlib.suppress(Exception):
                 signal.signal(signal.SIGINT, self._previous_sigint_handler)
@@ -1423,7 +1476,105 @@ class SapasDashboard(App[None]):
         except Exception:
             self.set_focus(None)
 
-    def start_cycle(self, serial_number: str) -> None:
+    def _handle_trigger_action(self, action: str, payload: dict) -> dict:
+        """Dispatches external IPC commands (start, stop, status)."""
+        if action == ACTION_STATUS:
+            state = "TESTING" if self.is_testing else ("EMERGENCY_BRAKE" if self.is_emergency_brake_active else ("LOCKED" if self.is_station_remote_locked else ("DEBUG" if self.is_debug_mode else "IDLE")))
+            elapsed_str = f"{(datetime.now() - self.started_at).total_seconds():.1f}s" if self.is_testing and self.started_at else ""
+            return {
+                "status": STATUS_OK,
+                "state": state,
+                "sn": getattr(self.args, "serialNumber", "") or "",
+                "elapsed": elapsed_str,
+                "is_testing": self.is_testing,
+                "is_locked": self.is_station_remote_locked,
+                "is_emergency": self.is_emergency_brake_active,
+                "is_debug": self.is_debug_mode,
+            }
+        elif action == ACTION_STOP:
+            if not self.is_testing:
+                return {"status": STATUS_OK, "message": "No test running to stop."}
+            self.call_from_thread(self.request_test_stop)
+            return {"status": STATUS_OK, "message": "Stop requested."}
+        elif action == ACTION_START:
+            caller = payload.get("caller", {}) if isinstance(payload, dict) else {}
+            caller_is_ssh = caller.get("is_ssh", False)
+            caller_ip = caller.get("ip", "Unknown IP")
+
+            if self.is_emergency_brake_active:
+                return {"status": STATUS_BLOCKED, "error": "EMERGENCY BRAKE ACTIVE! Station is unlocked on-site."}
+
+            # Industrial Safety Interlock:
+            # Remote trigger via SSH while station is in local production mode (not locked) is strictly forbidden!
+            if caller_is_ssh and not self.is_station_remote_locked:
+                self.bell()
+                self.write_terminal_log("!" * 70, "bold red")
+                self.write_terminal_log(f" [SAFETY ALERT] Blocked unlocked remote SSH trigger attempt from {caller_ip}!", "bold white on red")
+                self.write_terminal_log("                Remote actuation without Station Guard lock is strictly forbidden.", "bold yellow")
+                self.write_terminal_log("!" * 70, "bold red")
+
+                active_sn = getattr(self.args, "serialNumber", "") or ""
+                elapsed_str = f"{(datetime.now() - self.started_at).total_seconds():.1f}s" if self.is_testing and self.started_at else ""
+
+                if self.is_testing:
+                    error_msg = (
+                        f"\n  [bold white on red] [!] ON-SITE TEST IN PROGRESS - FIXTURE OCCUPIED [/]\n\n"
+                        f"  * Current Status : [bold white on red] RUNNING TEST [/] (Local operator actively testing)\n"
+                        f"  * Active Serial  : [bold bright_cyan]{active_sn}[/]\n"
+                        f"  * Elapsed Time   : [bold bright_yellow]{elapsed_str}[/]\n\n"
+                        f"  [bold yellow]SAFETY INTERLOCK:[/] Remote trigger via SSH (from {caller_ip}) is strictly forbidden\n"
+                        f"  while station is in local production mode without Station Guard lock.\n\n"
+                        f"  [bold white on red] ATTENTION [/] [bold bright_yellow]DO NOT INTERFERE:[/] An on-site operator is currently working at this fixture.\n"
+                        f"  Please do [bold red]NOT[/] interrupt or run 'sapas guard lock' until the ongoing test finishes!"
+                    )
+                else:
+                    error_msg = (
+                        f"SAFETY HAZARD: Remote trigger via SSH (from {caller_ip}) is strictly forbidden "
+                        f"while station is in local production mode without Station Guard lock!\n\n"
+                        f"  * Station Status : [dim]IDLE (Standby for local operator)[/]\n"
+                        f"  [bold yellow]=> Action Required:[/] Please run [bold green]'sapas guard lock'[/] first to alert on-site personnel before remote actuation."
+                    )
+
+                return {
+                    "status": STATUS_BLOCKED,
+                    "error": error_msg,
+                    "is_testing": self.is_testing,
+                    "sn": active_sn,
+                    "elapsed": elapsed_str,
+                }
+
+            if self.is_station_remote_locked:
+                is_remote_session = bool(os.environ.get("SSH_CLIENT") or os.environ.get("SSH_CONNECTION"))
+                if not is_remote_session and not caller_is_ssh:
+                    return {"status": STATUS_BLOCKED, "error": "Station is locked for remote maintenance."}
+            if self.is_debug_mode:
+                return {"status": STATUS_BLOCKED, "error": "Station is in Debug Mode."}
+            if self.is_testing:
+                active_sn = getattr(self.args, "serialNumber", "") or ""
+                elapsed_str = f"{(datetime.now() - self.started_at).total_seconds():.1f}s" if self.is_testing and self.started_at else ""
+                details = []
+                if active_sn:
+                    details.append(f"SN: {active_sn}")
+                if elapsed_str:
+                    details.append(f"elapsed {elapsed_str}")
+                detail_str = f" ({', '.join(details)})" if details else ""
+                return {
+                    "status": STATUS_BUSY,
+                    "error": f"A test is already running{detail_str}.",
+                    "sn": active_sn,
+                    "elapsed": elapsed_str,
+                }
+
+            sn = payload.get("sn", "")
+            self.call_from_thread(self.start_cycle, sn, True)
+            return {
+                "status": STATUS_OK,
+                "message": f"Test cycle started with SN='{sn}'" if sn else "Test cycle started in Lazy SN mode"
+            }
+        else:
+            return {"status": STATUS_ERROR, "error": f"Unknown trigger action: {action}"}
+
+    def start_cycle(self, serial_number: str = "", allow_lazy: bool = False) -> None:
         """Validates current state constraints before spawning execution cycles."""
         clean_sn = serial_number.strip() if serial_number else ""
         if self.is_emergency_brake_active:
@@ -1443,7 +1594,10 @@ class SapasDashboard(App[None]):
                 self.write_terminal_log("[BLOCK] Station is locked for remote maintenance! Local test execution blocked.", "bold red")
                 self.focus_serial_input()
                 return
-        if self.is_testing or not clean_sn:
+        if self.is_testing:
+            self.focus_serial_input()
+            return
+        if not clean_sn and not allow_lazy:
             self.focus_serial_input()
             return
         if self.is_debug_mode:
@@ -1456,7 +1610,9 @@ class SapasDashboard(App[None]):
             self.query_one("#items-table", StepsTable).focus()
         except Exception:
             self.set_focus(None)
-        self._cycle_task = asyncio.create_task(self.run_station_cycle(clean_sn))
+        target_sn = clean_sn if clean_sn else "[SCANNING...]"
+        self.is_lazy_sn = not clean_sn
+        self._cycle_task = asyncio.create_task(self.run_station_cycle(target_sn))
 
     async def run_station_cycle(self, serial_number: str) -> None:
         """Core Orchestrator Loop: Executes a full automated production-line cycle flow safely."""
@@ -1482,7 +1638,10 @@ class SapasDashboard(App[None]):
         serial_input.value = serial_number
         self.started_at = datetime.now()
         self.set_error_code("RUNNING", "running")
-        self.write_terminal_log(f"Serial Number accepted: {serial_number}", "bold")
+        if serial_number == "[SCANNING...]":
+            self.write_terminal_log("External trigger received: Lazy SN mode active (waiting for barcode scan)...", "bold cyan")
+        else:
+            self.write_terminal_log(f"Serial Number accepted: {serial_number}", "bold")
         self.write_terminal_log("Station interlock engaged. Real Sapas flow started.", "yellow")
 
         # Offload synchronous execution without blocking Textual's message pump or app shutdown.

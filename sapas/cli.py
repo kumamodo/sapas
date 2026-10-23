@@ -182,7 +182,7 @@ def setup_context(args):
 
 
 def print_guard_help() -> None:
-    help_text = """
+    help_text = r"""
 [bold cyan]Sapas Station Guard[/] - Remote Maintenance Lock & Station Protection
 
 [bold]Usage:[/]
@@ -443,8 +443,116 @@ def handle_guard_cli(argv: list[str]) -> None:
         sys.exit(1)
 
 
-def print_summary_help() -> None:
+def print_trigger_help() -> None:
     help_text = """
+[bold cyan]Sapas Station Trigger[/] - Remote Automation & External Fixture Trigger
+
+[bold]Usage:[/]
+  sapas trigger <command> [options]
+
+[bold]Commands:[/]
+  [bold green]start[/] [--sn <serial>]   Trigger an automated test cycle on active Sapas TUI
+  [bold green]stop[/]                   Send a cooperative stop request to active test cycle
+  [bold green]status[/]                 Query runtime state of active Sapas TUI session
+
+[bold]Options:[/]
+  --sn <serial_number>   Optionally specify a serial number (otherwise runs in Lazy SN mode)
+
+[bold]Examples:[/]
+  sapas trigger start
+  sapas trigger start --sn ABC123456789
+  sapas trigger stop
+  sapas trigger status
+"""
+    console.print(help_text.strip())
+
+
+def handle_trigger_cli(argv: list[str]) -> None:
+    """Handles sapas trigger subcommands (start, stop, status)."""
+    if not argv or argv[0].lower() in ('-h', '--help', 'help'):
+        print_trigger_help()
+        sys.exit(0)
+
+    subcmd = argv[0].lower()
+    from sapas.trigger import send_trigger, STATUS_OK, STATUS_BUSY, STATUS_BLOCKED
+
+    if subcmd == 'start':
+        sn = ''
+        parser = argparse.ArgumentParser(add_help=False)
+        parser.add_argument('--sn', default='')
+        parsed, _ = parser.parse_known_args(argv[1:])
+        sn = parsed.sn.strip() if parsed.sn else ''
+
+        resp = send_trigger('start', sn=sn)
+        status = resp.get('status')
+        pid = resp.get('pid')
+
+        if status == STATUS_OK:
+            sn_info = f' (SN: {sn})' if sn else ' (Lazy SN mode)'
+            console.print(f'[bold green][OK][/] Triggered test cycle on active Sapas TUI (PID {pid}){sn_info}.')
+            sys.exit(0)
+        elif status == STATUS_BUSY:
+            err_msg = resp.get("error") or resp.get("message") or "A test is currently running."
+            console.print(f'[bold yellow][BUSY][/] Sapas TUI (PID {pid}) rejected trigger:\n  {err_msg}', highlight=False)
+            sys.exit(2)
+        elif status == STATUS_BLOCKED:
+            err_msg = resp.get("error") or resp.get("message", "Blocked")
+            console.print(f'[bold red][BLOCKED][/] Sapas TUI (PID {pid}) rejected trigger:\n  {err_msg}', highlight=False)
+            sys.exit(3)
+        else:
+            console.print(f'[bold red][ERROR][/] Failed to trigger Sapas TUI: {resp.get("detail") or resp.get("message")}')
+            sys.exit(1)
+
+    elif subcmd == 'stop':
+        resp = send_trigger('stop')
+        status = resp.get('status')
+        pid = resp.get('pid')
+
+        if status == STATUS_OK:
+            console.print(f'[bold yellow][OK][/] Stop request sent to active Sapas TUI (PID {pid}).')
+            sys.exit(0)
+        else:
+            console.print(f'[bold red][ERROR][/] Failed to stop Sapas TUI: {resp.get("detail") or resp.get("message")}')
+            sys.exit(1)
+
+    elif subcmd == 'status':
+        resp = send_trigger('status')
+        status = resp.get('status')
+        pid = resp.get('pid')
+
+        if status == STATUS_OK:
+            state = resp.get('state', 'UNKNOWN')
+            sn = resp.get('sn', '')
+            cycle = resp.get('cycle', '')
+            elapsed = resp.get('elapsed', '')
+            is_locked = resp.get('is_locked', False)
+            panel_text = Text()
+            panel_text.append(f'PID         : {pid}\n', style='bold cyan')
+            state_style = 'bold green' if state == 'IDLE' else ('bold cyan' if state == 'TESTING' else 'bold red')
+            panel_text.append(f'State       : {state}\n', style=state_style)
+            if sn:
+                panel_text.append(f'Active SN   : {sn}\n', style='white')
+            if elapsed:
+                panel_text.append(f'Elapsed     : {elapsed}\n', style='yellow')
+            if cycle:
+                panel_text.append(f'Cycle       : {cycle}\n', style='dim')
+            lock_label = "LOCKED (Station Guard active)" if is_locked else "UNLOCKED (Local production mode)"
+            lock_style = "bold yellow" if is_locked else "bold green"
+            panel_text.append(f'Guard Lock  : {lock_label}\n', style=lock_style)
+            console.print(Panel(panel_text, title='[bold]Sapas TUI Status[/]', border_style='cyan'))
+            sys.exit(0)
+        else:
+            console.print(f'[bold red][ERROR][/] Unable to query Sapas TUI: {resp.get("detail") or resp.get("message")}')
+            sys.exit(1)
+
+    else:
+        console.print(f"[bold red][Error] Unknown trigger command '{subcmd}'.[/]")
+        print_trigger_help()
+        sys.exit(1)
+
+
+def print_summary_help() -> None:
+    help_text = r"""
 [bold cyan]Sapas Station Summary[/] - Interactive Station Yield & Quality Dashboard
 
 [bold]Usage:[/]
@@ -564,12 +672,15 @@ def main():
     elif first_arg == "summary":
         handle_summary_cli(sys.argv[2:])
         return
+    elif first_arg == "trigger":
+        handle_trigger_cli(sys.argv[2:])
+        return
     elif first_arg in ("lock", "unlock"):
         console.print(f"[yellow][Notice] Unknown command 'sapas {first_arg}'. Did you mean [bold cyan]sapas guard {first_arg}[/]?[/]")
         sys.exit(1)
     elif first_arg:
         import difflib
-        matches = difflib.get_close_matches(first_arg, ["guard", "summary"], n=1, cutoff=0.7)
+        matches = difflib.get_close_matches(first_arg, ["guard", "summary", "trigger"], n=1, cutoff=0.7)
         if matches and not Path(first_arg).exists():
             console.print(f"[bold red][Error] Unknown command '{first_arg}'.[/]")
             console.print(f"[bold yellow]Did you mean:[/] [bold cyan]sapas {matches[0]}[/]?\n")
@@ -586,9 +697,10 @@ def main():
     args, remaining_args = parser.parse_known_args()
 
     # Auto-guard interlock: If remote engineer executes a test without locking, auto-engage Station Guard
-    from sapas.guard.lock_manager import ensure_remote_guard_lock, get_override_event
+    from sapas.guard.lock_manager import ensure_remote_guard_lock, get_override_event, is_locked, clear_override_event
     override_evt = get_override_event()
-    if override_evt and (os.environ.get("SSH_CLIENT") or os.environ.get("SSH_CONNECTION")):
+    is_remote = bool(os.environ.get("SSH_CLIENT") or os.environ.get("SSH_CONNECTION"))
+    if override_evt and is_remote:
         console.print(Panel(
             Text.assemble(
                 ("[!] [DANGER] STATION WAS FORCEFULLY UNLOCKED ON-SITE!\n\n", "bold white on red"),
@@ -602,6 +714,10 @@ def main():
             border_style="red"
         ))
         sys.exit(1)
+    elif override_evt and not is_remote:
+        # If running locally on station PC and not locked, clear stale override event
+        if not is_locked():
+            clear_override_event()
 
     auto_locked = ensure_remote_guard_lock()
     if auto_locked:

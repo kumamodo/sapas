@@ -44,4 +44,6 @@ class RemoteRestartScreen(ModalScreen[None]):
         self.action_confirm()
 
     def action_confirm(self) -> None:
+        from sapas.guard.lock_manager import clear_override_event
+        clear_override_event()
         self.app.exit()

@@ -223,6 +223,23 @@ class TestItem(BaseItem, ABC):
         Returns:
             int: Execution status code (0 for PASS, 80 for FAIL).
         """
+        # Check if serial number was rebound dynamically from a temporary/placeholder SN (Lazy SN mode)
+        current_sn = ctx.get('SERIAL_NUMBER')
+        if current_sn and hasattr(self, 'args') and hasattr(self.args, 'serialNumber'):
+            orig_sn = str(self.args.serialNumber).strip()
+            is_orig_temp = not orig_sn or orig_sn.startswith("_TEMP_") or orig_sn in ("[SCANNING...]", "WAITING_SN")
+            is_new_valid = current_sn and not str(current_sn).startswith("_TEMP_") and current_sn not in ("[SCANNING...]", "WAITING_SN")
+            if is_orig_temp and is_new_valid and current_sn != orig_sn:
+                self.args.serialNumber = current_sn
+                workspace_root = ctx.get('WORKSPACE_ROOT')
+                self.outputFolder = os.path.join(
+                    workspace_root, 'output', current_sn, self.args.timeStamp, self.logs_folder
+                )
+                os.makedirs(self.outputFolder, exist_ok=True)
+                if hasattr(self, 'pResult') and self.pResult:
+                    from pathlib import Path
+                    self.pResult.output_path = Path(self.outputFolder)
+
         # Before saving, convert the proxy dictionary back
         # into a list that matches the CSV column order.
         self.measure_value = self._measure_proxy.to_list()
