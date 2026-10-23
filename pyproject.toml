@@ -23,3 +23,6 @@ sapas = "sapas.cli:main"
 
 [tool.setuptools.packages.find]
 include = ["sapas*"]
+
+[tool.setuptools.package-data]
+"sapas" = ["py.typed", "**/*.tcss"]
