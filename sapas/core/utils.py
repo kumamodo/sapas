@@ -97,3 +97,21 @@ def load_yaml(path: Path) -> dict:
         data = yaml.safe_load(f)
 
     return data or {}
+
+
+def resolve_script_version(project_dir: Path, fallback: str | None = None) -> str:
+    """Resolve SCRIPT_VERSION from <project_dir>/configs/version.yaml (case-insensitive)."""
+    ver_path = project_dir / "configs" / "version.yaml"
+    if ver_path.is_file():
+        try:
+            data = load_yaml(ver_path)
+            if isinstance(data, dict):
+                lowered = {str(k).strip().lower(): v for k, v in data.items()}
+                raw_ver = lowered.get("script_version") or lowered.get("version")
+                if raw_ver is not None and str(raw_ver).strip():
+                    return str(raw_ver).strip()
+        except Exception:
+            pass
+    if fallback is not None and str(fallback).strip():
+        return str(fallback).strip()
+    return "v0.0.0"

@@ -1,1 +1,2 @@
-version: v0.1.0
+# Project test script version (accessible via sapas.var.get("SCRIPT_VERSION"))
+SCRIPT_VERSION: v0.2.0

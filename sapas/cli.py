@@ -15,7 +15,7 @@ from rich.columns import Columns
 from sapas.runtime.context import ExecutionContext
 import sapas.runtime.runtime as rt
 from sapas.core.runner import Runner
-from sapas.core.utils import load_yaml
+from sapas.core.utils import load_yaml, resolve_script_version
 
 
 console = Console()
@@ -164,9 +164,12 @@ def setup_context(args):
 
     # Create a single unified Context and connect it to the global rt registry/bus.
     context = ExecutionContext(station_var, project_var, env_cfg=env)
+    script_version = resolve_script_version(project_dir, fallback=context.get('SCRIPT_VERSION'))
     context.set('WORKSPACE_ROOT', str(workspace_root))
+    context.set('PROJECT_DIR', str(project_dir))
     context.set('PROJECT_NAME', project_name)
     context.set('STATION_NAME', station_name)
+    context.set('SCRIPT_VERSION', script_version)
 
     # Remote safety & quality guard: Force ENABLE_SHOPFLOOR to False during remote SSH or maintenance lock
     is_remote_session = bool(os.environ.get("SSH_CLIENT") or os.environ.get("SSH_CONNECTION"))

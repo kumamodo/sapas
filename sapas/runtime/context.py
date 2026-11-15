@@ -217,8 +217,10 @@ class ExecutionContext:
         # Protected keys that must survive the reset to maintain framework operation.
         PROTECTED_SYSTEM_KEYS = {
             'WORKSPACE_ROOT',
+            'PROJECT_DIR',
             'PROJECT_NAME',
             'STATION_NAME',
+            'SCRIPT_VERSION',
             'RUNNER_LOGGER',
             'IS_FAIL_STOP',
             'IS_EXCEPTION_STOP',

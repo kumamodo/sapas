@@ -678,16 +678,12 @@ class SapasDashboard(App[None]):
         station_name = self.context.get("STATION_NAME", "Unknown")
         project_name = self.context.get("PROJECT_NAME", "Unknown")
         workspace_root = Path(self.context.get("WORKSPACE_ROOT", Path.cwd()))
+        project_dir = Path(self.context.get("PROJECT_DIR") or (workspace_root / project_name))
         
         # 2. Parse version.yaml configuration file dynamically
-        ver_path = workspace_root / project_name / "configs" / "version.yaml"
-        script_version = "v0.0.0"
-        try:
-            with open(ver_path, "r", encoding="utf-8") as f:
-                data = yaml.safe_load(f)
-                script_version = data.get("version", "v0.0.0")
-        except Exception:
-            pass
+        from sapas.core.utils import resolve_script_version
+        script_version = resolve_script_version(project_dir, fallback=self.context.get("SCRIPT_VERSION"))
+        self.context.set("SCRIPT_VERSION", script_version)
 
         # 3. Calculate target test flow layout descriptor
         requested_flow = self.args.test_flow or self.context.env.get("TEST_FLOW") or f"{station_name}.flow"
@@ -721,7 +717,7 @@ class SapasDashboard(App[None]):
         info_text = (
             f"Project: {project_name}\n"
             f"Station: {station_name} ▸ {requested_flow}\n"
-            f"Script:  {script_version}"
+            f"Version: {script_version}"
         )
         self.query_one("#info-value", Static).update(info_text)
         
