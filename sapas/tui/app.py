@@ -153,8 +153,9 @@ class SapasDashboard(App[None]):
         except Exception:
             pass
         self.update_info_display()
-        self.write_terminal_log(f"[LAZY-SN] Serial Number updated: {clean_sn}", "bold cyan")
-        self.is_lazy_sn = False
+        if not clean_sn.startswith("_TEMP_"):
+            self.write_terminal_log(f"[LAZY-SN] Serial Number updated: {clean_sn}", "bold cyan")
+            self.is_lazy_sn = False
 
     def _handle_cycle_start(self, current_cycle: int, total_cycles: int) -> None:
         self.is_in_fail_block = False
@@ -1670,6 +1671,13 @@ class SapasDashboard(App[None]):
         self.query_one("#elapsed-time", Digits).update(f"{int(hours):02d}:{int(minutes):02d}:{int(seconds):02d}")
 
         self.context = context
+        if context:
+            final_sn = str(context.get("SERIAL_NUMBER") or "").strip()
+            current_ui_sn = str(getattr(self.args, "serialNumber", "") or "").strip()
+            if final_sn and final_sn not in ("[SCANNING...]", "WAITING_SN") and current_ui_sn in ("", "[SCANNING...]", "WAITING_SN"):
+                self.args.serialNumber = final_sn
+                serial_input.value = final_sn
+                self.update_info_display()
 
         # Process final evaluation results and trigger appropriate TUI styling
         error_code = context.get("ERROR_CODE", final_status) if context else final_status
